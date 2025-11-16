@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining Portal - Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --mc-red: #d62828;
+      --mc-yellow: #ffcc00;
+      --mc-dark: #111827;
+      --mc-muted: #6b7280;
+      --bg: #f3f4f6;
+      --card-bg: #ffffff;
+      --border-subtle: #e5e7eb;
+      --radius-lg: 18px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--mc-dark);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: 240px;
+      background: var(--mc-dark);
+      color: #f9fafb;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 16px;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .logo-circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #d62828;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: #ffcc00;
+      font-size: 24px;
+    }
+
+    .sidebar-header-text h1 {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .sidebar-header-text p {
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+
+    .nav-section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
+      margin: 10px 2px 6px;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item {
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .nav-item.active {
+      background: #111827;
+    }
+
+    .nav-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--mc-yellow);
+    }
+
+    .nav-item span.emoji {
+      font-size: 1.1rem;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      font-size: 0.75rem;
+      color: #9ca3af;
+      border-top: 1px solid #1f2937;
+      padding-top: 10px;
+    }
+
+    .sidebar-footer strong {
+      color: #e5e7eb;
+    }
+
+    .main-layout {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      padding: 16px 18px;
+      gap: 16px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .content-area {
+      flex: 2.1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .top-bar-left h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .top-bar-left p {
+      font-size: 0.8rem;
+      color: var(--mc-muted);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fee2e2;
+      color: #991b1b;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.7rem;
+    }
+
+    .top-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-role {
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      background: #111827;
+      color: #f9fafb;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: #fbbf24;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      border: 2px solid #f59e0b;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 12px 13px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--mc-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .card-icon {
+      font-size: 1.1rem;
+    }
+
+    .card-main-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .card-subtext {
+      font-size: 0.75rem;
+      color: var(--mc-muted);
+    }
+
+    .subsection-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .subsection-sub {
+      font-size: 0.78rem;
+      color: var(--mc-muted);
+      margin-bottom: 8px;
+    }
+
+    .section-card {
+      margin-top: 2px;
+    }
+
+    .list {
+      list-style: none;
+      font-size: 0.8rem;
+      color: #374151;
+    }
+
+    .list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px dashed #e5e7eb;
+    }
+
+    .list li:last-child {
+      border-bottom: none;
+    }
+
+    .badge-soft {
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-size: 0.7rem;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .badge-soft-danger {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .badge-soft-warn {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    /* AI panel */
+    .ai-panel {
+      flex: 1.3;
+      display: flex;
+      flex-direction: column;
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 12px 25px rgba(15, 23, 42, 0.06);
+      padding: 10px;
+      max-height: calc(100vh - 32px);
+      position: sticky;
+      top: 16px;
+    }
+
+    .ai-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .ai-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ai-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #d62828;
+      color: #ffcc00;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .ai-header-text h3 {
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+
+    .ai-header-text p {
+      font-size: 0.72rem;
+      color: var(--mc-muted);
+    }
+
+    .ai-status {
+      font-size: 0.7rem;
+      color: #16a34a;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .ai-status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    .ai-chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 2px 6px 2px;
+      margin-bottom: 6px;
+      scrollbar-width: thin;
+    }
+
+    .message {
+      margin-bottom: 8px;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      max-width: 96%;
+    }
+
+    .msg-user {
+      text-align: right;
+    }
+
+    .msg-user .bubble {
+      display: inline-block;
+      background: #111827;
+      color: #f9fafb;
+      padding: 6px 9px;
+      border-radius: 12px 12px 2px 12px;
+    }
+
+    .msg-bot .bubble {
+      display: inline-block;
+      background: #f3f4f6;
+      color: #111827;
+      padding: 6px 9px;
+      border-radius: 12px 12px 12px 2px;
+    }
+
+    .msg-meta {
+      font-size: 0.65rem;
+      color: var(--mc-muted);
+      margin-top: 2px;
+    }
+
+    .ai-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 6px;
+    }
+
+    .suggestion-chip {
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 4px 8px;
+      font-size: 0.7rem;
+      background: #f9fafb;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.08s ease;
+    }
+
+    .suggestion-chip:hover {
+      background: #f3f4f6;
+      transform: translateY(-1px);
+    }
+
+    .ai-input-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 4px 6px;
+      background: #f9fafb;
+    }
+
+    .ai-input-row input {
+      border: none;
+      outline: none;
+      font-size: 0.8rem;
+      background: transparent;
+      flex: 1;
+    }
+
+    .ai-send-btn {
+      border-radius: 999px;
+      border: none;
+      padding: 5px 9px;
+      font-size: 0.8rem;
+      background: #111827;
+      color: #f9fafb;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .ai-send-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+      }
+      .sidebar-header-text p {
+        display: none;
+      }
+      .nav-section-title,
+      .sidebar-footer {
+        display: none;
+      }
+      .nav-list {
+        flex-direction: row;
+      }
+      .nav-item {
+        padding: 6px 10px;
+      }
+
+      .main-layout {
+        flex-direction: column;
+        padding: 10px;
+      }
+
+      .ai-panel {
+        position: static;
+        max-height: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Smart tools for busy restaurants</p>
+      </div>
+    </div>
+
+    <div class="nav-section-title">Main</div>
+    <ul class="nav-list">
+      <li class="nav-item active" onclick="location.href='main.html'">
+        <span class="nav-dot"></span>
+        <span>Dashboard</span>
+      </li>
+      <li class="nav-item" onclick="location.href='training.html'">
+        <span class="emoji">📚</span>
+        <span>Training</span>
+      </li>
+      <li class="nav-item">
+        <span class="emoji">🧑‍🍳</span>
+        <span>Stations</span>
+      </li>
+      <li class="nav-item">
+        <span class="emoji">🕒</span>
+        <span>Shifts</span>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      Signed in as<br />
+      <strong id="sidebarUserName">—</strong><br />
+      <span id="sidebarUserRole">—</span>
+    </div>
+  </aside>
+
+  <main class="main-layout">
+    <section class="content-area">
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <h2 id="welcomeTitle">Welcome</h2>
+          <p id="welcomeSubtitle">Loading your dashboard…</p>
+        </div>
+        <div class="top-bar-right">
+          <span class="chip" id="statusChip">
+            <span>🍟</span>
+            <span>Demo data only</span>
+          </span>
+          <span class="badge-role" id="roleBadge">Role</span>
+          <div class="avatar" id="avatarCircle">U</div>
+        </div>
+      </div>
+
+      <div class="cards-grid" id="topCards"></div>
+
+      <div class="card section-card" id="bottomSection"></div>
+    </section>
+
+    <aside class="ai-panel">
+      <div class="ai-header">
+        <div class="ai-header-left">
+          <div class="ai-avatar">🤖</div>
+          <div class="ai-header-text">
+            <h3>McAssist</h3>
+            <p id="aiSubtitle">Your McDonald's AI helper</p>
+          </div>
+        </div>
+        <div class="ai-status">
+          <span class="ai-status-dot"></span>
+          <span>Online</span>
+        </div>
+      </div>
+
+      <div class="ai-suggestions" id="aiSuggestions"></div>
+
+      <div class="ai-chat" id="aiChat"></div>
+
+      <form class="ai-input-row" id="aiForm">
+        <input
+          type="text"
+          id="aiInput"
+          placeholder="Ask about your hours, pay, training or store performance…"
+          autocomplete="off"
+        />
+        <button type="submit" class="ai-send-btn" id="aiSendBtn">
+          <span>Send</span>
+          <span>↗</span>
+        </button>
+      </form>
+    </aside>
+  </main>
+
+  <script>
+    // ---------- Mock Data ----------
+    const crewProfiles = {
+      crew001: {
+        id: "crew001",
+        name: "Alex Johnson",
+        role: "Crew Member",
+        position: "Front Counter",
+        hourlyRate: 10.5,
+        hoursThisWeek: 18.5,
+        estimatedPayThisWeek: 194.25,
+        nextShift: { day: "Mon", date: "2025-11-17", start: "17:00", end: "23:00" },
+        certifications: ["Front Counter", "Fries"],
+        trainingTodo: ["Drive-Thru Module 2", "Food Safety Level 2"],
+        achievements: [
+          { title: "Customer Compliment", date: "2025-11-10" },
+          { title: "Perfect Mystery Shop", date: "2025-11-01" }
+        ],
+        schedule: [
+          { day: "Mon", time: "17:00–23:00" },
+          { day: "Wed", time: "10:00–16:00" },
+          { day: "Sat", time: "12:00–20:00" }
+        ]
+      }
+    };
+
+    const managerProfiles = {
+      mgr001: {
+        id: "mgr001",
+        name: "Sarah Williams",
+        role: "Restaurant Manager",
+        storeName: "High Street McDonald's",
+        todaySales: 4320,
+        weekSales: 25500,
+        todayWasteValue: 43,
+        todayWastePct: 1.0,
+        staffOnShift: 9,
+        staffNeeded: 10,
+        trainingGaps: 3,
+        potentialOvertime: 2,
+        foodWasteByDay: [
+          { day: "Mon", value: 52 },
+          { day: "Tue", value: 39 },
+          { day: "Wed", value: 47 },
+          { day: "Thu", value: 41 },
+          { day: "Fri", value: 65 }
+        ],
+        crewTrainingSummary: [
+          { name: "Alex Johnson", status: "Drive-Thru not started", badge: "Needs training" },
+          { name: "Maria Lopez", status: "All stations certified", badge: "Star performer" },
+          { name: "James Lee", status: "Food Safety expires soon", badge: "Action needed" }
+        ]
+      }
+    };
+
+    const sessionUser = (function () {
+      try {
+        const raw = localStorage.getItem("mc_session_user");
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    })();
+
+    if (!sessionUser) {
+      window.location.href = "index.html";
+    }
+
+    const sidebarUserName = document.getElementById("sidebarUserName");
+    const sidebarUserRole = document.getElementById("sidebarUserRole");
+    const welcomeTitle = document.getElementById("welcomeTitle");
+    const welcomeSubtitle = document.getElementById("welcomeSubtitle");
+    const roleBadge = document.getElementById("roleBadge");
+    const avatarCircle = document.getElementById("avatarCircle");
+    const topCards = document.getElementById("topCards");
+    const bottomSection = document.getElementById("bottomSection");
+    const aiSubtitle = document.getElementById("aiSubtitle");
+    const aiSuggestions = document.getElementById("aiSuggestions");
+    const aiChat = document.getElementById("aiChat");
+    const aiForm = document.getElementById("aiForm");
+    const aiInput = document.getElementById("aiInput");
+    const aiSendBtn = document.getElementById("aiSendBtn");
+
+    function initialiseDashboard() {
+      const userId = sessionUser.id;
+      const isCrew = sessionUser.role === "crew";
+      const profile = isCrew ? crewProfiles[userId] : managerProfiles[userId];
+
+      if (!profile) {
+        welcomeTitle.textContent = "Demo data missing";
+        welcomeSubtitle.textContent = "Try logging in again as crew001 or mgr001.";
+        return;
+      }
+
+      sidebarUserName.textContent = profile.name;
+      sidebarUserRole.textContent = profile.role;
+      welcomeTitle.textContent = isCrew
+        ? `Welcome back, ${profile.name.split(" ")[0]}`
+        : `Good shift, ${profile.name.split(" ")[0]}`;
+      welcomeSubtitle.textContent = isCrew
+        ? `Here's a quick view of your hours, pay and training.`
+        : `Live snapshot for ${profile.storeName}.`;
+      roleBadge.textContent = isCrew ? "Crew" : "Manager";
+      avatarCircle.textContent = profile.name.charAt(0);
+
+      aiSubtitle.textContent = isCrew
+        ? "Ask about your pay, hours or training."
+        : "Ask about waste, sales or crew.";
+
+      renderTopCards(isCrew, profile);
+      renderBottomSection(isCrew, profile);
+      renderSuggestions(isCrew);
+      seedIntroMessages(isCrew, profile);
+    }
+
+    function renderTopCards(isCrew, profile) {
+      topCards.innerHTML = "";
+
+      if (isCrew) {
+        const cards = [
+          {
+            title: "This Week's Hours",
+            icon: "⏱️",
+            main: `${profile.hoursThisWeek.toFixed(1)} hrs`,
+            sub: `Next shift: ${profile.nextShift.day} ${profile.nextShift.start}–${profile.nextShift.end}`
+          },
+          {
+            title: "Estimated Pay",
+            icon: "💷",
+            main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
+            sub: `Rate: £${profile.hourlyRate.toFixed(2)}/hr (before tax)`
+          },
+          {
+            title: "Stations",
+            icon: "🍔",
+            main: profile.certifications.length ? profile.certifications.join(", ") : "No stations yet",
+            sub: profile.trainingTodo.length
+              ? `Next up: ${profile.trainingTodo[0]}`
+              : "All key training complete"
+          },
+          {
+            title: "Achievements",
+            icon: "🏅",
+            main: `${profile.achievements.length} badges`,
+            sub: profile.achievements[0]
+              ? `Latest: ${profile.achievements[0].title} (${profile.achievements[0].date})`
+              : "Start collecting achievements"
+          }
+        ];
+
+        cards.forEach((c) => {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div class="card-header">
+              <div class="card-title">${c.title}</div>
+              <div class="card-icon">${c.icon}</div>
+            </div>
+            <div class="card-main-value">${c.main}</div>
+            <div class="card-subtext">${c.sub}</div>
+          `;
+          topCards.appendChild(card);
+        });
+      } else {
+        const gap = profile.staffNeeded - profile.staffOnShift;
+        const staffingLabel =
+          gap > 0 ? `${gap} short on evening` : "Fully staffed or above plan";
+
+        const cards = [
+          {
+            title: "Today's Sales",
+            icon: "💰",
+            main: `£${profile.todaySales.toLocaleString()}`,
+            sub: `Week-to-date: £${profile.weekSales.toLocaleString()}`
+          },
+          {
+            title: "Food Waste",
+            icon: "♻️",
+            main: `£${profile.todayWasteValue.toFixed(0)}`,
+            sub: `${profile.todayWastePct.toFixed(1)}% of sales today`
+          },
+          {
+            title: "Staffing",
+            icon: "👥",
+            main: `${profile.staffOnShift}/${profile.staffNeeded}`,
+            sub: staffingLabel
+          },
+          {
+            title: "Training Gaps",
+            icon: "📚",
+            main: `${profile.trainingGaps} crew`,
+            sub: `${profile.potentialOvertime} near overtime`
+          }
+        ];
+
+        cards.forEach((c) => {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div class="card-header">
+              <div class="card-title">${c.title}</div>
+              <div class="card-icon">${c.icon}</div>
+            </div>
+            <div class="card-main-value">${c.main}</div>
+            <div class="card-subtext">${c.sub}</div>
+          `;
+          topCards.appendChild(card);
+        });
+      }
+    }
+
+    function renderBottomSection(isCrew, profile) {
+      if (isCrew) {
+        bottomSection.innerHTML = `
+          <div class="subsection-title">This Week's Shifts</div>
+          <div class="subsection-sub">
+            Ask McAssist to help you understand your hours or what you'll roughly earn.
+          </div>
+          <ul class="list">
+            ${profile.schedule
+              .map(
+                (s) => `
+              <li>
+                <span>${s.day}</span>
+                <span class="badge-soft">${s.time}</span>
+              </li>
+            `
+              )
+              .join("")}
+          </ul>
+          <div style="margin-top:10px;"></div>
+          <div class="subsection-title">Training Focus</div>
+          <div class="subsection-sub">
+            You're currently positioned as <strong>${profile.position}</strong>. Completing these will help you grow.
+          </div>
+          <ul class="list">
+            ${profile.trainingTodo
+              .map(
+                (t) => `
+              <li>
+                <span>${t}</span>
+                <span class="badge-soft-warn">To do</span>
+              </li>
+            `
+              )
+              .join("")}
+          </ul>
+        `;
+      } else {
+        bottomSection.innerHTML = `
+          <div class="subsection-title">Food Waste - This Week</div>
+          <div class="subsection-sub">
+            Quick glance of waste value by day. Ask McAssist for a breakdown or targets.
+          </div>
+          <ul class="list">
+            ${managerProfiles[sessionUser.id].foodWasteByDay
+              .map(
+                (d) => `
+              <li>
+                <span>${d.day}</span>
+                <span class="badge-soft-danger">£${d.value.toFixed(0)}</span>
+              </li>
+            `
+              )
+              .join("")}
+          </ul>
+          <div style="margin-top:10px;"></div>
+          <div class="subsection-title">Crew Training & Actions</div>
+          <div class="subsection-sub">
+            Use this to spot who needs coaching or whose certifications are expiring.
+          </div>
+          <ul class="list">
+            ${managerProfiles[sessionUser.id].crewTrainingSummary
+              .map(
+                (c) => `
+              <li>
+                <span>${c.name}</span>
+                <span class="badge-soft">${c.badge}</span>
+              </li>
+            `
+              )
+              .join("")}
+          </ul>
+        `;
+      }
+    }
+
+    function renderSuggestions(isCrew) {
+      aiSuggestions.innerHTML = "";
+      const crewSuggestions = [
+        "How many hours am I working this week?",
+        "How much will I earn this week?",
+        "What training do I still need?",
+        "When is my next shift?"
+      ];
+
+      const managerSuggestions = [
+        "Show me today's food waste.",
+        "How are our sales this week?",
+        "Which crew need training?",
+        "Who is close to overtime?"
+      ];
+
+      const suggestions = isCrew ? crewSuggestions : managerSuggestions;
+
+      suggestions.forEach((text) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "suggestion-chip";
+        chip.textContent = text;
+        chip.addEventListener("click", () => {
+          sendUserMessage(text);
+        });
+        aiSuggestions.appendChild(chip);
+      });
+    }
+
+    // ---------- AI Chat Logic (pure front-end demo) ----------
+
+    function addMessage(text, from) {
+      const message = document.createElement("div");
+      message.className = "message " + (from === "user" ? "msg-user" : "msg-bot");
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+
+      const meta = document.createElement("div");
+      meta.className = "msg-meta";
+      meta.textContent = from === "user" ? "You" : "McAssist";
+
+      message.appendChild(bubble);
+      message.appendChild(meta);
+      aiChat.appendChild(message);
+      aiChat.scrollTop = aiChat.scrollHeight;
+    }
+
+    function seedIntroMessages(isCrew, profile) {
+      aiChat.innerHTML = "";
+      const first = isCrew
+        ? `Hi ${profile.name.split(" ")[0]} 👋 I'm McAssist. I can help you understand your hours, pay and training.`
+        : `Hi ${profile.name.split(" ")[0]} 👋 I'm McAssist. I can answer quick questions about waste, sales and your crew.`;
+      const second = isCrew
+        ? "You can ask things like “How many hours am I working this week?” or “How much will I earn this week?”"
+        : "You can ask things like “Show me today's food waste” or “Which crew still need training?”";
+
+      addMessage(first, "bot");
+      addMessage(second, "bot");
+    }
+
+    function sendUserMessage(text) {
+      if (!text.trim()) return;
+      addMessage(text.trim(), "user");
+      aiInput.value = "";
+      aiInput.focus();
+      aiSendBtn.disabled = true;
+
+      setTimeout(() => {
+        const reply = buildBotReply(text.trim());
+        addMessage(reply, "bot");
+        aiSendBtn.disabled = false;
+      }, 400);
+    }
+
+    function buildBotReply(text) {
+      const lower = text.toLowerCase();
+      const isCrew = sessionUser.role === "crew";
+      const profile = isCrew ? crewProfiles[sessionUser.id] : managerProfiles[sessionUser.id];
+
+      if (isCrew) {
+        if (lower.includes("hour")) {
+          return `Based on your schedule, you're working about ${profile.hoursThisWeek.toFixed(
+            1
+          )} hours this week.\n\nYou can see the breakdown in the "This Week's Shifts" card.`;
+        }
+
+        if (lower.includes("earn") || lower.includes("paid") || lower.includes("pay")) {
+          return `Right now your estimated pay for this week is about £${profile.estimatedPayThisWeek.toFixed(
+            2
+          )} before tax.\n\nThat's based on ${profile.hoursThisWeek.toFixed(
+            1
+          )} hours at £${profile.hourlyRate.toFixed(
+            2
+          )}/hr. If your shifts change, this number will change as well.`;
+        }
+
+        if (lower.includes("training") || lower.includes("station") || lower.includes("certified")) {
+          const todo = profile.trainingTodo.length
+            ? profile.trainingTodo.join(", ")
+            : "No outstanding modules – nice work!";
+          return `You're currently certified on: ${profile.certifications.join(
+            ", "
+          )}.\n\nNext recommended modules for you: ${todo}.`;
+        }
+
+        if (lower.includes("next shift") || lower.includes("when do i work")) {
+          const ns = profile.nextShift;
+          return `Your next shift is on ${ns.day} ${ns.date} from ${ns.start} to ${ns.end}.\n\nYou can also check the shifts list under your dashboard.`;
+        }
+
+        return `I'm using demo data only, so I can give you rough info.\n\nTry asking:\n• How many hours am I working this week?\n• How much will I earn this week?\n• What training do I still need?\n• When is my next shift?`;
+      } else {
+        if (lower.includes("waste") || lower.includes("food waste")) {
+          return `For ${profile.storeName} today, recorded food waste is about £${profile.todayWasteValue.toFixed(
+            0
+          )}, which is roughly ${profile.todayWastePct.toFixed(
+            1
+          )}% of sales.\n\nCheck the "Food Waste - This Week" section for daily values.`;
+        }
+
+        if (lower.includes("sale") || lower.includes("income") || lower.includes("revenue")) {
+          return `Today's sales are approximately £${profile.todaySales.toLocaleString()}.\n\nWeek-to-date sales are about £${profile.weekSales.toLocaleString()}.`;
+        }
+
+        if (lower.includes("training") || lower.includes("crew")) {
+          return `You currently have ${profile.trainingGaps} crew with training gaps.\n\nExamples:\n- ${profile.crewTrainingSummary[0].name}: ${profile.crewTrainingSummary[0].status}\n- ${profile.crewTrainingSummary[1].name}: ${profile.crewTrainingSummary[1].status}\n\nYou can ask me which areas to prioritise if you'd like.`;
+        }
+
+        if (lower.includes("overtime")) {
+          return `There are ${profile.potentialOvertime} crew members close to overtime.\n\nUse this as a signal to review the next week's rota and adjust shifts if needed.`;
+        }
+
+        if (lower.includes("staff") || lower.includes("shift coverage")) {
+          const gap = profile.staffNeeded - profile.staffOnShift;
+          const staffingMsg =
+            gap > 0
+              ? `You're currently short by ${gap} people versus the plan.`
+              : "You're at or above your staffing plan.";
+          return `Right now you have ${profile.staffOnShift} people on shift against a plan of ${profile.staffNeeded}.\n\n${staffingMsg}`;
+        }
+
+        return `I'm using demo store data.\n\nTry asking:\n• Show me today's food waste\n• How are our sales this week?\n• Which crew need training?\n• Who is close to overtime?\n• Are we short-staffed today?`;
+      }
+    }
+
+    aiForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      sendUserMessage(aiInput.value);
+    });
+
+    initialiseDashboard();
+  </script>
+</body>
+</html>
