@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining Portal - Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --mc-red: #d62828;
+      --mc-yellow: #ffcc00;
+      --mc-dark: #1a1a1a;
+      --mc-light: #f7f7f7;
+      --card-bg: rgba(255, 255, 255, 0.96);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #ffd166, #ff9f1c, #d62828);
+      color: #111;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card-bg);
+      border-radius: 18px;
+      padding: 28px 26px 24px;
+      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.22);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .login-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .logo-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--mc-red);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--mc-yellow);
+      font-size: 26px;
+      font-weight: 900;
+    }
+
+    .login-header h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .login-header p {
+      font-size: 0.82rem;
+      color: #555;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff7d1;
+      color: #7a5b00;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 0.7rem;
+      margin-bottom: 10px;
+    }
+
+    form {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #333;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    select {
+      border-radius: 999px;
+      border: 1px solid #ddd;
+      padding: 9px 13px;
+      font-size: 0.88rem;
+      outline: none;
+      transition: border 0.2s, box-shadow 0.2s, transform 0.1s;
+      background: #fafafa;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--mc-red);
+      box-shadow: 0 0 0 2px rgba(214, 40, 40, 0.15);
+      transform: translateY(-1px);
+      background: #fff;
+    }
+
+    .role-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .hint {
+      font-size: 0.74rem;
+      color: #777;
+      margin-top: -4px;
+    }
+
+    .login-button {
+      margin-top: 6px;
+      border-radius: 999px;
+      border: none;
+      padding: 11px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--mc-red), #a71d1d);
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
+      box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
+    }
+
+    .login-button span {
+      font-size: 1.1rem;
+    }
+
+    .login-button:hover {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .login-button:active {
+      transform: translateY(0);
+      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.22);
+    }
+
+    .error {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #c1121f;
+    }
+
+    .demo-box {
+      margin-top: 14px;
+      background: #f9fafb;
+      border-radius: 12px;
+      padding: 10px 11px;
+      font-size: 0.75rem;
+      border: 1px dashed #e0e0e0;
+    }
+
+    .demo-box strong {
+      font-size: 0.78rem;
+    }
+
+    .demo-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
+    .tag {
+      border-radius: 999px;
+      background: #ffe8a3;
+      padding: 2px 8px;
+      font-size: 0.7rem;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 0.72rem;
+      color: #777;
+      text-align: center;
+    }
+
+    @media (max-width: 480px) {
+      .login-container {
+        margin: 0 12px;
+        padding: 24px 20px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="pill">
+      <span>🍟</span>
+      <span>McTraining Portal</span>
+    </div>
+    <div class="login-header">
+      <div class="logo-circle">M</div>
+      <div>
+        <h1>Welcome back</h1>
+        <p>Sign in as a crew member or manager to continue.</p>
+      </div>
+    </div>
+
+    <form id="loginForm">
+      <div class="field-group">
+        <label for="role">Role</label>
+        <div class="role-row">
+          <select id="role" required>
+            <option value="crew">Crew Member</option>
+            <option value="manager">Manager</option>
+          </select>
+        </div>
+        <div class="hint">This changes what you’ll see in the dashboard.</div>
+      </div>
+
+      <div class="field-group">
+        <label for="employeeId">Employee ID</label>
+        <input
+          type="text"
+          id="employeeId"
+          placeholder="e.g. crew001 or mgr001"
+          required
+        />
+      </div>
+
+      <div class="field-group">
+        <label for="password">Password</label>
+        <input
+          type="password"
+          id="password"
+          placeholder="demo: password123"
+          required
+        />
+      </div>
+
+      <button type="submit" class="login-button">
+        <span>→</span>
+        <span>Sign in</span>
+      </button>
+
+      <div id="error" class="error" style="display:none;"></div>
+    </form>
+
+    <div class="demo-box">
+      <strong>Demo accounts</strong>
+      <div class="demo-row">
+        <span>Crew:</span>
+        <span><code>crew001</code> / <code>password123</code></span>
+      </div>
+      <div class="demo-row">
+        <span>Manager:</span>
+        <span><code>mgr001</code> / <code>password123</code></span>
+      </div>
+      <div style="margin-top: 6px;" class="tag">Sample AI + dashboard only – no real data</div>
+    </div>
+
+    <div class="footer-note">
+      By continuing you agree to keep crew and restaurant data private.
+    </div>
+  </div>
+
+  <script>
+    // Front-end demo "database"
+    const demoUsers = {
+      crew001: {
+        id: "crew001",
+        role: "crew",
+        name: "Alex Johnson",
+        storeId: "store001"
+      },
+      mgr001: {
+        id: "mgr001",
+        role: "manager",
+        name: "Sarah Williams",
+        storeId: "store001"
+      }
+    };
+
+    const loginForm = document.getElementById("loginForm");
+    const errorBox = document.getElementById("error");
+
+    loginForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const chosenRole = document.getElementById("role").value;
+      const employeeId = document.getElementById("employeeId").value.trim();
+      const password = document.getElementById("password").value;
+
+      errorBox.style.display = "none";
+      errorBox.textContent = "";
+
+      const user = demoUsers[employeeId];
+
+      if (!user) {
+        showError("Unknown Employee ID. Try crew001 or mgr001.");
+        return;
+      }
+
+      if (user.role !== chosenRole) {
+        showError("That Employee ID belongs to a different role.");
+        return;
+      }
+
+      if (password !== "password123") {
+        showError("Incorrect password. Use password123 for the demo.");
+        return;
+      }
+
+      // Save session info so other pages can read it
+      const sessionUser = {
+        id: user.id,
+        role: user.role,
+        name: user.name,
+        storeId: user.storeId
+      };
+      localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
+
+      // Go to dashboard
+      window.location.href = "main.html";
+    });
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+    }
+  </script>
+</body>
+</html>

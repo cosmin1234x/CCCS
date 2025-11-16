@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining Portal - Training</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --mc-red: #d62828;
+      --mc-yellow: #ffcc00;
+      --mc-dark: #111827;
+      --mc-muted: #6b7280;
+      --bg: #f3f4f6;
+      --card-bg: #ffffff;
+      --border-subtle: #e5e7eb;
+      --radius-lg: 18px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--mc-dark);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: 240px;
+      background: var(--mc-dark);
+      color: #f9fafb;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 16px;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .logo-circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #d62828;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: #ffcc00;
+      font-size: 24px;
+    }
+
+    .sidebar-header-text h1 {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .sidebar-header-text p {
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+
+    .nav-section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6b7280;
+      margin: 10px 2px 6px;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item {
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .nav-item.active {
+      background: #111827;
+    }
+
+    .nav-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--mc-yellow);
+    }
+
+    .nav-item span.emoji {
+      font-size: 1.1rem;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      font-size: 0.75rem;
+      color: #9ca3af;
+      border-top: 1px solid #1f2937;
+      padding-top: 10px;
+    }
+
+    .sidebar-footer strong {
+      color: #e5e7eb;
+    }
+
+    .main-layout {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      padding: 16px 18px;
+      gap: 16px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .top-bar-left h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .top-bar-left p {
+      font-size: 0.8rem;
+      color: var(--mc-muted);
+    }
+
+    .badge-role {
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      background: #111827;
+      color: #f9fafb;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: #fbbf24;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      border: 2px solid #f59e0b;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 12px 13px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--mc-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .card-icon {
+      font-size: 1.1rem;
+    }
+
+    .subsection-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .subsection-sub {
+      font-size: 0.78rem;
+      color: var(--mc-muted);
+      margin-bottom: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    th,
+    td {
+      padding: 6px 4px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+
+    th {
+      font-size: 0.75rem;
+      color: var(--mc-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-soft {
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-size: 0.7rem;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .badge-soft-warn {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    .badge-soft-success {
+      background: #ecfdf5;
+      color: #047857;
+    }
+
+    .pill-filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      font-size: 0.72rem;
+      cursor: pointer;
+      margin-right: 6px;
+      margin-bottom: 4px;
+      background: #f9fafb;
+    }
+
+    .pill-filter.active {
+      background: #111827;
+      color: #f9fafb;
+      border-color: #111827;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-bar-inner {
+      height: 100%;
+      background: #22c55e;
+      width: 0%;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+      }
+      .sidebar-header-text p,
+      .nav-section-title,
+      .sidebar-footer {
+        display: none;
+      }
+      .nav-list {
+        flex-direction: row;
+      }
+      .nav-item {
+        padding: 6px 10px;
+      }
+      .main-layout {
+        flex-direction: column;
+        padding: 10px;
+      }
+      .cards-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Smart tools for busy restaurants</p>
+      </div>
+    </div>
+
+    <div class="nav-section-title">Main</div>
+    <ul class="nav-list">
+      <li class="nav-item" onclick="location.href='main.html'">
+        <span class="nav-dot"></span>
+        <span>Dashboard</span>
+      </li>
+      <li class="nav-item active" onclick="location.href='training.html'">
+        <span class="emoji">📚</span>
+        <span>Training</span>
+      </li>
+      <li class="nav-item">
+        <span class="emoji">🧑‍🍳</span>
+        <span>Stations</span>
+      </li>
+      <li class="nav-item">
+        <span class="emoji">🕒</span>
+        <span>Shifts</span>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      Signed in as<br />
+      <strong id="sidebarUserName">—</strong><br />
+      <span id="sidebarUserRole">—</span>
+    </div>
+  </aside>
+
+  <main class="main-layout">
+    <section class="content-area">
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <h2 id="pageTitle">Training overview</h2>
+          <p id="pageSubtitle">Loading your modules…</p>
+        </div>
+        <div class="top-bar-right">
+          <span class="badge-role" id="roleBadge">Role</span>
+          <div class="avatar" id="avatarCircle">U</div>
+        </div>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Your Progress</div>
+            <div class="card-icon">📈</div>
+          </div>
+          <div class="subsection-sub" id="progressText"></div>
+          <div class="progress-bar">
+            <div class="progress-bar-inner" id="progressBarInner"></div>
+          </div>
+
+          <div style="margin-top:10px;"></div>
+          <div class="subsection-title">Filters</div>
+          <div>
+            <button class="pill-filter active" data-filter="all">All modules</button>
+            <button class="pill-filter" data-filter="required">Required</button>
+            <button class="pill-filter" data-filter="optional">Optional</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Recommended next steps</div>
+            <div class="card-icon">⭐</div>
+          </div>
+          <div class="subsection-sub">
+            Focus on these to unlock more stations and responsibilities.
+          </div>
+          <ul id="recommendedList" style="font-size:0.8rem; list-style:none; padding-left:0;"></ul>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="card-header">
+          <div class="card-title">Training Modules</div>
+          <div class="card-icon">📚</div>
+        </div>
+        <table id="modulesTable">
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Station</th>
+              <th>Type</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const sessionUser = (function () {
+      try {
+        const raw = localStorage.getItem("mc_session_user");
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    })();
+
+    if (!sessionUser) {
+      window.location.href = "index.html";
+    }
+
+    const sidebarUserName = document.getElementById("sidebarUserName");
+    const sidebarUserRole = document.getElementById("sidebarUserRole");
+    const roleBadge = document.getElementById("roleBadge");
+    const avatarCircle = document.getElementById("avatarCircle");
+    const pageTitle = document.getElementById("pageTitle");
+    const pageSubtitle = document.getElementById("pageSubtitle");
+    const progressText = document.getElementById("progressText");
+    const progressBarInner = document.getElementById("progressBarInner");
+    const modulesTableBody = document.querySelector("#modulesTable tbody");
+    const filterButtons = document.querySelectorAll(".pill-filter");
+    const recommendedList = document.getElementById("recommendedList");
+
+    // Demo training data
+    const trainingModules = [
+      {
+        id: 1,
+        title: "Front Counter Basics",
+        station: "Front Counter",
+        type: "required",
+        status: "complete"
+      },
+      {
+        id: 2,
+        title: "Fries Station Setup",
+        station: "Fries",
+        type: "required",
+        status: "complete"
+      },
+      {
+        id: 3,
+        title: "Drive-Thru Order Taking",
+        station: "Drive-Thru",
+        type: "required",
+        status: "in-progress"
+      },
+      {
+        id: 4,
+        title: "Food Safety Level 2",
+        station: "All",
+        type: "required",
+        status: "not-started"
+      },
+      {
+        id: 5,
+        title: "Customer Service Excellence",
+        station: "Front Counter",
+        type: "optional",
+        status: "not-started"
+      }
+    ];
+
+    function initPage() {
+      const isCrew = sessionUser.role === "crew";
+
+      sidebarUserName.textContent = sessionUser.name || (isCrew ? "Alex Johnson" : "Sarah Williams");
+      sidebarUserRole.textContent = isCrew ? "Crew Member" : "Restaurant Manager";
+      roleBadge.textContent = isCrew ? "Crew" : "Manager";
+      avatarCircle.textContent = (sessionUser.name || (isCrew ? "Alex" : "Sarah")).charAt(0);
+
+      pageTitle.textContent = isCrew ? "Your training" : "Crew training overview";
+      pageSubtitle.textContent = isCrew
+        ? "See what you've completed and what's next."
+        : "View key modules your crew are working through (demo).";
+
+      renderProgress();
+      renderModules("all");
+      renderRecommended();
+      setupFilters();
+    }
+
+    function renderProgress() {
+      const total = trainingModules.length;
+      const completed = trainingModules.filter((m) => m.status === "complete").length;
+      const percent = total ? Math.round((completed / total) * 100) : 0;
+
+      progressText.textContent = `${completed} of ${total} modules complete (${percent}%)`;
+      progressBarInner.style.width = percent + "%";
+    }
+
+    function renderModules(filter) {
+      modulesTableBody.innerHTML = "";
+      trainingModules
+        .filter((m) => (filter === "all" ? true : m.type === filter))
+        .forEach((module) => {
+          const tr = document.createElement("tr");
+          const statusBadgeClass =
+            module.status === "complete"
+              ? "badge-soft-success"
+              : module.status === "in-progress"
+              ? "badge-soft"
+              : "badge-soft-warn";
+          const statusText =
+            module.status === "complete"
+              ? "Complete"
+              : module.status === "in-progress"
+              ? "In progress"
+              : "Not started";
+
+          tr.innerHTML = `
+            <td>${module.title}</td>
+            <td>${module.station}</td>
+            <td>
+              <span class="badge-soft${module.type === "required" ? "" : "-warn"}">
+                ${module.type === "required" ? "Required" : "Optional"}
+              </span>
+            </td>
+            <td>
+              <span class="${statusBadgeClass}">${statusText}</span>
+            </td>
+          `;
+          modulesTableBody.appendChild(tr);
+        });
+    }
+
+    function setupFilters() {
+      filterButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          filterButtons.forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          const filter = btn.getAttribute("data-filter");
+          renderModules(filter);
+        });
+      });
+    }
+
+    function renderRecommended() {
+      const important = trainingModules.filter(
+        (m) => m.status !== "complete" && m.type === "required"
+      );
+      const extra = trainingModules.filter(
+        (m) => m.status !== "complete" && m.type === "optional"
+      );
+
+      recommendedList.innerHTML = "";
+
+      important.forEach((m) => {
+        const li = document.createElement("li");
+        li.style.marginBottom = "6px";
+        li.innerHTML = `<strong>${m.title}</strong><br /><span style="color:#6b7280;font-size:0.75rem;">Station: ${m.station} • Required</span>`;
+        recommendedList.appendChild(li);
+      });
+
+      if (extra.length) {
+        const divider = document.createElement("li");
+        divider.style.margin = "6px 0";
+        divider.style.fontSize = "0.75rem";
+        divider.style.color = "#9ca3af";
+        divider.textContent = "Optional extras:";
+        recommendedList.appendChild(divider);
+
+        extra.forEach((m) => {
+          const li = document.createElement("li");
+          li.style.marginBottom = "4px";
+          li.innerHTML = `${m.title} <span style="color:#6b7280;font-size:0.75rem;">(${m.station})</span>`;
+          recommendedList.appendChild(li);
+        });
+      }
+    }
+
+    initPage();
+  </script>
+</body>
+</html>
