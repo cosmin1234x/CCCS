@@ -9,7 +9,6 @@
       --mc-red: #d62828;
       --mc-yellow: #ffcc00;
       --mc-dark: #1a1a1a;
-      --mc-light: #f7f7f7;
       --card-bg: rgba(255, 255, 255, 0.96);
     }
 
@@ -71,18 +70,6 @@
       color: #555;
     }
 
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: #fff7d1;
-      color: #7a5b00;
-      border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 0.7rem;
-      margin-bottom: 10px;
-    }
-
     form {
       margin-top: 8px;
       display: flex;
@@ -98,14 +85,7 @@
       margin-bottom: 4px;
     }
 
-    .field-group {
-      display: flex;
-      flex-direction: column;
-    }
-
-    input[type="text"],
-    input[type="password"],
-    select {
+    input {
       border-radius: 999px;
       border: 1px solid #ddd;
       padding: 9px 13px;
@@ -115,24 +95,11 @@
       background: #fafafa;
     }
 
-    input:focus,
-    select:focus {
+    input:focus {
       border-color: var(--mc-red);
       box-shadow: 0 0 0 2px rgba(214, 40, 40, 0.15);
       transform: translateY(-1px);
       background: #fff;
-    }
-
-    .role-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .hint {
-      font-size: 0.74rem;
-      color: #777;
-      margin-top: -4px;
     }
 
     .login-button {
@@ -153,10 +120,6 @@
       box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
     }
 
-    .login-button span {
-      font-size: 1.1rem;
-    }
-
     .login-button:hover {
       filter: brightness(1.05);
       transform: translateY(-1px);
@@ -167,85 +130,51 @@
       box-shadow: 0 6px 10px rgba(0, 0, 0, 0.22);
     }
 
+    .login-button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
     .error {
       margin-top: 8px;
       font-size: 0.8rem;
       color: #c1121f;
     }
 
-    .demo-box {
-      margin-top: 14px;
-      background: #f9fafb;
-      border-radius: 12px;
-      padding: 10px 11px;
-      font-size: 0.75rem;
-      border: 1px dashed #e0e0e0;
-    }
-
-    .demo-box strong {
-      font-size: 0.78rem;
-    }
-
-    .demo-row {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 4px;
-    }
-
-    .tag {
-      border-radius: 999px;
-      background: #ffe8a3;
-      padding: 2px 8px;
-      font-size: 0.7rem;
-    }
-
-    .footer-note {
-      margin-top: 16px;
-      font-size: 0.72rem;
-      color: #777;
+    .link-row {
+      margin-top: 12px;
+      font-size: 0.8rem;
       text-align: center;
     }
 
-    @media (max-width: 480px) {
-      .login-container {
-        margin: 0 12px;
-        padding: 24px 20px 20px;
-      }
+    .link-row a {
+      color: #b91c1c;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .link-row a:hover {
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
   <div class="login-container">
-    <div class="pill">
-      <span>🍟</span>
-      <span>McTraining Portal</span>
-    </div>
     <div class="login-header">
       <div class="logo-circle">M</div>
       <div>
         <h1>Welcome back</h1>
-        <p>Sign in as a crew member or manager to continue.</p>
+        <p>Log in to the McTraining portal.</p>
       </div>
     </div>
 
     <form id="loginForm">
       <div class="field-group">
-        <label for="role">Role</label>
-        <div class="role-row">
-          <select id="role" required>
-            <option value="crew">Crew Member</option>
-            <option value="manager">Manager</option>
-          </select>
-        </div>
-        <div class="hint">This changes what you’ll see in the dashboard.</div>
-      </div>
-
-      <div class="field-group">
-        <label for="employeeId">Employee ID</label>
+        <label for="email">Email</label>
         <input
-          type="text"
-          id="employeeId"
-          placeholder="e.g. crew001 or mgr001"
+          type="email"
+          id="email"
+          placeholder="e.g. alex@restaurant.com"
           required
         />
       </div>
@@ -255,12 +184,12 @@
         <input
           type="password"
           id="password"
-          placeholder="demo: password123"
+          placeholder="Your password"
           required
         />
       </div>
 
-      <button type="submit" class="login-button">
+      <button type="submit" class="login-button" id="loginButton">
         <span>→</span>
         <span>Sign in</span>
       </button>
@@ -268,82 +197,85 @@
       <div id="error" class="error" style="display:none;"></div>
     </form>
 
-    <div class="demo-box">
-      <strong>Demo accounts</strong>
-      <div class="demo-row">
-        <span>Crew:</span>
-        <span><code>crew001</code> / <code>password123</code></span>
-      </div>
-      <div class="demo-row">
-        <span>Manager:</span>
-        <span><code>mgr001</code> / <code>password123</code></span>
-      </div>
-      <div style="margin-top: 6px;" class="tag">Sample AI + dashboard only – no real data</div>
-    </div>
-
-    <div class="footer-note">
-      By continuing you agree to keep crew and restaurant data private.
+    <div class="link-row">
+      Need an account? <a href="signup.html">Create one</a>
     </div>
   </div>
 
-  <script>
-    // Front-end demo "database"
-    const demoUsers = {
-      crew001: {
-        id: "crew001",
-        role: "crew",
-        name: "Alex Johnson",
-        storeId: "store001"
-      },
-      mgr001: {
-        id: "mgr001",
-        role: "manager",
-        name: "Sarah Williams",
-        storeId: "store001"
-      }
-    };
+  <script type="module">
+    import { auth, db } from "./firebase-init.js";
+    import {
+      signInWithEmailAndPassword
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import {
+      doc,
+      getDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const loginForm = document.getElementById("loginForm");
     const errorBox = document.getElementById("error");
+    const loginButton = document.getElementById("loginButton");
 
-    loginForm.addEventListener("submit", function (e) {
+    loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const chosenRole = document.getElementById("role").value;
-      const employeeId = document.getElementById("employeeId").value.trim();
+      const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
 
       errorBox.style.display = "none";
       errorBox.textContent = "";
 
-      const user = demoUsers[employeeId];
-
-      if (!user) {
-        showError("Unknown Employee ID. Try crew001 or mgr001.");
+      if (!email || !password) {
+        showError("Please fill in all fields.");
         return;
       }
 
-      if (user.role !== chosenRole) {
-        showError("That Employee ID belongs to a different role.");
-        return;
+      loginButton.disabled = true;
+
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+
+        // Load profile from Firestore
+        const profileRef = doc(db, "users", cred.user.uid);
+        const snap = await getDoc(profileRef);
+
+        let profile = {
+          name: cred.user.displayName || cred.user.email || "User",
+          role: "crew",
+          storeId: "store001"
+        };
+
+        if (snap.exists()) {
+          const data = snap.data();
+          profile = {
+            name: data.name || profile.name,
+            role: data.role || profile.role,
+            storeId: data.storeId || profile.storeId
+          };
+        }
+
+        const sessionUser = {
+          id: cred.user.uid,
+          role: profile.role,
+          name: profile.name,
+          storeId: profile.storeId
+        };
+
+        localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
+
+        window.location.href = "main.html";
+      } catch (err) {
+        console.error(err);
+        if (err.code === "auth/user-not-found") {
+          showError("No account found with that email.");
+        } else if (err.code === "auth/wrong-password") {
+          showError("Incorrect password.");
+        } else {
+          showError("Login failed. " + (err.message || ""));
+        }
+      } finally {
+        loginButton.disabled = false;
       }
-
-      if (password !== "password123") {
-        showError("Incorrect password. Use password123 for the demo.");
-        return;
-      }
-
-      // Save session info so other pages can read it
-      const sessionUser = {
-        id: user.id,
-        role: user.role,
-        name: user.name,
-        storeId: user.storeId
-      };
-      localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
-
-      // Go to dashboard
-      window.location.href = "main.html";
     });
 
     function showError(msg) {

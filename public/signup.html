@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining Portal - Sign up</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --mc-red: #d62828;
+      --mc-yellow: #ffcc00;
+      --mc-dark: #1a1a1a;
+      --card-bg: rgba(255, 255, 255, 0.96);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #ffd166, #ff9f1c, #d62828);
+      color: #111;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 460px;
+      background: var(--card-bg);
+      border-radius: 18px;
+      padding: 28px 26px 24px;
+      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.22);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .logo-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--mc-red);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--mc-yellow);
+      font-size: 26px;
+      font-weight: 900;
+    }
+
+    h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    p.subtitle {
+      font-size: 0.82rem;
+      color: #555;
+    }
+
+    form {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #333;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    input,
+    select {
+      border-radius: 999px;
+      border: 1px solid #ddd;
+      padding: 9px 13px;
+      font-size: 0.88rem;
+      outline: none;
+      background: #fafafa;
+      transition: border 0.2s, box-shadow 0.2s, transform 0.1s;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--mc-red);
+      box-shadow: 0 0 0 2px rgba(214, 40, 40, 0.15);
+      transform: translateY(-1px);
+      background: #fff;
+    }
+
+    .btn-primary {
+      border-radius: 999px;
+      border: none;
+      padding: 11px 16px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--mc-red), #a71d1d);
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
+      transition: transform 0.1s, box-shadow 0.1s, filter 0.1s;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.22);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .error {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #c1121f;
+    }
+
+    .success {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #15803d;
+    }
+
+    .link-row {
+      margin-top: 12px;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    .link-row a {
+      color: #b91c1c;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .link-row a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo-circle">M</div>
+      <div>
+        <h1>Create account</h1>
+        <p class="subtitle">Set up an account for the McTraining portal.</p>
+      </div>
+    </div>
+
+    <form id="signupForm">
+      <div>
+        <label for="name">Full name</label>
+        <input id="name" type="text" placeholder="e.g. Alex Johnson" required />
+      </div>
+
+      <div>
+        <label for="email">Work email</label>
+        <input id="email" type="email" placeholder="e.g. alex@restaurant.com" required />
+      </div>
+
+      <div>
+        <label for="password">Password</label>
+        <input id="password" type="password" placeholder="At least 6 characters" required />
+      </div>
+
+      <div>
+        <label for="role">Role</label>
+        <select id="role" required>
+          <option value="crew">Crew Member</option>
+          <option value="manager">Manager</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="storeId">Store / Restaurant name</label>
+        <input id="storeId" type="text" placeholder="e.g. High Street #123" />
+      </div>
+
+      <button type="submit" class="btn-primary" id="signupBtn">
+        <span>✔</span>
+        <span>Create account</span>
+      </button>
+
+      <div id="error" class="error" style="display:none;"></div>
+      <div id="success" class="success" style="display:none;"></div>
+    </form>
+
+    <div class="link-row">
+      Already have an account? <a href="index.html">Log in</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./firebase-init.js";
+    import {
+      createUserWithEmailAndPassword,
+      updateProfile
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import {
+      doc,
+      setDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const form = document.getElementById("signupForm");
+    const errorBox = document.getElementById("error");
+    const successBox = document.getElementById("success");
+    const signupBtn = document.getElementById("signupBtn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const role = document.getElementById("role").value;
+      const storeId = document.getElementById("storeId").value.trim() || "store001";
+
+      errorBox.style.display = "none";
+      successBox.style.display = "none";
+      errorBox.textContent = "";
+      successBox.textContent = "";
+
+      if (!name || !email || !password) {
+        showError("Please fill in all required fields.");
+        return;
+      }
+
+      signupBtn.disabled = true;
+
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+        // Set display name
+        await updateProfile(cred.user, { displayName: name });
+
+        // Store profile in Firestore
+        await setDoc(doc(db, "users", cred.user.uid), {
+          name,
+          email,
+          role,
+          storeId,
+          createdAt: new Date().toISOString()
+        });
+
+        showSuccess("Account created. You can now log in.");
+        // Small delay then redirect
+        setTimeout(() => {
+          window.location.href = "index.html";
+        }, 1000);
+      } catch (err) {
+        console.error(err);
+        if (err.code === "auth/email-already-in-use") {
+          showError("That email is already in use.");
+        } else if (err.code === "auth/weak-password") {
+          showError("Password is too weak (minimum 6 characters).");
+        } else {
+          showError(err.message || "Sign up failed.");
+        }
+      } finally {
+        signupBtn.disabled = false;
+      }
+    });
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+    }
+
+    function showSuccess(msg) {
+      successBox.textContent = msg;
+      successBox.style.display = "block";
+    }
+  </script>
+</body>
+</html>
