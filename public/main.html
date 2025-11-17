@@ -121,6 +121,17 @@
       color: #e5e7eb;
     }
 
+    .sidebar-footer button {
+      margin-top: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #4b5563;
+      background: #111827;
+      color: #f9fafb;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+
     .main-layout {
       flex: 1;
       display: flex;
@@ -521,28 +532,14 @@
     </ul>
 
     <div class="sidebar-footer">
-  Signed in as<br />
-  <strong id="sidebarUserName">—</strong><br />
-  <span id="sidebarUserRole">—</span>
-  <div style="margin-top:8px;">
-    <button
-      id="logoutBtn"
-      style="
-        margin-top:4px;
-        padding:4px 10px;
-        border-radius:999px;
-        border:1px solid #4b5563;
-        background:#111827;
-        color:#f9fafb;
-        font-size:0.72rem;
-        cursor:pointer;
-      "
-    >
-      Log out
-    </button>
-  </div>
-</div>
-
+      Signed in as<br />
+      <strong id="sidebarUserName">—</strong><br />
+      <span id="sidebarUserRole">—</span>
+      <div>
+        <button id="logoutBtn">Log out</button>
+      </div>
+    </div>
+  </aside>
 
   <main class="main-layout">
     <section class="content-area">
@@ -600,72 +597,69 @@
     </aside>
   </main>
 
-  <script>
-    // ---------- Mock Data ----------
-    const crewProfiles = {
-      crew001: {
-        id: "crew001",
-        name: "Alex Johnson",
-        role: "Crew Member",
-        position: "Front Counter",
-        hourlyRate: 10.5,
-        hoursThisWeek: 18.5,
-        estimatedPayThisWeek: 194.25,
-        nextShift: { day: "Mon", date: "2025-11-17", start: "17:00", end: "23:00" },
-        certifications: ["Front Counter", "Fries"],
-        trainingTodo: ["Drive-Thru Module 2", "Food Safety Level 2"],
-        achievements: [
-          { title: "Customer Compliment", date: "2025-11-10" },
-          { title: "Perfect Mystery Shop", date: "2025-11-01" }
-        ],
-        schedule: [
-          { day: "Mon", time: "17:00–23:00" },
-          { day: "Wed", time: "10:00–16:00" },
-          { day: "Sat", time: "12:00–20:00" }
-        ]
-      }
+  <script type="module">
+    import { auth } from "./firebase-init.js";
+    import {
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // ---------- Mock Data (generic for all users, based on role) ----------
+
+    const crewData = {
+      position: "Front Counter",
+      hourlyRate: 10.5,
+      hoursThisWeek: 18.5,
+      estimatedPayThisWeek: 194.25,
+      nextShift: { day: "Mon", date: "2025-11-17", start: "17:00", end: "23:00" },
+      certifications: ["Front Counter", "Fries"],
+      trainingTodo: ["Drive-Thru Module 2", "Food Safety Level 2"],
+      achievements: [
+        { title: "Customer Compliment", date: "2025-11-10" },
+        { title: "Perfect Mystery Shop", date: "2025-11-01" }
+      ],
+      schedule: [
+        { day: "Mon", time: "17:00–23:00" },
+        { day: "Wed", time: "10:00–16:00" },
+        { day: "Sat", time: "12:00–20:00" }
+      ]
     };
 
-    const managerProfiles = {
-      mgr001: {
-        id: "mgr001",
-        name: "Sarah Williams",
-        role: "Restaurant Manager",
-        storeName: "High Street McDonald's",
-        todaySales: 4320,
-        weekSales: 25500,
-        todayWasteValue: 43,
-        todayWastePct: 1.0,
-        staffOnShift: 9,
-        staffNeeded: 10,
-        trainingGaps: 3,
-        potentialOvertime: 2,
-        foodWasteByDay: [
-          { day: "Mon", value: 52 },
-          { day: "Tue", value: 39 },
-          { day: "Wed", value: 47 },
-          { day: "Thu", value: 41 },
-          { day: "Fri", value: 65 }
-        ],
-        crewTrainingSummary: [
-          { name: "Alex Johnson", status: "Drive-Thru not started", badge: "Needs training" },
-          { name: "Maria Lopez", status: "All stations certified", badge: "Star performer" },
-          { name: "James Lee", status: "Food Safety expires soon", badge: "Action needed" }
-        ]
-      }
+    const managerData = {
+      storeName: "High Street McDonald's",
+      todaySales: 4320,
+      weekSales: 25500,
+      todayWasteValue: 43,
+      todayWastePct: 1.0,
+      staffOnShift: 9,
+      staffNeeded: 10,
+      trainingGaps: 3,
+      potentialOvertime: 2,
+      foodWasteByDay: [
+        { day: "Mon", value: 52 },
+        { day: "Tue", value: 39 },
+        { day: "Wed", value: 47 },
+        { day: "Thu", value: 41 },
+        { day: "Fri", value: 65 }
+      ],
+      crewTrainingSummary: [
+        { name: "Alex Johnson", status: "Drive-Thru not started", badge: "Needs training" },
+        { name: "Maria Lopez", status: "All stations certified", badge: "Star performer" },
+        { name: "James Lee", status: "Food Safety expires soon", badge: "Action needed" }
+      ]
     };
 
-    const sessionUser = (function () {
+    // ---------- Session + DOM references ----------
+
+    let sessionUser = null;
+
+    function loadSessionUser() {
       try {
         const raw = localStorage.getItem("mc_session_user");
         return raw ? JSON.parse(raw) : null;
       } catch (e) {
         return null;
       }
-    })();
-
-    if (!sessionUser) {
-      window.location.href = "index.html";
     }
 
     const sidebarUserName = document.getElementById("sidebarUserName");
@@ -682,28 +676,64 @@
     const aiForm = document.getElementById("aiForm");
     const aiInput = document.getElementById("aiInput");
     const aiSendBtn = document.getElementById("aiSendBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
 
-    function initialiseDashboard() {
-      const userId = sessionUser.id;
-      const isCrew = sessionUser.role === "crew";
-      const profile = isCrew ? crewProfiles[userId] : managerProfiles[userId];
+    // ---------- Auth Guard + Logout ----------
 
-      if (!profile) {
-        welcomeTitle.textContent = "Demo data missing";
-        welcomeSubtitle.textContent = "Try logging in again as crew001 or mgr001.";
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        localStorage.removeItem("mc_session_user");
+        window.location.href = "index.html";
         return;
       }
 
-      sidebarUserName.textContent = profile.name;
-      sidebarUserRole.textContent = profile.role;
+      sessionUser = loadSessionUser();
+
+      if (!sessionUser) {
+        const fallbackSession = {
+          id: user.uid,
+          role: "crew", // default if Firestore role wasn't loaded on login
+          name: user.displayName || user.email || "User",
+          storeId: "store001"
+        };
+        sessionUser = fallbackSession;
+        localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
+      }
+
+      initialiseDashboard();
+    });
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", async () => {
+        try {
+          await signOut(auth);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          localStorage.removeItem("mc_session_user");
+          window.location.href = "index.html";
+        }
+      });
+    }
+
+    // ---------- Dashboard Rendering ----------
+
+    function initialiseDashboard() {
+      if (!sessionUser) return;
+
+      const isCrew = sessionUser.role === "crew";
+      const profile = isCrew ? crewData : managerData;
+
+      sidebarUserName.textContent = sessionUser.name;
+      sidebarUserRole.textContent = isCrew ? "Crew Member" : "Restaurant Manager";
       welcomeTitle.textContent = isCrew
-        ? `Welcome back, ${profile.name.split(" ")[0]}`
-        : `Good shift, ${profile.name.split(" ")[0]}`;
+        ? `Welcome back, ${firstName(sessionUser.name)}`
+        : `Good shift, ${firstName(sessionUser.name)}`;
       welcomeSubtitle.textContent = isCrew
         ? `Here's a quick view of your hours, pay and training.`
         : `Live snapshot for ${profile.storeName}.`;
       roleBadge.textContent = isCrew ? "Crew" : "Manager";
-      avatarCircle.textContent = profile.name.charAt(0);
+      avatarCircle.textContent = sessionUser.name ? sessionUser.name.charAt(0).toUpperCase() : "U";
 
       aiSubtitle.textContent = isCrew
         ? "Ask about your pay, hours or training."
@@ -712,7 +742,12 @@
       renderTopCards(isCrew, profile);
       renderBottomSection(isCrew, profile);
       renderSuggestions(isCrew);
-      seedIntroMessages(isCrew, profile);
+      seedIntroMessages(isCrew);
+    }
+
+    function firstName(full) {
+      if (!full) return "there";
+      return full.split(" ")[0];
     }
 
     function renderTopCards(isCrew, profile) {
@@ -735,7 +770,9 @@
           {
             title: "Stations",
             icon: "🍔",
-            main: profile.certifications.length ? profile.certifications.join(", ") : "No stations yet",
+            main: profile.certifications.length
+              ? profile.certifications.join(", ")
+              : "No stations yet",
             sub: profile.trainingTodo.length
               ? `Next up: ${profile.trainingTodo[0]}`
               : "All key training complete"
@@ -855,7 +892,7 @@
             Quick glance of waste value by day. Ask McAssist for a breakdown or targets.
           </div>
           <ul class="list">
-            ${managerProfiles[sessionUser.id].foodWasteByDay
+            ${profile.foodWasteByDay
               .map(
                 (d) => `
               <li>
@@ -872,7 +909,7 @@
             Use this to spot who needs coaching or whose certifications are expiring.
           </div>
           <ul class="list">
-            ${managerProfiles[sessionUser.id].crewTrainingSummary
+            ${profile.crewTrainingSummary
               .map(
                 (c) => `
               <li>
@@ -917,7 +954,7 @@
       });
     }
 
-    // ---------- AI Chat Logic (pure front-end demo) ----------
+    // ---------- AI Chat Logic (front-end demo) ----------
 
     function addMessage(text, from) {
       const message = document.createElement("div");
@@ -937,11 +974,11 @@
       aiChat.scrollTop = aiChat.scrollHeight;
     }
 
-    function seedIntroMessages(isCrew, profile) {
+    function seedIntroMessages(isCrew) {
       aiChat.innerHTML = "";
       const first = isCrew
-        ? `Hi ${profile.name.split(" ")[0]} 👋 I'm McAssist. I can help you understand your hours, pay and training.`
-        : `Hi ${profile.name.split(" ")[0]} 👋 I'm McAssist. I can answer quick questions about waste, sales and your crew.`;
+        ? `Hi ${firstName(sessionUser.name)} 👋 I'm McAssist. I can help you understand your hours, pay and training.`
+        : `Hi ${firstName(sessionUser.name)} 👋 I'm McAssist. I can answer quick questions about waste, sales and your crew.`;
       const second = isCrew
         ? "You can ask things like “How many hours am I working this week?” or “How much will I earn this week?”"
         : "You can ask things like “Show me today's food waste” or “Which crew still need training?”";
@@ -967,7 +1004,7 @@
     function buildBotReply(text) {
       const lower = text.toLowerCase();
       const isCrew = sessionUser.role === "crew";
-      const profile = isCrew ? crewProfiles[sessionUser.id] : managerProfiles[sessionUser.id];
+      const profile = isCrew ? crewData : managerData;
 
       if (isCrew) {
         if (lower.includes("hour")) {
@@ -1039,8 +1076,6 @@
       e.preventDefault();
       sendUserMessage(aiInput.value);
     });
-
-    initialiseDashboard();
   </script>
 </body>
 </html>
