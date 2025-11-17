@@ -1,12 +1,12 @@
 // firebase-init.js
-// Single, clean Firebase setup for a static site (Netlify etc.)
+// Single, clean Firebase setup for your static site (Netlify, etc.)
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 
-// Your web app's Firebase configuration
+// Your Firebase config (from Firebase console)
 const firebaseConfig = {
   apiKey: "AIzaSyBKhIjeiNyCCdzrTcS3p1a3RStlH26aUmM",
   authDomain: "mc-training-portal.firebaseapp.com",
@@ -23,5 +23,4 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const analytics = getAnalytics(app);
 
-// Export what other files need
 export { app, auth, db, analytics };
