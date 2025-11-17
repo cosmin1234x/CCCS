@@ -276,6 +276,7 @@
       justify-content: space-between;
       padding: 4px 0;
       border-bottom: 1px dashed #e5e7eb;
+      gap: 8px;
     }
 
     .list li:last-child {
@@ -300,7 +301,26 @@
       color: #b45309;
     }
 
-    /* AI panel */
+    .crew-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+    }
+
+    .crew-edit-btn {
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 2px 6px;
+      font-size: 0.7rem;
+      background: #f9fafb;
+      cursor: pointer;
+    }
+
+    .crew-edit-btn:hover {
+      background: #f3f4f6;
+    }
+
     .ai-panel {
       flex: 1.3;
       display: flex;
@@ -551,7 +571,7 @@
         <div class="top-bar-right">
           <span class="chip" id="statusChip">
             <span>🍟</span>
-            <span>Demo data only</span>
+            <span>Demo data + Firestore</span>
           </span>
           <span class="badge-role" id="roleBadge">Role</span>
           <div class="avatar" id="avatarCircle">U</div>
@@ -598,13 +618,20 @@
   </main>
 
   <script type="module">
-    import { auth } from "./firebase-init.js";
+    import { auth, db } from "./firebase-init.js";
     import {
       signOut,
       onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import {
+      doc,
+      getDoc,
+      collection,
+      getDocs,
+      updateDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    // ---------- Mock Data (generic for all users, based on role) ----------
+    // ---------- Demo crew data (still local for now) ----------
 
     const crewData = {
       position: "Front Counter",
@@ -625,8 +652,10 @@
       ]
     };
 
-    const managerData = {
-      storeName: "High Street McDonald's",
+    // ---------- Manager data: default + Firestore overrides ----------
+
+    const managerDataDefault = {
+      storeName: "Your restaurant",
       todaySales: 4320,
       weekSales: 25500,
       todayWasteValue: 43,
@@ -643,11 +672,13 @@
         { day: "Fri", value: 65 }
       ],
       crewTrainingSummary: [
-        { name: "Alex Johnson", status: "Drive-Thru not started", badge: "Needs training" },
-        { name: "Maria Lopez", status: "All stations certified", badge: "Star performer" },
-        { name: "James Lee", status: "Food Safety expires soon", badge: "Action needed" }
+        { id: "alex", name: "Alex Johnson", status: "Drive-Thru not started", badge: "Needs training" },
+        { id: "maria", name: "Maria Lopez", status: "All stations certified", badge: "Star performer" },
+        { id: "james", name: "James Lee", status: "Food Safety expires soon", badge: "Action needed" }
       ]
     };
+
+    let managerData = structuredClone(managerDataDefault);
 
     // ---------- Session + DOM references ----------
 
@@ -680,7 +711,7 @@
 
     // ---------- Auth Guard + Logout ----------
 
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
       if (!user) {
         localStorage.removeItem("mc_session_user");
         window.location.href = "index.html";
@@ -700,6 +731,11 @@
         localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
       }
 
+      // Load Firestore data if manager
+      if (sessionUser.role === "manager") {
+        await loadManagerDataFromFirestore();
+      }
+
       initialiseDashboard();
     });
 
@@ -714,6 +750,58 @@
           window.location.href = "index.html";
         }
       });
+    }
+
+    // ---------- Firestore: manager store & crew data ----------
+
+    async function loadManagerDataFromFirestore() {
+      const storeId = sessionUser.storeId || "store001";
+
+      try {
+        // Store-level KPIs
+        const storeRef = doc(db, "stores", storeId);
+        const storeSnap = await getDoc(storeRef);
+
+        if (storeSnap.exists()) {
+          const data = storeSnap.data();
+          managerData.storeName = data.name || managerDataDefault.storeName;
+          managerData.todaySales = data.todaySales ?? managerDataDefault.todaySales;
+          managerData.weekSales = data.weekSales ?? managerDataDefault.weekSales;
+          managerData.todayWasteValue = data.todayWasteValue ?? managerDataDefault.todayWasteValue;
+          managerData.todayWastePct = data.todayWastePct ?? managerDataDefault.todayWastePct;
+          managerData.staffOnShift = data.staffOnShift ?? managerDataDefault.staffOnShift;
+          managerData.staffNeeded = data.staffNeeded ?? managerDataDefault.staffNeeded;
+          managerData.trainingGaps = data.trainingGaps ?? managerDataDefault.trainingGaps;
+          managerData.potentialOvertime = data.potentialOvertime ?? managerDataDefault.potentialOvertime;
+          managerData.foodWasteByDay = data.foodWasteByDay ?? managerDataDefault.foodWasteByDay;
+        }
+
+        // Crew training summary
+        const crewCol = collection(db, "stores", storeId, "crewSummary");
+        const crewSnap = await getDocs(crewCol);
+        const list = [];
+        crewSnap.forEach((docSnap) => {
+          const d = docSnap.data();
+          list.push({
+            id: docSnap.id,
+            name: d.name || "Crew member",
+            status: d.status || "",
+            badge: d.badge || "Crew"
+          });
+        });
+
+        if (list.length) {
+          managerData.crewTrainingSummary = list;
+        }
+      } catch (e) {
+        console.error("Failed to load manager data from Firestore", e);
+      }
+    }
+
+    async function updateCrewStatusInFirestore(crewId, newStatus) {
+      const storeId = sessionUser.storeId || "store001";
+      const ref = doc(db, "stores", storeId, "crewSummary", crewId);
+      await updateDoc(ref, { status: newStatus });
     }
 
     // ---------- Dashboard Rendering ----------
@@ -906,23 +994,61 @@
           <div style="margin-top:10px;"></div>
           <div class="subsection-title">Crew Training & Actions</div>
           <div class="subsection-sub">
-            Use this to spot who needs coaching or whose certifications are expiring.
+            Click "Edit" to update training notes for a crew member. Changes save to Firestore.
           </div>
-          <ul class="list">
+          <ul class="list" id="crewSummaryList">
             ${profile.crewTrainingSummary
               .map(
                 (c) => `
-              <li>
-                <span>${c.name}</span>
-                <span class="badge-soft">${c.badge}</span>
+              <li data-id="${c.id}">
+                <span>
+                  <strong>${c.name}</strong><br />
+                  <span style="font-size:0.75rem;color:#6b7280;">${c.status || "No notes yet"}</span>
+                </span>
+                <span class="crew-actions">
+                  <span class="badge-soft">${c.badge}</span>
+                  <button class="crew-edit-btn" data-id="${c.id}">Edit</button>
+                </span>
               </li>
             `
               )
               .join("")}
           </ul>
         `;
+
+        attachCrewEditHandlers();
       }
     }
+
+    function attachCrewEditHandlers() {
+      const buttons = bottomSection.querySelectorAll(".crew-edit-btn");
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const crewId = btn.getAttribute("data-id");
+          const crew = managerData.crewTrainingSummary.find((c) => c.id === crewId);
+          if (!crew) return;
+
+          const newStatus = window.prompt(
+            `Update training status for ${crew.name}:`,
+            crew.status || ""
+          );
+          if (newStatus === null) return; // cancelled
+
+          try {
+            await updateCrewStatusInFirestore(crewId, newStatus);
+          } catch (e) {
+            console.error("Failed to update Firestore", e);
+            alert("Could not save change. Check your connection and try again.");
+            return;
+          }
+
+          crew.status = newStatus;
+          renderBottomSection(false, managerData);
+        });
+      });
+    }
+
+    // ---------- AI Chat Logic ----------
 
     function renderSuggestions(isCrew) {
       aiSuggestions.innerHTML = "";
@@ -953,8 +1079,6 @@
         aiSuggestions.appendChild(chip);
       });
     }
-
-    // ---------- AI Chat Logic (front-end demo) ----------
 
     function addMessage(text, from) {
       const message = document.createElement("div");
@@ -1052,7 +1176,11 @@
         }
 
         if (lower.includes("training") || lower.includes("crew")) {
-          return `You currently have ${profile.trainingGaps} crew with training gaps.\n\nExamples:\n- ${profile.crewTrainingSummary[0].name}: ${profile.crewTrainingSummary[0].status}\n- ${profile.crewTrainingSummary[1].name}: ${profile.crewTrainingSummary[1].status}\n\nYou can ask me which areas to prioritise if you'd like.`;
+          const names = profile.crewTrainingSummary
+            .slice(0, 3)
+            .map((c) => `${c.name}: ${c.status || "no notes"}`)
+            .join("\n- ");
+          return `You currently have ${profile.trainingGaps} crew with training gaps.\n\nExamples:\n- ${names}\n\nYou can click "Edit" on the dashboard to update notes.`;
         }
 
         if (lower.includes("overtime")) {
@@ -1068,7 +1196,7 @@
           return `Right now you have ${profile.staffOnShift} people on shift against a plan of ${profile.staffNeeded}.\n\n${staffingMsg}`;
         }
 
-        return `I'm using demo store data.\n\nTry asking:\n• Show me today's food waste\n• How are our sales this week?\n• Which crew need training?\n• Who is close to overtime?\n• Are we short-staffed today?`;
+        return `I'm using a mix of demo and Firestore data.\n\nTry asking:\n• Show me today's food waste\n• How are our sales this week?\n• Which crew need training?\n• Who is close to overtime?\n• Are we short-staffed today?`;
       }
     }
 
