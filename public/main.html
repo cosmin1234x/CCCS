@@ -678,7 +678,8 @@
       ]
     };
 
-    let managerData = structuredClone(managerDataDefault);
+    let managerData = JSON.parse(JSON.stringify(managerDataDefault));
+
 
     // ---------- Session + DOM references ----------
 
