@@ -237,7 +237,7 @@
       const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
-      const role = document.getElementById("role").value;
+      const role = document.getElementById("role").value; // "crew" or "manager"
       const storeId = document.getElementById("storeId").value.trim() || "store001";
 
       errorBox.style.display = "none";
@@ -253,24 +253,32 @@
       signupBtn.disabled = true;
 
       try {
+        // 1) Create auth user
         const cred = await createUserWithEmailAndPassword(auth, email, password);
 
-        // Set display name
+        // 2) Set display name
         await updateProfile(cred.user, { displayName: name });
 
-        // Store profile in Firestore
+        // 3) Store profile in Firestore (role is exactly what you picked)
         await setDoc(doc(db, "users", cred.user.uid), {
           name,
           email,
-          role,
+          role,      // <--- this is "manager" or "crew"
           storeId,
           createdAt: new Date().toISOString()
         });
 
-        showSuccess("Account created. You can now log in.");
-        setTimeout(() => {
-          window.location.href = "index.html";
-        }, 1000);
+        // 4) Create local session so dashboard knows the correct role
+        const sessionUser = {
+          id: cred.user.uid,
+          role,      // <--- same role here
+          name,
+          storeId
+        };
+        localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
+
+        // 5) Go straight to the dashboard
+        window.location.href = "main.html";
       } catch (err) {
         console.error(err);
         if (err.code === "auth/email-already-in-use") {
