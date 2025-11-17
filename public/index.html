@@ -217,17 +217,19 @@
     const errorBox = document.getElementById("error");
     const loginButton = document.getElementById("loginButton");
 
-    // ⭐ Auto-redirect if already logged in
+    // 🔁 Auto-login / remember me
     onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
-
-      const stored = localStorage.getItem("mc_session_user");
-      if (stored) {
-        window.location.href = "main.html";
-        return;
-      }
+      if (!user) return; // not logged in, show normal login page
 
       try {
+        // If we already have a session in localStorage, just go in
+        const existing = localStorage.getItem("mc_session_user");
+        if (existing) {
+          window.location.href = "main.html";
+          return;
+        }
+
+        // Otherwise build a session from Firestore
         const profileRef = doc(db, "users", user.uid);
         const snap = await getDoc(profileRef);
 
@@ -256,11 +258,11 @@
         localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
         window.location.href = "main.html";
       } catch (e) {
-        console.error("Auto-login profile load failed", e);
+        console.error("Auto-login failed:", e);
+        // If something goes wrong, we just leave them on the login page
       }
     });
 
-    // ----- manual login -----
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
 
