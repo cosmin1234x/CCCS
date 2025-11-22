@@ -12,7 +12,7 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ---------- DEFAULT CREW DATA ---------- */
+/* ---------- DEFAULT CREW DATA (fallback if Firestore missing fields) ---------- */
 const crewDataDefault = {
   position: "Front Counter",
   hourlyRate: 10.5,
@@ -34,7 +34,7 @@ const crewDataDefault = {
 
 let crewData = JSON.parse(JSON.stringify(crewDataDefault));
 
-/* ---------- DEFAULT MANAGER DATA ---------- */
+/* ---------- DEFAULT MANAGER DATA (fallback) ---------- */
 const managerDataDefault = {
   storeName: "Your restaurant",
   todaySales: 4320,
@@ -89,6 +89,7 @@ function loadSessionUser() {
   }
 }
 
+// DOM refs
 const sidebarUserName = document.getElementById("sidebarUserName");
 const sidebarUserRole = document.getElementById("sidebarUserRole");
 const welcomeTitle = document.getElementById("welcomeTitle");
@@ -129,7 +130,7 @@ onAuthStateChanged(auth, async (user) => {
 
   if (sessionUser.role === "manager") {
     await loadManagerDataFromFirestore();
-  } else {
+  } else if (sessionUser.role === "crew") {
     await loadCrewDataFromFirestore();
   }
 
@@ -547,6 +548,46 @@ function addMessage(text, from) {
   aiChat.scrollTop = aiChat.scrollHeight;
 }
 
+/* THINKING INDICATOR STATE */
+
+let thinkingMessageEl = null;
+
+function showThinking() {
+  if (thinkingMessageEl) return; // already showing
+
+  const message = document.createElement("div");
+  message.className = "message msg-bot thinking";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = `
+    Thinking
+    <span class="thinking-dots">
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+    </span>
+  `;
+
+  const meta = document.createElement("div");
+  meta.className = "msg-meta";
+  meta.textContent = "McAssist";
+
+  message.appendChild(bubble);
+  message.appendChild(meta);
+  aiChat.appendChild(message);
+  aiChat.scrollTop = aiChat.scrollHeight;
+
+  thinkingMessageEl = message;
+}
+
+function hideThinking() {
+  if (thinkingMessageEl && thinkingMessageEl.parentNode) {
+    thinkingMessageEl.parentNode.removeChild(thinkingMessageEl);
+  }
+  thinkingMessageEl = null;
+}
+
 function seedIntroMessages(isCrew) {
   aiChat.innerHTML = "";
   const first = isCrew
@@ -572,6 +613,7 @@ async function sendUserMessage(text) {
   aiInput.value = "";
   aiInput.focus();
   aiSendBtn.disabled = true;
+  showThinking();
 
   try {
     const isCrew = sessionUser.role === "crew";
@@ -597,6 +639,7 @@ async function sendUserMessage(text) {
 
     if (!res.ok) {
       console.error("McAssist HTTP error:", res.status);
+      hideThinking();
       addMessage(
         "Sorry, I couldn't reach the McAssist service. Please try again in a moment.",
         "bot"
@@ -606,9 +649,11 @@ async function sendUserMessage(text) {
 
     const data = await res.json();
     const reply = data.reply || "Sorry, I couldn't generate a response.";
+    hideThinking();
     addMessage(reply, "bot");
   } catch (err) {
     console.error("McAssist error:", err);
+    hideThinking();
     addMessage(
       "Something went wrong talking to the AI. Please try again.",
       "bot"
@@ -623,7 +668,7 @@ aiForm.addEventListener("submit", function (e) {
   sendUserMessage(aiInput.value);
 });
 
-/* ---------- SIDEBAR MOBILE TOGGLE ---------- */
+/* ---------- Sidebar mobile toggle ---------- */
 
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");

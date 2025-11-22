@@ -318,7 +318,7 @@ select:focus {
 .sidebar-toggle {
   margin-left: auto;
   border: none;
-  background: rgba(0,0,0,0.25);
+  background: rgba(0, 0, 0, 0.25);
   color: #fefce8;
   border-radius: 999px;
   padding: 4px 8px;
@@ -457,6 +457,8 @@ select:focus {
   flex-direction: column;
   gap: 14px;
 }
+
+/* Top bar */
 
 .top-bar {
   display: flex;
@@ -793,6 +795,58 @@ select:focus {
   margin-top: 2px;
 }
 
+/* THINKING / TYPING INDICATOR */
+
+.message.thinking {
+  text-align: left;
+}
+
+.message.thinking .bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fef9c3;
+  color: #92400e;
+  padding: 6px 9px;
+  border-radius: 14px 14px 14px 2px;
+  border: 1px dashed #facc15;
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.thinking-dots {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.thinking-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #facc15;
+  animation: thinking-bounce 0.9s infinite ease-in-out;
+}
+
+.thinking-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.thinking-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes thinking-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
 .ai-suggestions {
   display: flex;
   flex-wrap: wrap;
@@ -934,7 +988,7 @@ select:focus {
   background: #f3f4f6;
 }
 
-/* ===== Extra mobile tuning ===== */
+/* ========= Responsive ========= */
 
 /* Tablets / small laptops */
 @media (max-width: 900px) {
@@ -952,7 +1006,6 @@ select:focus {
     display: inline-flex;
   }
 
-  /* hide nav by default on small screens, open with .sidebar-open */
   .sidebar-nav {
     margin-top: 6px;
     max-height: 0;
@@ -992,25 +1045,6 @@ select:focus {
 
 /* Phones */
 @media (max-width: 640px) {
-  .sidebar {
-    padding-bottom: 70px;
-    position: relative;
-  }
-
-  .sidebar-footer {
-    position: absolute;
-    bottom: 8px;
-    left: 12px;
-    right: 12px;
-    background: rgba(0, 0, 0, 0.15);
-    padding: 8px;
-    border-radius: 10px;
-  }
-
-  .sidebar-footer button {
-    font-size: 0.8rem;
-  }
-
   .main-layout {
     padding: 8px;
     gap: 10px;
@@ -1056,6 +1090,25 @@ select:focus {
   .avatar {
     width: 32px;
     height: 32px;
+  }
+
+  .sidebar {
+    padding-bottom: 70px;
+    position: relative;
+  }
+
+  .sidebar-footer {
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .sidebar-footer button {
+    font-size: 0.8rem;
   }
 
   .card.section-card {
