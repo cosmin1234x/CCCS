@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>McTraining Portal - Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Shared McDonald's theme -->
   <link rel="stylesheet" href="mc-theme.css" />
 </head>
 <body class="app-page">
@@ -15,77 +14,43 @@
         <h1>McTraining</h1>
         <p>Powered by McAssist AI</p>
       </div>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">
+        ☰
+      </button>
     </div>
 
-    <div class="nav-section-title">Main</div>
-    <ul class="nav-list">
-      <li class="nav-item active" onclick="location.href='main.html'">
-        <span class="nav-dot"></span>
-        <span>Dashboard</span>
-      </li>
-      <li class="nav-item" onclick="location.href='training.html'">
-        <span class="emoji">📚</span>
-        <span>Training</span>
-      </li>
-      <li class="nav-item">
-        <span class="emoji">🧑‍🍳</span>
-        <span>Stations</span>
-      </li>
-      <li class="nav-item">
-        <span class="emoji">🕒</span>
-        <span>Shifts</span>
-      </li>
-      <li class="nav-item active" data-page="dashboard" onclick="location.href='main.html'">
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
+      <ul class="nav-list">
+        <li class="nav-item active" data-page="dashboard" onclick="location.href='main.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Dashboard</span>
+        </li>
+        <li class="nav-item" data-page="training" onclick="location.href='training.html'">
+          <span class="nav-icon">📚</span>
+          <span class="nav-label">Training</span>
+        </li>
+        <li class="nav-item" data-page="stations">
+          <span class="nav-icon">🧑‍🍳</span>
+          <span class="nav-label">Stations</span>
+        </li>
+        <li class="nav-item" data-page="shifts">
+          <span class="nav-icon">🕒</span>
+          <span class="nav-label">Shifts</span>
+        </li>
+      </ul>
+    </nav>
 
-    </ul>
-
-    <aside class="sidebar">
-  <div class="sidebar-header">
-    <div class="logo-circle">M</div>
-    <div class="sidebar-header-text">
-      <h1>McTraining</h1>
-      <p>Powered by McAssist AI</p>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <span class="sidebar-user-label">Signed in as</span><br />
+        <strong id="sidebarUserName">—</strong><br />
+        <span id="sidebarUserRole">—</span>
+      </div>
+      <button id="logoutBtn">Log out</button>
     </div>
-    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">
-      ☰
-    </button>
-  </div>
-
-  <nav class="sidebar-nav">
-    <div class="nav-section-title">Main</div>
-    <ul class="nav-list">
-      <!-- main.html: this one is active -->
-      <!-- training.html: remove 'active' from here and put it on Training instead -->
-      <li class="nav-item" data-page="dashboard" onclick="location.href='main.html'">
-        <span class="nav-dot"></span>
-        <span class="nav-icon">📊</span>
-        <span class="nav-label">Dashboard</span>
-      </li>
-      <li class="nav-item" data-page="training" onclick="location.href='training.html'">
-        <span class="nav-icon">📚</span>
-        <span class="nav-label">Training</span>
-      </li>
-      <li class="nav-item" data-page="stations">
-        <span class="nav-icon">🧑‍🍳</span>
-        <span class="nav-label">Stations</span>
-      </li>
-      <li class="nav-item" data-page="shifts">
-        <span class="nav-icon">🕒</span>
-        <span class="nav-label">Shifts</span>
-      </li>
-    </ul>
-  </nav>
-
-  <div class="sidebar-footer">
-    <div class="sidebar-user">
-      <span class="sidebar-user-label">Signed in as</span><br />
-      <strong id="sidebarUserName">—</strong><br />
-      <span id="sidebarUserRole">—</span>
-    </div>
-    <button id="logoutBtn">Log out</button>
-  </div>
-</aside>
-
+  </aside>
 
   <main class="main-layout">
     <section class="content-area">
@@ -143,7 +108,6 @@
     </aside>
   </main>
 
-  <!-- All logic lives here -->
   <script type="module" src="main.js"></script>
 </body>
 </html>

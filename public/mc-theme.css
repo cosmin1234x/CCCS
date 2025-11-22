@@ -265,77 +265,81 @@ select:focus {
 .app-page {
   align-items: stretch;
 }
-/* ==== KEEP LOGOUT BUTTON + NAV NICE ON MOBILE ==== */
-@media (max-width: 900px) {
-  body.app-page {
-    flex-direction: column;
-  }
 
-  .sidebar {
-    width: 100%;
-    flex-direction: column;
-    padding: 10px 14px;
-  }
+/* Sidebar */
 
-  .sidebar-toggle {
-    display: inline-flex;
-  }
-
-  /* hide nav by default on small screens, open with .sidebar-open */
-  .sidebar-nav {
-    margin-top: 6px;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.2s ease;
-  }
-
-  .sidebar.sidebar-open .sidebar-nav {
-    max-height: 260px; /* enough to show menu items */
-  }
-
-  .nav-list {
-    flex-direction: column;
-  }
-
-  .main-layout {
-    flex-direction: column;
-    padding: 10px 10px 16px;
-    gap: 12px;
-  }
-
-  .ai-panel {
-    position: static;
-    max-height: none;
-    margin-top: 4px;
-  }
+.sidebar {
+  width: 250px;
+  background:
+    radial-gradient(circle at top, rgba(255, 195, 0, 0.8), transparent 55%),
+    linear-gradient(160deg, var(--mc-red), var(--mc-red-dark));
+  color: #fefce8;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px;
+  box-shadow: 4px 0 18px rgba(148, 27, 12, 0.35);
+  position: relative;
+  overflow: hidden;
 }
 
-@media (max-width: 640px) {
-  .sidebar {
-    padding-bottom: 70px;
-    position: relative;
-  }
-
-  .sidebar-footer {
-    position: absolute;
-    bottom: 8px;
-    left: 12px;
-    right: 12px;
-    background: rgba(0, 0, 0, 0.15);
-    padding: 8px;
-    border-radius: 10px;
-  }
-
-  .sidebar-footer button {
-    font-size: 0.8rem;
-  }
+.sidebar::after {
+  content: "";
+  position: absolute;
+  right: -40px;
+  bottom: -40px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 12px solid rgba(255, 195, 0, 0.15);
 }
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar-header-text h1 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.sidebar-header-text p {
+  font-size: 0.75rem;
+  color: #fde68a;
+}
+
+/* Hamburger toggle (hidden on desktop) */
+.sidebar-toggle {
+  margin-left: auto;
+  border: none;
+  background: rgba(0,0,0,0.25);
+  color: #fefce8;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: none;
+}
+
+/* Nav section */
+
+.sidebar-nav {
+  position: relative;
+  z-index: 1;
+}
+
 .nav-section-title {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: #facc15;
-  margin: 10px 2px 6px;
+  margin: 6px 2px 6px;
 }
 
 .nav-list {
@@ -343,12 +347,10 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  position: relative;
-  z-index: 1;
 }
 
 .nav-item {
-  padding: 8px 11px;
+  padding: 7px 12px;
   border-radius: 999px;
   font-size: 0.86rem;
   display: flex;
@@ -357,16 +359,29 @@ select:focus {
   cursor: pointer;
   color: #fefce8;
   transition: background 0.15s ease, transform 0.08s ease;
+  position: relative;
 }
 
 .nav-item:hover {
-  background: rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.18);
   transform: translateX(2px);
 }
 
 .nav-item.active {
   background: #fef9c3;
   color: var(--mc-red-dark);
+}
+
+/* active indicator bar on the left */
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 999px;
+  background: #f97316;
 }
 
 .nav-dot {
@@ -377,9 +392,15 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.35);
 }
 
-.nav-item span.emoji {
-  font-size: 1.1rem;
+.nav-icon {
+  font-size: 1.05rem;
 }
+
+.nav-label {
+  white-space: nowrap;
+}
+
+/* Sidebar footer */
 
 .sidebar-footer {
   margin-top: auto;
@@ -391,23 +412,25 @@ select:focus {
   z-index: 1;
 }
 
-.sidebar-footer strong {
-  color: #fef9c3;
+.sidebar-user-label {
+  opacity: 0.9;
 }
 
 .sidebar-footer button {
-  margin-top: 6px;
-  padding: 4px 10px;
+  margin-top: 8px;
+  padding: 5px 10px;
   border-radius: 999px;
   border: none;
   background: #111827;
   color: #f9fafb;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   box-shadow: 0 5px 10px rgba(15, 23, 42, 0.5);
+  width: 100%;
+  justify-content: center;
 }
 
 .sidebar-footer button::before {
@@ -623,11 +646,17 @@ select:focus {
 }
 
 .badge-soft-danger {
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.7rem;
   background: #fee2e2;
   color: #b91c1c;
 }
 
 .badge-soft-warn {
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.7rem;
   background: #fef3c7;
   color: #b45309;
 }
@@ -824,36 +853,6 @@ select:focus {
   box-shadow: none;
 }
 
-/* ========= Responsive ========= */
-
-@media (max-width: 900px) {
-  .sidebar {
-    width: 100%;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-  }
-  .sidebar-header-text p,
-  .nav-section-title,
-  .sidebar-footer {
-    display: none;
-  }
-  .nav-list {
-    flex-direction: row;
-  }
-  .nav-item {
-    padding: 6px 10px;
-  }
-  .main-layout {
-    flex-direction: column;
-    padding: 10px;
-  }
-  .ai-panel {
-    position: static;
-    max-height: 420px;
-  }
-}
 /* ===== Training page extras ===== */
 
 .pill-filter {
@@ -934,11 +933,38 @@ select:focus {
 .status-btn:hover {
   background: #f3f4f6;
 }
+
 /* ===== Extra mobile tuning ===== */
 
 /* Tablets / small laptops */
 @media (max-width: 900px) {
   body.app-page {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    flex-direction: column;
+    padding: 10px 14px;
+  }
+
+  .sidebar-toggle {
+    display: inline-flex;
+  }
+
+  /* hide nav by default on small screens, open with .sidebar-open */
+  .sidebar-nav {
+    margin-top: 6px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease;
+  }
+
+  .sidebar.sidebar-open .sidebar-nav {
+    max-height: 260px;
+  }
+
+  .nav-list {
     flex-direction: column;
   }
 
@@ -966,6 +992,25 @@ select:focus {
 
 /* Phones */
 @media (max-width: 640px) {
+  .sidebar {
+    padding-bottom: 70px;
+    position: relative;
+  }
+
+  .sidebar-footer {
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .sidebar-footer button {
+    font-size: 0.8rem;
+  }
+
   .main-layout {
     padding: 8px;
     gap: 10px;
@@ -983,7 +1028,7 @@ select:focus {
   }
 
   .cards-grid {
-    grid-template-columns: 1fr; /* single column cards */
+    grid-template-columns: 1fr;
   }
 
   .card {
@@ -991,10 +1036,9 @@ select:focus {
   }
 
   .subsection-title::before {
-    display: none; /* a little less clutter */
+    display: none;
   }
 
-  /* AI panel full width below content */
   .ai-panel {
     width: 100%;
     max-height: 380px;
@@ -1013,19 +1057,27 @@ select:focus {
     width: 32px;
     height: 32px;
   }
+
+  .card.section-card {
+    overflow-x: auto;
+  }
+
+  #modulesTable {
+    min-width: 480px;
+  }
 }
 
 /* Very small phones */
 @media (max-width: 420px) {
   .sidebar {
-    padding: 8px 10px;
+    padding: 8px 10px 70px;
   }
 
   .sidebar-header-text h1 {
     font-size: 0.9rem;
   }
 
-  .nav-item span:nth-child(2) {
+  .nav-item .nav-label {
     font-size: 0.78rem;
   }
 
@@ -1043,41 +1095,5 @@ select:focus {
 
   .ai-input-row input {
     font-size: 0.75rem;
-  }
-}
-
-/* Make training table scrollable instead of squashed on mobile */
-@media (max-width: 640px) {
-  .card.section-card {
-    overflow-x: auto;
-  }
-
-  #modulesTable {
-    min-width: 480px; /* allow horizontal scroll */
-  }
-}
-/* ==== KEEP LOGOUT BUTTON VISIBLE ON MOBILE ==== */
-@media (max-width: 640px) {
-  .sidebar {
-    padding-bottom: 60px !important;  /* space for logout */
-    position: relative;
-  }
-
-  .sidebar-footer {
-    position: absolute;
-    bottom: 10px;
-    left: 12px;
-    right: 12px;
-    background: rgba(0,0,0,0.05);
-    padding: 8px;
-    border-radius: 8px;
-    display: block;
-    font-size: 0.75rem;
-  }
-
-  .sidebar-footer button {
-    width: 100%;
-    font-size: 0.8rem;
-    padding: 6px 0;
   }
 }

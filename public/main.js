@@ -12,7 +12,7 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ---------- DEFAULT CREW DATA (fallback if Firestore missing fields) ---------- */
+/* ---------- DEFAULT CREW DATA ---------- */
 const crewDataDefault = {
   position: "Front Counter",
   hourlyRate: 10.5,
@@ -34,7 +34,7 @@ const crewDataDefault = {
 
 let crewData = JSON.parse(JSON.stringify(crewDataDefault));
 
-/* ---------- DEFAULT MANAGER DATA (fallback) ---------- */
+/* ---------- DEFAULT MANAGER DATA ---------- */
 const managerDataDefault = {
   storeName: "Your restaurant",
   todaySales: 4320,
@@ -89,7 +89,6 @@ function loadSessionUser() {
   }
 }
 
-// DOM refs
 const sidebarUserName = document.getElementById("sidebarUserName");
 const sidebarUserRole = document.getElementById("sidebarUserRole");
 const welcomeTitle = document.getElementById("welcomeTitle");
@@ -130,7 +129,7 @@ onAuthStateChanged(auth, async (user) => {
 
   if (sessionUser.role === "manager") {
     await loadManagerDataFromFirestore();
-  } else if (sessionUser.role === "crew") {
+  } else {
     await loadCrewDataFromFirestore();
   }
 
@@ -623,7 +622,9 @@ aiForm.addEventListener("submit", function (e) {
   e.preventDefault();
   sendUserMessage(aiInput.value);
 });
-// Sidebar mobile toggle
+
+/* ---------- SIDEBAR MOBILE TOGGLE ---------- */
+
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
 
