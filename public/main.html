@@ -631,9 +631,9 @@
       updateDoc
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-    // ---------- Demo crew data (still local for now) ----------
+    // ---------- CREW DATA (default + Firestore overrides) ----------
 
-    const crewData = {
+    const crewDataDefault = {
       position: "Front Counter",
       hourlyRate: 10.5,
       hoursThisWeek: 18.5,
@@ -652,7 +652,9 @@
       ]
     };
 
-    // ---------- Manager data: default + Firestore overrides ----------
+    let crewData = JSON.parse(JSON.stringify(crewDataDefault));
+
+    // ---------- MANAGER DATA (default + Firestore overrides) ----------
 
     const managerDataDefault = {
       storeName: "Your restaurant",
@@ -679,7 +681,6 @@
     };
 
     let managerData = JSON.parse(JSON.stringify(managerDataDefault));
-
 
     // ---------- Session + DOM references ----------
 
@@ -724,7 +725,7 @@
       if (!sessionUser) {
         const fallbackSession = {
           id: user.uid,
-          role: "crew", // default if Firestore role wasn't loaded on login
+          role: "crew",
           name: user.displayName || user.email || "User",
           storeId: "store001"
         };
@@ -732,9 +733,10 @@
         localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
       }
 
-      // Load Firestore data if manager
       if (sessionUser.role === "manager") {
         await loadManagerDataFromFirestore();
+      } else if (sessionUser.role === "crew") {
+        await loadCrewDataFromFirestore();
       }
 
       initialiseDashboard();
@@ -753,13 +755,12 @@
       });
     }
 
-    // ---------- Firestore: manager store & crew data ----------
+    // ---------- Firestore: manager store & crew summary ----------
 
     async function loadManagerDataFromFirestore() {
       const storeId = sessionUser.storeId || "store001";
 
       try {
-        // Store-level KPIs
         const storeRef = doc(db, "stores", storeId);
         const storeSnap = await getDoc(storeRef);
 
@@ -777,7 +778,6 @@
           managerData.foodWasteByDay = data.foodWasteByDay ?? managerDataDefault.foodWasteByDay;
         }
 
-        // Crew training summary
         const crewCol = collection(db, "stores", storeId, "crewSummary");
         const crewSnap = await getDocs(crewCol);
         const list = [];
@@ -803,6 +803,49 @@
       const storeId = sessionUser.storeId || "store001";
       const ref = doc(db, "stores", storeId, "crewSummary", crewId);
       await updateDoc(ref, { status: newStatus });
+    }
+
+    // ---------- Firestore: CREW personal data ----------
+
+    async function loadCrewDataFromFirestore() {
+      try {
+        const userRef = doc(db, "users", sessionUser.id);
+        const snap = await getDoc(userRef);
+        if (!snap.exists()) return;
+
+        const data = snap.data();
+
+        crewData.position = data.position || crewData.position;
+        crewData.hourlyRate = data.hourlyRate ?? crewData.hourlyRate;
+        crewData.hoursThisWeek = data.hoursThisWeek ?? crewData.hoursThisWeek;
+        crewData.estimatedPayThisWeek =
+          data.estimatedPayThisWeek ??
+          crewData.hoursThisWeek * crewData.hourlyRate;
+
+        if (data.nextShift) {
+          crewData.nextShift = {
+            day: data.nextShift.day || crewData.nextShift.day,
+            date: data.nextShift.date || crewData.nextShift.date,
+            start: data.nextShift.start || crewData.nextShift.start,
+            end: data.nextShift.end || crewData.nextShift.end
+          };
+        }
+
+        if (Array.isArray(data.certifications)) {
+          crewData.certifications = data.certifications;
+        }
+        if (Array.isArray(data.trainingTodo)) {
+          crewData.trainingTodo = data.trainingTodo;
+        }
+        if (Array.isArray(data.achievements)) {
+          crewData.achievements = data.achievements;
+        }
+        if (Array.isArray(data.schedule)) {
+          crewData.schedule = data.schedule;
+        }
+      } catch (e) {
+        console.error("Failed to load crew data from Firestore", e);
+      }
     }
 
     // ---------- Dashboard Rendering ----------
@@ -1033,7 +1076,7 @@
             `Update training status for ${crew.name}:`,
             crew.status || ""
           );
-          if (newStatus === null) return; // cancelled
+          if (newStatus === null) return;
 
           try {
             await updateCrewStatusInFirestore(crewId, newStatus);
@@ -1162,7 +1205,7 @@
           return `Your next shift is on ${ns.day} ${ns.date} from ${ns.start} to ${ns.end}.\n\nYou can also check the shifts list under your dashboard.`;
         }
 
-        return `I'm using demo data only, so I can give you rough info.\n\nTry asking:\n• How many hours am I working this week?\n• How much will I earn this week?\n• What training do I still need?\n• When is my next shift?`;
+        return `I'm using a mix of demo and Firestore data.\n\nTry asking:\n• How many hours am I working this week?\n• How much will I earn this week?\n• What training do I still need?\n• When is my next shift?`;
       } else {
         if (lower.includes("waste") || lower.includes("food waste")) {
           return `For ${profile.storeName} today, recorded food waste is about £${profile.todayWasteValue.toFixed(
