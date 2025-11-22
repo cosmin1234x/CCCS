@@ -1092,7 +1092,7 @@
       });
     }
 
-    // ---------- AI Chat Logic ----------
+    // ---------- AI Chat Logic (real backend) ----------
 
     function renderSuggestions(isCrew) {
       aiSuggestions.innerHTML = "";
@@ -1155,92 +1155,58 @@
       addMessage(second, "bot");
     }
 
-    function sendUserMessage(text) {
+    async function sendUserMessage(text) {
       if (!text.trim()) return;
-      addMessage(text.trim(), "user");
+      const cleaned = text.trim();
+
+      // show user message immediately
+      addMessage(cleaned, "user");
       aiInput.value = "";
       aiInput.focus();
       aiSendBtn.disabled = true;
 
-      setTimeout(() => {
-        const reply = buildBotReply(text.trim());
+      try {
+        const isCrew = sessionUser.role === "crew";
+        const profile = isCrew ? crewData : managerData;
+
+        const contextData = {
+          role: sessionUser.role,
+          userName: sessionUser.name,
+          storeId: sessionUser.storeId,
+          crewData: isCrew ? profile : undefined,
+          managerData: !isCrew ? profile : undefined
+        };
+
+        const res = await fetch("/.netlify/functions/mcassist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: cleaned,
+            user: sessionUser,
+            contextData
+          })
+        });
+
+        if (!res.ok) {
+          console.error("McAssist HTTP error:", res.status);
+          addMessage(
+            "Sorry, I couldn't reach the McAssist service. Please try again in a moment.",
+            "bot"
+          );
+          return;
+        }
+
+        const data = await res.json();
+        const reply = data.reply || "Sorry, I couldn't generate a response.";
         addMessage(reply, "bot");
+      } catch (err) {
+        console.error("McAssist error:", err);
+        addMessage(
+          "Something went wrong talking to the AI. Please try again.",
+          "bot"
+        );
+      } finally {
         aiSendBtn.disabled = false;
-      }, 400);
-    }
-
-    function buildBotReply(text) {
-      const lower = text.toLowerCase();
-      const isCrew = sessionUser.role === "crew";
-      const profile = isCrew ? crewData : managerData;
-
-      if (isCrew) {
-        if (lower.includes("hour")) {
-          return `Based on your schedule, you're working about ${profile.hoursThisWeek.toFixed(
-            1
-          )} hours this week.\n\nYou can see the breakdown in the "This Week's Shifts" card.`;
-        }
-
-        if (lower.includes("earn") || lower.includes("paid") || lower.includes("pay")) {
-          return `Right now your estimated pay for this week is about £${profile.estimatedPayThisWeek.toFixed(
-            2
-          )} before tax.\n\nThat's based on ${profile.hoursThisWeek.toFixed(
-            1
-          )} hours at £${profile.hourlyRate.toFixed(
-            2
-          )}/hr. If your shifts change, this number will change as well.`;
-        }
-
-        if (lower.includes("training") || lower.includes("station") || lower.includes("certified")) {
-          const todo = profile.trainingTodo.length
-            ? profile.trainingTodo.join(", ")
-            : "No outstanding modules – nice work!";
-          return `You're currently certified on: ${profile.certifications.join(
-            ", "
-          )}.\n\nNext recommended modules for you: ${todo}.`;
-        }
-
-        if (lower.includes("next shift") || lower.includes("when do i work")) {
-          const ns = profile.nextShift;
-          return `Your next shift is on ${ns.day} ${ns.date} from ${ns.start} to ${ns.end}.\n\nYou can also check the shifts list under your dashboard.`;
-        }
-
-        return `I'm using a mix of demo and Firestore data.\n\nTry asking:\n• How many hours am I working this week?\n• How much will I earn this week?\n• What training do I still need?\n• When is my next shift?`;
-      } else {
-        if (lower.includes("waste") || lower.includes("food waste")) {
-          return `For ${profile.storeName} today, recorded food waste is about £${profile.todayWasteValue.toFixed(
-            0
-          )}, which is roughly ${profile.todayWastePct.toFixed(
-            1
-          )}% of sales.\n\nCheck the "Food Waste - This Week" section for daily values.`;
-        }
-
-        if (lower.includes("sale") || lower.includes("income") || lower.includes("revenue")) {
-          return `Today's sales are approximately £${profile.todaySales.toLocaleString()}.\n\nWeek-to-date sales are about £${profile.weekSales.toLocaleString()}.`;
-        }
-
-        if (lower.includes("training") || lower.includes("crew")) {
-          const names = profile.crewTrainingSummary
-            .slice(0, 3)
-            .map((c) => `${c.name}: ${c.status || "no notes"}`)
-            .join("\n- ");
-          return `You currently have ${profile.trainingGaps} crew with training gaps.\n\nExamples:\n- ${names}\n\nYou can click "Edit" on the dashboard to update notes.`;
-        }
-
-        if (lower.includes("overtime")) {
-          return `There are ${profile.potentialOvertime} crew members close to overtime.\n\nUse this as a signal to review the next week's rota and adjust shifts if needed.`;
-        }
-
-        if (lower.includes("staff") || lower.includes("shift coverage")) {
-          const gap = profile.staffNeeded - profile.staffOnShift;
-          const staffingMsg =
-            gap > 0
-              ? `You're currently short by ${gap} people versus the plan.`
-              : "You're at or above your staffing plan.";
-          return `Right now you have ${profile.staffOnShift} people on shift against a plan of ${profile.staffNeeded}.\n\n${staffingMsg}`;
-        }
-
-        return `I'm using a mix of demo and Firestore data.\n\nTry asking:\n• Show me today's food waste\n• How are our sales this week?\n• Which crew need training?\n• Who is close to overtime?\n• Are we short-staffed today?`;
       }
     }
 
