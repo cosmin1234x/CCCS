@@ -1038,3 +1038,28 @@ select:focus {
     min-width: 480px; /* allow horizontal scroll */
   }
 }
+/* ==== KEEP LOGOUT BUTTON VISIBLE ON MOBILE ==== */
+@media (max-width: 640px) {
+  .sidebar {
+    padding-bottom: 60px !important;  /* space for logout */
+    position: relative;
+  }
+
+  .sidebar-footer {
+    position: absolute;
+    bottom: 10px;
+    left: 12px;
+    right: 12px;
+    background: rgba(0,0,0,0.05);
+    padding: 8px;
+    border-radius: 8px;
+    display: block;
+    font-size: 0.75rem;
+  }
+
+  .sidebar-footer button {
+    width: 100%;
+    font-size: 0.8rem;
+    padding: 6px 0;
+  }
+}
