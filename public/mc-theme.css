@@ -265,53 +265,71 @@ select:focus {
 .app-page {
   align-items: stretch;
 }
+/* ==== KEEP LOGOUT BUTTON + NAV NICE ON MOBILE ==== */
+@media (max-width: 900px) {
+  body.app-page {
+    flex-direction: column;
+  }
 
-.sidebar {
-  width: 250px;
-  background:
-    radial-gradient(circle at top, rgba(255, 195, 0, 0.8), transparent 55%),
-    linear-gradient(160deg, var(--mc-red), var(--mc-red-dark));
-  color: #fefce8;
-  display: flex;
-  flex-direction: column;
-  padding: 18px 16px;
-  box-shadow: 4px 0 18px rgba(148, 27, 12, 0.35);
-  position: relative;
-  overflow: hidden;
+  .sidebar {
+    width: 100%;
+    flex-direction: column;
+    padding: 10px 14px;
+  }
+
+  .sidebar-toggle {
+    display: inline-flex;
+  }
+
+  /* hide nav by default on small screens, open with .sidebar-open */
+  .sidebar-nav {
+    margin-top: 6px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease;
+  }
+
+  .sidebar.sidebar-open .sidebar-nav {
+    max-height: 260px; /* enough to show menu items */
+  }
+
+  .nav-list {
+    flex-direction: column;
+  }
+
+  .main-layout {
+    flex-direction: column;
+    padding: 10px 10px 16px;
+    gap: 12px;
+  }
+
+  .ai-panel {
+    position: static;
+    max-height: none;
+    margin-top: 4px;
+  }
 }
 
-.sidebar::after {
-  content: "";
-  position: absolute;
-  right: -40px;
-  bottom: -40px;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  border: 12px solid rgba(255, 195, 0, 0.15);
-}
+@media (max-width: 640px) {
+  .sidebar {
+    padding-bottom: 70px;
+    position: relative;
+  }
 
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
-  position: relative;
-  z-index: 1;
-}
+  .sidebar-footer {
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+    right: 12px;
+    background: rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    border-radius: 10px;
+  }
 
-.sidebar-header-text h1 {
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  .sidebar-footer button {
+    font-size: 0.8rem;
+  }
 }
-
-.sidebar-header-text p {
-  font-size: 0.75rem;
-  color: #fde68a;
-}
-
 .nav-section-title {
   font-size: 0.7rem;
   text-transform: uppercase;

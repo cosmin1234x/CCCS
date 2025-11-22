@@ -324,3 +324,12 @@ function renderRecommended() {
     recommendedList.appendChild(li);
   }
 }
+// Sidebar mobile toggle
+const sidebar = document.querySelector(".sidebar");
+const sidebarToggle = document.getElementById("sidebarToggle");
+
+if (sidebar && sidebarToggle) {
+  sidebarToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("sidebar-open");
+  });
+}

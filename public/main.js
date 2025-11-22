@@ -623,3 +623,12 @@ aiForm.addEventListener("submit", function (e) {
   e.preventDefault();
   sendUserMessage(aiInput.value);
 });
+// Sidebar mobile toggle
+const sidebar = document.querySelector(".sidebar");
+const sidebarToggle = document.getElementById("sidebarToggle");
+
+if (sidebar && sidebarToggle) {
+  sidebarToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("sidebar-open");
+  });
+}
