@@ -35,17 +35,57 @@
         <span class="emoji">🕒</span>
         <span>Shifts</span>
       </li>
+      <li class="nav-item active" data-page="dashboard" onclick="location.href='main.html'">
+
     </ul>
 
-    <div class="sidebar-footer">
-      Signed in as<br />
+    <aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-circle">M</div>
+    <div class="sidebar-header-text">
+      <h1>McTraining</h1>
+      <p>Powered by McAssist AI</p>
+    </div>
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">
+      ☰
+    </button>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-title">Main</div>
+    <ul class="nav-list">
+      <!-- main.html: this one is active -->
+      <!-- training.html: remove 'active' from here and put it on Training instead -->
+      <li class="nav-item" data-page="dashboard" onclick="location.href='main.html'">
+        <span class="nav-dot"></span>
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Dashboard</span>
+      </li>
+      <li class="nav-item" data-page="training" onclick="location.href='training.html'">
+        <span class="nav-icon">📚</span>
+        <span class="nav-label">Training</span>
+      </li>
+      <li class="nav-item" data-page="stations">
+        <span class="nav-icon">🧑‍🍳</span>
+        <span class="nav-label">Stations</span>
+      </li>
+      <li class="nav-item" data-page="shifts">
+        <span class="nav-icon">🕒</span>
+        <span class="nav-label">Shifts</span>
+      </li>
+    </ul>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <span class="sidebar-user-label">Signed in as</span><br />
       <strong id="sidebarUserName">—</strong><br />
       <span id="sidebarUserRole">—</span>
-      <div>
-        <button id="logoutBtn">Log out</button>
-      </div>
     </div>
-  </aside>
+    <button id="logoutBtn">Log out</button>
+  </div>
+</aside>
+
 
   <main class="main-layout">
     <section class="content-area">
