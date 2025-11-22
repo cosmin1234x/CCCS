@@ -836,3 +836,83 @@ select:focus {
     max-height: 420px;
   }
 }
+/* ===== Training page extras ===== */
+
+.pill-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.72rem;
+  cursor: pointer;
+  margin-right: 6px;
+  margin-bottom: 4px;
+  background: #f9fafb;
+}
+
+.pill-filter.active {
+  background: #111827;
+  color: #f9fafb;
+  border-color: #111827;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress-bar-inner {
+  height: 100%;
+  background: #22c55e;
+  width: 0%;
+}
+
+/* training table */
+
+#modulesTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin-top: 6px;
+}
+
+#modulesTable th,
+#modulesTable td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+#modulesTable th {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-soft-success {
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.7rem;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.status-btn {
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  padding: 3px 7px;
+  font-size: 0.7rem;
+  background: #f9fafb;
+  cursor: pointer;
+}
+
+.status-btn:hover {
+  background: #f3f4f6;
+}
