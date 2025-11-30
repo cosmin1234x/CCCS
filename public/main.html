@@ -8,6 +8,7 @@
 </head>
 
 <body class="app-page">
+
   <!-- ========= SIDEBAR ========= -->
   <aside class="sidebar">
     <div class="sidebar-header">
@@ -25,28 +26,23 @@
     <nav class="sidebar-nav">
       <div class="nav-section-title">Main</div>
       <ul class="nav-list">
-
         <li class="nav-item active" onclick="location.href='main.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">📊</span>
           <span class="nav-label">Dashboard</span>
         </li>
-
         <li class="nav-item" onclick="location.href='training.html'">
           <span class="nav-icon">📚</span>
           <span class="nav-label">Training</span>
         </li>
-
         <li class="nav-item">
           <span class="nav-icon">🧑‍🍳</span>
           <span class="nav-label">Stations</span>
         </li>
-
         <li class="nav-item">
           <span class="nav-icon">🕒</span>
           <span class="nav-label">Shifts</span>
         </li>
-
       </ul>
     </nav>
 
@@ -60,31 +56,27 @@
     </div>
   </aside>
 
-  <!-- ========= MAIN LAYOUT ========= -->
+
+  <!-- ========= MAIN CONTENT ========= -->
   <main class="main-layout">
     <section class="content-area">
 
-      <!-- TOP BAR -->
       <div class="top-bar">
         <div class="top-bar-left">
           <h2 id="welcomeTitle">Welcome</h2>
           <p id="welcomeSubtitle">Loading your dashboard…</p>
         </div>
-
         <div class="top-bar-right">
           <span class="chip" id="statusChip">
-            <span>🍟</span>
-            <span>Live data + AI</span>
+            <span>🍟</span> <span>Live data + AI</span>
           </span>
           <span class="badge-role" id="roleBadge">Role</span>
           <div class="avatar" id="avatarCircle">U</div>
         </div>
       </div>
 
-      <!-- TOP CARDS -->
       <div class="cards-grid" id="topCards"></div>
 
-      <!-- BOTTOM SECTION -->
       <div class="card section-card" id="bottomSection"></div>
 
     </section>
@@ -96,10 +88,9 @@
           <div class="ai-avatar">🤖</div>
           <div class="ai-header-text">
             <h3>McAssist</h3>
-            <p id="aiSubtitle">Ask me about anything in the restaurant</p>
+            <p id="aiSubtitle">Ask me about your shift or store</p>
           </div>
         </div>
-
         <div class="ai-status">
           <span class="ai-status-dot"></span>
           <span>Online</span>
@@ -110,27 +101,43 @@
 
       <div class="ai-chat" id="aiChat"></div>
 
-      <!-- AI INPUT WITH VOICE BUTTON -->
+      <!-- Input -->
       <form class="ai-input-row" id="aiForm">
         <input
-          type="text"
           id="aiInput"
           placeholder="Ask McAssist anything…"
           autocomplete="off"
         />
 
-        <!-- 🎤 MIC BUTTON -->
+        <!-- MIC BUTTON -->
         <button type="button" class="ai-mic-btn" id="aiMicBtn">🎤</button>
 
-        <!-- SEND BUTTON -->
         <button type="submit" class="ai-send-btn" id="aiSendBtn">
-          <span>Send</span>
-          <span>↗</span>
+          <span>Send</span><span>↗</span>
         </button>
       </form>
     </aside>
-
   </main>
+
+
+  <!-- ========= FULL-SCREEN VOICE OVERLAY ========= -->
+  <div id="voiceOverlay" class="voice-overlay">
+    <!-- Floating food icons (use your own images if you want) -->
+    <img src="https://i.imgur.com/6mZ2KzF.png" class="float-icon fry" alt="Fries" />
+    <img src="https://i.imgur.com/4s1jE8f.png" class="float-icon burger" alt="Burger" />
+    <img src="https://i.imgur.com/gjbQdWX.png" class="float-icon drink" alt="Drink" />
+
+    <!-- Center mic -->
+    <div class="voice-mic-container">
+      <div class="voice-mic-pulse"></div>
+      <div class="voice-mic">
+        🎤
+      </div>
+    </div>
+
+    <div class="voice-text">I'm listening…</div>
+    <div class="voice-hint">Speak your question for McAssist</div>
+  </div>
 
   <script type="module" src="main.js"></script>
 </body>

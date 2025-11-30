@@ -907,6 +907,24 @@ select:focus {
   box-shadow: none;
 }
 
+/* ===== Voice Input Button ===== */
+
+.ai-mic-btn {
+  border: none;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 6px 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+  transition: background 0.2s, transform 0.15s;
+}
+
+.ai-mic-btn:hover {
+  background: #e5e7eb;
+  transform: translateY(-1px);
+}
+
 /* ===== Training page extras ===== */
 
 .pill-filter {
@@ -986,6 +1004,109 @@ select:focus {
 
 .status-btn:hover {
   background: #f3f4f6;
+}
+
+/* ========= FULL SCREEN VOICE MODE ========= */
+
+.voice-overlay {
+  position: fixed;
+  inset: 0;
+  background: #fffef8;
+  z-index: 9999;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.voice-overlay.active {
+  display: flex;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Floating icons */
+
+.float-icon {
+  position: absolute;
+  width: 80px;
+  opacity: 0.9;
+  animation: float 6s ease-in-out infinite;
+}
+
+.float-icon.fry { top: 12%; left: 10%; animation-delay: 0s; }
+.float-icon.burger { top: 55%; right: 8%; animation-delay: 1s; }
+.float-icon.drink { top: 30%; left: 75%; animation-delay: 2s; }
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-28px); }
+  100% { transform: translateY(0px); }
+}
+
+/* MIC */
+
+.voice-mic-container {
+  position: relative;
+  width: 160px;
+  height: 160px;
+}
+
+.voice-mic-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(255, 204, 0, 0.35);
+  animation: pulseRing 1.8s infinite ease-out;
+}
+
+@keyframes pulseRing {
+  0% { transform: scale(0.85); opacity: 0.9; }
+  70% { transform: scale(1.6); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+.voice-mic {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 120px;
+  height: 120px;
+  background: #d9091c;
+  color: #ffea00;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  font-weight: bold;
+  box-shadow: 0 8px 25px rgba(217,9,28,0.45);
+  animation: micFloat 1.5s infinite ease-in-out;
+}
+
+@keyframes micFloat {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-14px); }
+  100% { transform: translateY(0px); }
+}
+
+/* Text */
+
+.voice-text {
+  margin-top: 20px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #d9091c;
+}
+
+.voice-hint {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: #b45309;
 }
 
 /* ========= Responsive ========= */
@@ -1149,34 +1270,4 @@ select:focus {
   .ai-input-row input {
     font-size: 0.75rem;
   }
-}
-
-/* ===== Voice Input Button ===== */
-
-.ai-mic-btn {
-  border: none;
-  background: #f3f4f6;
-  border-radius: 999px;
-  padding: 6px 8px;
-  font-size: 1rem;
-  cursor: pointer;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
-  transition: background 0.2s, transform 0.15s;
-}
-
-.ai-mic-btn:hover {
-  background: #e5e7eb;
-  transform: translateY(-1px);
-}
-
-.ai-mic-btn.listening {
-  background: #dc2626;
-  color: #fff;
-  animation: pulseMic 1s infinite;
-}
-
-@keyframes pulseMic {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.15); }
-  100% { transform: scale(1); }
 }

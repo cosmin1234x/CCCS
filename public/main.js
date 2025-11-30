@@ -106,6 +106,10 @@ const aiInput = document.getElementById("aiInput");
 const aiSendBtn = document.getElementById("aiSendBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 
+// voice UI elements
+const micBtn = document.getElementById("aiMicBtn");
+const overlay = document.getElementById("voiceOverlay");
+
 /* ---------- AUTH GUARD ---------- */
 
 onAuthStateChanged(auth, async (user) => {
@@ -679,55 +683,55 @@ if (sidebar && sidebarToggle) {
   });
 }
 
-/* ---------- VOICE INPUT (Web Speech API) ---------- */
+/* ========= FULL SCREEN VOICE MODE (Web Speech API) ========= */
 
-const micBtn = document.getElementById("aiMicBtn");
 let recognition;
 let listening = false;
 
-if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+if (
+  micBtn &&
+  overlay &&
+  ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)
+) {
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
 
   recognition = new SpeechRecognition();
-  recognition.lang = "en-UK"; // You can change to "en-US" or "ro-RO"
+  recognition.lang = "en-US"; // change if you want other language
   recognition.continuous = false;
   recognition.interimResults = false;
-
-  recognition.onstart = () => {
-    listening = true;
-    micBtn.classList.add("listening");
-    micBtn.textContent = "🎧";
-    aiInput.placeholder = "Listening…";
-  };
-
-  recognition.onend = () => {
-    listening = false;
-    micBtn.classList.remove("listening");
-    micBtn.textContent = "🎤";
-    aiInput.placeholder = "Ask McAssist anything…";
-  };
-
-  recognition.onerror = () => {
-    listening = false;
-    micBtn.classList.remove("listening");
-    micBtn.textContent = "🎤";
-    aiInput.placeholder = "Error. Try again.";
-  };
-
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    aiInput.value = transcript;
-    sendUserMessage(transcript);
-  };
 
   micBtn.addEventListener("click", () => {
     if (listening) {
       recognition.stop();
       return;
     }
-    recognition.start();
+    startVoiceMode();
   });
-} else {
-  micBtn.style.display = "none"; // Browser doesn’t support speech
+
+  function startVoiceMode() {
+    overlay.classList.add("active");
+    listening = true;
+    recognition.start();
+  }
+
+  recognition.onend = () => {
+    listening = false;
+    overlay.classList.remove("active");
+  };
+
+  recognition.onerror = () => {
+    listening = false;
+    overlay.classList.remove("active");
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    aiInput.value = transcript;
+    sendUserMessage(transcript);
+    overlay.classList.remove("active");
+  };
+} else if (micBtn) {
+  // Browser doesn't support speech
+  micBtn.style.display = "none";
 }
