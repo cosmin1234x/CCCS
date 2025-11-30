@@ -6,7 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 </head>
+
 <body class="app-page">
+  <!-- ========= SIDEBAR ========= -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo-circle">M</div>
@@ -14,6 +16,7 @@
         <h1>McTraining</h1>
         <p>Powered by McAssist AI</p>
       </div>
+
       <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">
         ☰
       </button>
@@ -22,23 +25,28 @@
     <nav class="sidebar-nav">
       <div class="nav-section-title">Main</div>
       <ul class="nav-list">
-        <li class="nav-item active" data-page="dashboard" onclick="location.href='main.html'">
+
+        <li class="nav-item active" onclick="location.href='main.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">📊</span>
           <span class="nav-label">Dashboard</span>
         </li>
-        <li class="nav-item" data-page="training" onclick="location.href='training.html'">
+
+        <li class="nav-item" onclick="location.href='training.html'">
           <span class="nav-icon">📚</span>
           <span class="nav-label">Training</span>
         </li>
-        <li class="nav-item" data-page="stations">
+
+        <li class="nav-item">
           <span class="nav-icon">🧑‍🍳</span>
           <span class="nav-label">Stations</span>
         </li>
-        <li class="nav-item" data-page="shifts">
+
+        <li class="nav-item">
           <span class="nav-icon">🕒</span>
           <span class="nav-label">Shifts</span>
         </li>
+
       </ul>
     </nav>
 
@@ -52,13 +60,17 @@
     </div>
   </aside>
 
+  <!-- ========= MAIN LAYOUT ========= -->
   <main class="main-layout">
     <section class="content-area">
+
+      <!-- TOP BAR -->
       <div class="top-bar">
         <div class="top-bar-left">
           <h2 id="welcomeTitle">Welcome</h2>
           <p id="welcomeSubtitle">Loading your dashboard…</p>
         </div>
+
         <div class="top-bar-right">
           <span class="chip" id="statusChip">
             <span>🍟</span>
@@ -69,20 +81,25 @@
         </div>
       </div>
 
+      <!-- TOP CARDS -->
       <div class="cards-grid" id="topCards"></div>
 
+      <!-- BOTTOM SECTION -->
       <div class="card section-card" id="bottomSection"></div>
+
     </section>
 
+    <!-- ========= AI PANEL ========= -->
     <aside class="ai-panel">
       <div class="ai-header">
         <div class="ai-header-left">
           <div class="ai-avatar">🤖</div>
           <div class="ai-header-text">
             <h3>McAssist</h3>
-            <p id="aiSubtitle">Ask me about hours, pay or store performance</p>
+            <p id="aiSubtitle">Ask me about anything in the restaurant</p>
           </div>
         </div>
+
         <div class="ai-status">
           <span class="ai-status-dot"></span>
           <span>Online</span>
@@ -93,19 +110,26 @@
 
       <div class="ai-chat" id="aiChat"></div>
 
+      <!-- AI INPUT WITH VOICE BUTTON -->
       <form class="ai-input-row" id="aiForm">
         <input
           type="text"
           id="aiInput"
-          placeholder="Ask McAssist anything about your shift or store…"
+          placeholder="Ask McAssist anything…"
           autocomplete="off"
         />
+
+        <!-- 🎤 MIC BUTTON -->
+        <button type="button" class="ai-mic-btn" id="aiMicBtn">🎤</button>
+
+        <!-- SEND BUTTON -->
         <button type="submit" class="ai-send-btn" id="aiSendBtn">
           <span>Send</span>
           <span>↗</span>
         </button>
       </form>
     </aside>
+
   </main>
 
   <script type="module" src="main.js"></script>

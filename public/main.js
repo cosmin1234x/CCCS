@@ -678,3 +678,56 @@ if (sidebar && sidebarToggle) {
     sidebar.classList.toggle("sidebar-open");
   });
 }
+
+/* ---------- VOICE INPUT (Web Speech API) ---------- */
+
+const micBtn = document.getElementById("aiMicBtn");
+let recognition;
+let listening = false;
+
+if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-UK"; // You can change to "en-US" or "ro-RO"
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    listening = true;
+    micBtn.classList.add("listening");
+    micBtn.textContent = "🎧";
+    aiInput.placeholder = "Listening…";
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎤";
+    aiInput.placeholder = "Ask McAssist anything…";
+  };
+
+  recognition.onerror = () => {
+    listening = false;
+    micBtn.classList.remove("listening");
+    micBtn.textContent = "🎤";
+    aiInput.placeholder = "Error. Try again.";
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    aiInput.value = transcript;
+    sendUserMessage(transcript);
+  };
+
+  micBtn.addEventListener("click", () => {
+    if (listening) {
+      recognition.stop();
+      return;
+    }
+    recognition.start();
+  });
+} else {
+  micBtn.style.display = "none"; // Browser doesn’t support speech
+}

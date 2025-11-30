@@ -1150,3 +1150,33 @@ select:focus {
     font-size: 0.75rem;
   }
 }
+
+/* ===== Voice Input Button ===== */
+
+.ai-mic-btn {
+  border: none;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 6px 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+  transition: background 0.2s, transform 0.15s;
+}
+
+.ai-mic-btn:hover {
+  background: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+.ai-mic-btn.listening {
+  background: #dc2626;
+  color: #fff;
+  animation: pulseMic 1s infinite;
+}
+
+@keyframes pulseMic {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
