@@ -706,9 +706,16 @@ select:focus {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  gap: 8px;
 }
 
 .ai-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-header-right {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -752,6 +759,57 @@ select:focus {
   background: #22c55e;
   box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.25);
 }
+
+/* Wake word toggle */
+
+.wake-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.wake-label {
+  font-size: 0.72rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.wake-switch {
+  width: 40px;
+  height: 22px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: background .18s ease;
+  border: 1px solid #e5e7eb;
+}
+
+.wake-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  transition: transform .18s ease;
+}
+
+#wakeToggle { display: none; }
+
+#wakeToggle:checked + .wake-switch {
+  background: var(--mc-red);
+  border-color: var(--mc-red);
+}
+
+#wakeToggle:checked + .wake-switch .wake-knob {
+  transform: translateX(18px);
+}
+
+/* Chat */
 
 .ai-chat {
   flex: 1;
@@ -907,7 +965,7 @@ select:focus {
   box-shadow: none;
 }
 
-/* ===== Voice Input Button ===== */
+/* Voice Input button */
 
 .ai-mic-btn {
   border: none;
@@ -925,7 +983,7 @@ select:focus {
   transform: translateY(-1px);
 }
 
-/* ===== Training page extras ===== */
+/* ===== Training page extras (if you use training.html) ===== */
 
 .pill-filter {
   display: inline-flex;
@@ -961,8 +1019,6 @@ select:focus {
   background: #22c55e;
   width: 0%;
 }
-
-/* training table */
 
 #modulesTable {
   width: 100%;
@@ -1038,9 +1094,9 @@ select:focus {
   animation: float 6s ease-in-out infinite;
 }
 
-.float-icon.fry { top: 12%; left: 10%; animation-delay: 0s; }
+.float-icon.fry    { top: 12%; left: 10%; animation-delay: 0s; }
 .float-icon.burger { top: 55%; right: 8%; animation-delay: 1s; }
-.float-icon.drink { top: 30%; left: 75%; animation-delay: 2s; }
+.float-icon.drink  { top: 30%; left: 75%; animation-delay: 2s; }
 
 @keyframes float {
   0% { transform: translateY(0px); }
@@ -1094,7 +1150,7 @@ select:focus {
   100% { transform: translateY(0px); }
 }
 
-/* Text */
+/* Text in voice overlay */
 
 .voice-text {
   margin-top: 20px;
@@ -1270,43 +1326,4 @@ select:focus {
   .ai-input-row input {
     font-size: 0.75rem;
   }
-}
-/* Wake word toggle */
-.wake-wrap { display: flex; align-items: center; gap: 8px; }
-
-.wake-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.wake-toggle input { display: none; }
-
-.wake-slider {
-  width: 42px; height: 24px; border-radius: 999px;
-  background: #e5e7eb; position: relative; transition: background .2s;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
-}
-
-.wake-slider::after {
-  content: ""; position: absolute; top: 3px; left: 3px;
-  width: 18px; height: 18px; border-radius: 50%;
-  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2);
-  transition: transform .2s;
-}
-
-.wake-toggle input:checked + .wake-slider {
-  background: #16a34a;
-}
-
-.wake-toggle input:checked + .wake-slider::after {
-  transform: translateX(18px);
-}
-
-.wake-label { font-size: .8rem; color: #374151; }
-.wake-active-badge {
-  font-size: .7rem; color: #047857; background: #ecfdf5;
-  border: 1px solid #bbf7d0; border-radius: 999px; padding: 2px 8px; margin-left: 6px;
 }
