@@ -823,24 +823,27 @@ if (micBtn && overlay && hasSpeechSupport()) {
         setTimeout(startWakeListener, 600);
       }
     };
+wakeRecognition.onresult = (event) => {
+  for (let i = event.resultIndex; i < event.results.length; i++) {
+    const res = event.results[i];
+    const transcript = res[0].transcript.toLowerCase().trim();
 
-    wakeRecognition.onresult = (event) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const res = event.results[i];
-        const transcript = res[0].transcript.toLowerCase().trim();
-        const hit = HEY_AMY_VARIANTS.some((kw) =>
-          transcript.includes(kw)
-        );
-        if (hit && res[0].confidence >= 0.55) {
-          try {
-            wakeRecognition.stop();
-          } catch {}
-          wakeRunning = false;
-          startQueryRecognition();
-          break;
-        }
-      }
-    };
+    console.log("Wake heard raw:", transcript, "confidence:", res[0].confidence); // ← ADDED
+
+    const hit = HEY_AMY_VARIANTS.some((kw) =>
+      transcript.includes(kw)
+    );
+    if (hit && res[0].confidence >= 0.55) {
+      try {
+        wakeRecognition.stop();
+      } catch {}
+      wakeRunning = false;
+      startQueryRecognition();
+      break;
+    }
+  }
+};
+
 
     try {
       wakeRecognition.start();
@@ -892,11 +895,3 @@ if (micBtn && overlay && hasSpeechSupport()) {
   }
 }
 
-wakeRecognition.onresult = (event) => {
-  for (let i = event.resultIndex; i < event.results.length; i++) {
-    const res = event.results[i];
-    const transcript = res[0].transcript.toLowerCase().trim();
-
-    console.log("Wake heard raw:", transcript); // <-- add this
-
-    const hit = HEY_AMY_VARIANTS.some(kw => transcript.includes(kw));
