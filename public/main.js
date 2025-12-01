@@ -891,3 +891,12 @@ if (micBtn && overlay && hasSpeechSupport()) {
       "Wake word not supported in this browser. Try Chrome/Edge over HTTPS.";
   }
 }
+
+wakeRecognition.onresult = (event) => {
+  for (let i = event.resultIndex; i < event.results.length; i++) {
+    const res = event.results[i];
+    const transcript = res[0].transcript.toLowerCase().trim();
+
+    console.log("Wake heard raw:", transcript); // <-- add this
+
+    const hit = HEY_AMY_VARIANTS.some(kw => transcript.includes(kw));
