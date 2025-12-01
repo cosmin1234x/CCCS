@@ -712,7 +712,7 @@ if (sidebar && sidebarToggle) {
   });
 }
 
-/* ========= VOICE INPUT (click mic) ========= */
+/* ========= VOICE INPUT (click mic) + WAKE WORD ========= */
 
 let recognition = null;
 let listening = false;
@@ -779,7 +779,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   };
 
-  /* ========= WAKE WORD: "Hey Amy" (improved) ========= */
+  /* ========= WAKE WORD: "Hey Amy" (continuous) ========= */
 
   let wakeRecognition = null;
   let wakeEnabled = false;
@@ -806,8 +806,10 @@ if (micBtn && overlay && hasSpeechSupport()) {
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     wakeRecognition = new SpeechRecognition2();
-    wakeRecognition.lang = navigator.language || "en-US";
-    wakeRecognition.continuous = false;      // more stable
+
+    // Force English here so "Hey Amy" is clearer to the recognizer
+    wakeRecognition.lang = "en-US";
+    wakeRecognition.continuous = true;          // keep listening
     wakeRecognition.interimResults = true;
     wakeRecognition.maxAlternatives = 3;
 
@@ -820,27 +822,32 @@ if (micBtn && overlay && hasSpeechSupport()) {
       console.log("[Wake] ended");
       wakeRunning = false;
       if (wakeEnabled && !document.hidden) {
-        setTimeout(startWakeListener, 300);
+        setTimeout(startWakeListener, 400);
       }
     };
 
     wakeRecognition.onerror = (e) => {
       console.warn("[Wake] error:", e.error);
-      wakeRunning = false;
-
-      if (!wakeEnabled || document.hidden) return;
 
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         alert(
           "Microphone access is blocked for wake word. Please allow mic access in your browser permissions."
         );
         wakeEnabled = false;
+        wakeRunning = false;
         if (wakeToggle) wakeToggle.checked = false;
         return;
       }
 
-      // no-speech / network / etc → just retry after a short delay
-      setTimeout(startWakeListener, 600);
+      if (e.error === "no-speech") {
+        console.log("[Wake] no-speech (ignoring, still listening…) ");
+        return;
+      }
+
+      wakeRunning = false;
+      if (wakeEnabled && !document.hidden) {
+        setTimeout(startWakeListener, 600);
+      }
     };
 
     wakeRecognition.onresult = (event) => {
@@ -859,7 +866,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
           transcript.includes(kw)
         );
 
-        if (hit && res[0].confidence >= 0.35) {
+        if (hit && res[0].confidence >= 0.3) {
           console.log("[Wake] trigger matched!");
           try {
             wakeRecognition.stop();
