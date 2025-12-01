@@ -91,9 +91,21 @@
             <p id="aiSubtitle">Ask me about your shift or store</p>
           </div>
         </div>
-        <div class="ai-status">
-          <span class="ai-status-dot"></span>
-          <span>Online</span>
+
+        <div class="ai-header-right">
+          <div class="ai-status">
+            <span class="ai-status-dot"></span>
+            <span>Online</span>
+          </div>
+
+          <!-- Wake word toggle -->
+          <div class="wake-toggle">
+            <input type="checkbox" id="wakeToggle" />
+            <label for="wakeToggle" class="wake-switch">
+              <span class="wake-knob"></span>
+            </label>
+            <span class="wake-label">Wake word: “Hey Amy”</span>
+          </div>
         </div>
       </div>
 
@@ -122,10 +134,11 @@
 
   <!-- ========= FULL-SCREEN VOICE OVERLAY ========= -->
   <div id="voiceOverlay" class="voice-overlay">
-    <!-- Floating food icons (use your own images if you want) -->
-    <img src="friess.png" />
-    <img src="https://i.imgur.com/4s1jE8f.png" class="float-icon burger" alt="Burger" />
-    <img src="https://i.imgur.com/gjbQdWX.png" class="float-icon drink" alt="Drink" />
+    <!-- Floating food icons -->
+    <!-- Put your own PNGs in /assets/food/ -->
+    <img src="assets/food/fries.png"  class="float-icon fry"    alt="Fries" />
+    <img src="assets/food/burger.png" class="float-icon burger" alt="Burger" />
+    <img src="assets/food/drink.png"  class="float-icon drink"  alt="Drink" />
 
     <!-- Center mic -->
     <div class="voice-mic-container">

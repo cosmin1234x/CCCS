@@ -12,7 +12,7 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ---------- DEFAULT CREW DATA (fallback if Firestore missing fields) ---------- */
+/* ---------- DEFAULT CREW DATA (fallback) ---------- */
 const crewDataDefault = {
   position: "Front Counter",
   hourlyRate: 10.5,
@@ -89,7 +89,6 @@ function loadSessionUser() {
   }
 }
 
-// DOM refs
 const sidebarUserName = document.getElementById("sidebarUserName");
 const sidebarUserRole = document.getElementById("sidebarUserRole");
 const welcomeTitle = document.getElementById("welcomeTitle");
@@ -106,9 +105,10 @@ const aiInput = document.getElementById("aiInput");
 const aiSendBtn = document.getElementById("aiSendBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 
-// voice UI elements
+// voice + wake
 const micBtn = document.getElementById("aiMicBtn");
 const overlay = document.getElementById("voiceOverlay");
+const wakeToggle = document.getElementById("wakeToggle");
 
 /* ---------- AUTH GUARD ---------- */
 
@@ -134,7 +134,7 @@ onAuthStateChanged(auth, async (user) => {
 
   if (sessionUser.role === "manager") {
     await loadManagerDataFromFirestore();
-  } else if (sessionUser.role === "crew") {
+  } else {
     await loadCrewDataFromFirestore();
   }
 
@@ -254,7 +254,7 @@ async function loadCrewDataFromFirestore() {
   }
 }
 
-/* ---------- DASHBOARD RENDERING ---------- */
+/* ---------- DASHBOARD RENDER ---------- */
 
 function initialiseDashboard() {
   if (!sessionUser) return;
@@ -502,7 +502,7 @@ function attachCrewEditHandlers() {
   });
 }
 
-/* ---------- McASSIST AI CHAT ---------- */
+/* ---------- McASSIST CHAT ---------- */
 
 function renderSuggestions(isCrew) {
   aiSuggestions.innerHTML = "";
@@ -552,12 +552,12 @@ function addMessage(text, from) {
   aiChat.scrollTop = aiChat.scrollHeight;
 }
 
-/* THINKING INDICATOR STATE */
+/* THINKING INDICATOR */
 
 let thinkingMessageEl = null;
 
 function showThinking() {
-  if (thinkingMessageEl) return; // already showing
+  if (thinkingMessageEl) return;
 
   const message = document.createElement("div");
   message.className = "message msg-bot thinking";
@@ -667,12 +667,12 @@ async function sendUserMessage(text) {
   }
 }
 
-aiForm.addEventListener("submit", function (e) {
+aiForm.addEventListener("submit", (e) => {
   e.preventDefault();
   sendUserMessage(aiInput.value);
 });
 
-/* ---------- Sidebar mobile toggle ---------- */
+/* ---------- SIDEBAR MOBILE TOGGLE ---------- */
 
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
@@ -683,47 +683,85 @@ if (sidebar && sidebarToggle) {
   });
 }
 
-/* ========= FULL SCREEN VOICE MODE (Web Speech API) ========= */
+/* ========= VOICE INPUT + WAKE WORD ========= */
 
-let recognition;
+let recognition = null;
 let listening = false;
 
-if (
-  micBtn &&
-  overlay &&
-  ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)
-) {
+let wakeRecognition = null;
+let wakeEnabled = false;
+let wakeRunning = false;
+
+const HEY_AMY_VARIANTS = [
+  "hey amy",
+  "hey ami",
+  "hey amie",
+  "hey emi",
+  "hey ammy",
+  "hi amy",
+  "ok amy",
+  "okay amy"
+];
+
+function hasSpeechSupport() {
+  return (
+    "SpeechRecognition" in window ||
+    "webkitSpeechRecognition" in window
+  );
+}
+
+function beep(f = 880, ms = 90, v = 0.08) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = f;
+    g.gain.value = v;
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    setTimeout(() => {
+      o.stop();
+      ctx.close();
+    }, ms);
+  } catch {
+    // ignore
+  }
+}
+
+if (micBtn && overlay && hasSpeechSupport()) {
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
 
   recognition = new SpeechRecognition();
-  recognition.lang = "en-US"; // change if you want other language
+  recognition.lang = navigator.language || "en-US";
   recognition.continuous = false;
   recognition.interimResults = false;
+
+  function startQueryRecognition() {
+    try {
+      overlay.classList.add("active");
+      listening = true;
+      beep(1000, 70, 0.12);
+      recognition.start();
+    } catch (err) {
+      listening = false;
+      overlay.classList.remove("active");
+      console.error("Error starting recognition:", err);
+      alert(
+        "I couldn't start the microphone. Make sure you've allowed mic access in your browser."
+      );
+    }
+  }
 
   micBtn.addEventListener("click", () => {
     if (listening) {
       recognition.stop();
       return;
     }
-    startVoiceMode();
+    startQueryRecognition();
   });
-
-  function startVoiceMode() {
-    overlay.classList.add("active");
-    listening = true;
-    recognition.start();
-  }
-
-  recognition.onend = () => {
-    listening = false;
-    overlay.classList.remove("active");
-  };
-
-  recognition.onerror = () => {
-    listening = false;
-    overlay.classList.remove("active");
-  };
 
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript;
@@ -731,7 +769,125 @@ if (
     sendUserMessage(transcript);
     overlay.classList.remove("active");
   };
-} else if (micBtn) {
-  // Browser doesn't support speech
-  micBtn.style.display = "none";
+
+  recognition.onerror = (event) => {
+    console.error("Speech recognition error:", event.error);
+    listening = false;
+    overlay.classList.remove("active");
+
+    if (event.error === "not-allowed" || event.error === "denied") {
+      alert(
+        "Microphone access is blocked. Please allow mic access in your browser settings for this site."
+      );
+    } else if (event.error === "no-speech") {
+      alert("I didn't hear anything. Try speaking again.");
+    }
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    overlay.classList.remove("active");
+
+    if (wakeEnabled && !document.hidden && !wakeRunning) {
+      setTimeout(startWakeListener, 350);
+    }
+  };
+
+  function startWakeListener() {
+    if (wakeRunning || !wakeEnabled) return;
+
+    wakeRecognition = new SpeechRecognition();
+    wakeRecognition.lang = navigator.language || "en-US";
+    wakeRecognition.continuous = true;
+    wakeRecognition.interimResults = true;
+
+    wakeRecognition.onstart = () => {
+      wakeRunning = true;
+    };
+
+    wakeRecognition.onend = () => {
+      wakeRunning = false;
+      if (wakeEnabled && !document.hidden) {
+        setTimeout(startWakeListener, 250);
+      }
+    };
+
+    wakeRecognition.onerror = (e) => {
+      console.warn("Wake word error:", e.error);
+      wakeRunning = false;
+      if (
+        wakeEnabled &&
+        !document.hidden &&
+        !["not-allowed", "service-not-allowed"].includes(e.error)
+      ) {
+        setTimeout(startWakeListener, 600);
+      }
+    };
+
+    wakeRecognition.onresult = (event) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const res = event.results[i];
+        const transcript = res[0].transcript.toLowerCase().trim();
+        const hit = HEY_AMY_VARIANTS.some((kw) =>
+          transcript.includes(kw)
+        );
+        if (hit && res[0].confidence >= 0.55) {
+          try {
+            wakeRecognition.stop();
+          } catch {}
+          wakeRunning = false;
+          startQueryRecognition();
+          break;
+        }
+      }
+    };
+
+    try {
+      wakeRecognition.start();
+    } catch (err) {
+      console.warn("Wake start error:", err);
+    }
+  }
+
+  function stopWakeListener() {
+    if (wakeRecognition) {
+      try {
+        wakeRecognition.stop();
+      } catch {}
+    }
+    wakeRunning = false;
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!wakeEnabled) return;
+    if (document.hidden) {
+      stopWakeListener();
+    } else {
+      startWakeListener();
+    }
+  });
+
+  if (wakeToggle) {
+    wakeToggle.disabled = false;
+
+    wakeToggle.addEventListener("change", () => {
+      if (!hasSpeechSupport()) return;
+
+      if (wakeToggle.checked) {
+        wakeEnabled = true;
+        beep(1000, 60, 0.1);
+        startWakeListener();
+      } else {
+        wakeEnabled = false;
+        stopWakeListener();
+      }
+    });
+  }
+} else {
+  if (micBtn) micBtn.style.display = "none";
+  if (wakeToggle) {
+    wakeToggle.disabled = true;
+    wakeToggle.title =
+      "Wake word not supported in this browser. Try Chrome/Edge over HTTPS.";
+  }
 }
