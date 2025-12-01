@@ -110,6 +110,35 @@ const micBtn = document.getElementById("aiMicBtn");
 const overlay = document.getElementById("voiceOverlay");
 const wakeToggle = document.getElementById("wakeToggle");
 
+/* ---------- SMALL HELPERS ---------- */
+
+function hasSpeechSupport() {
+  return (
+    "SpeechRecognition" in window ||
+    "webkitSpeechRecognition" in window
+  );
+}
+
+function beep(f = 880, ms = 90, v = 0.08) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = f;
+    g.gain.value = v;
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    setTimeout(() => {
+      o.stop();
+      ctx.close();
+    }, ms);
+  } catch {
+    // ignore
+  }
+}
+
 /* ---------- AUTH GUARD ---------- */
 
 onAuthStateChanged(auth, async (user) => {
@@ -683,52 +712,10 @@ if (sidebar && sidebarToggle) {
   });
 }
 
-/* ========= VOICE INPUT + WAKE WORD ========= */
+/* ========= VOICE INPUT (click mic) ========= */
 
 let recognition = null;
 let listening = false;
-
-let wakeRecognition = null;
-let wakeEnabled = false;
-let wakeRunning = false;
-
-const HEY_AMY_VARIANTS = [
-  "hey amy",
-  "hey ami",
-  "hey amie",
-  "hey emi",
-  "hey ammy",
-  "hi amy",
-  "ok amy",
-  "okay amy"
-];
-
-function hasSpeechSupport() {
-  return (
-    "SpeechRecognition" in window ||
-    "webkitSpeechRecognition" in window
-  );
-}
-
-function beep(f = 880, ms = 90, v = 0.08) {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.value = f;
-    g.gain.value = v;
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.start();
-    setTimeout(() => {
-      o.stop();
-      ctx.close();
-    }, ms);
-  } catch {
-    // ignore
-  }
-}
 
 if (micBtn && overlay && hasSpeechSupport()) {
   const SpeechRecognition =
@@ -780,75 +767,122 @@ if (micBtn && overlay && hasSpeechSupport()) {
         "Microphone access is blocked. Please allow mic access in your browser settings for this site."
       );
     } else if (event.error === "no-speech") {
-      alert("I didn't hear anything. Try speaking again.");
+      console.warn("No speech detected.");
     }
   };
 
   recognition.onend = () => {
     listening = false;
     overlay.classList.remove("active");
-
     if (wakeEnabled && !document.hidden && !wakeRunning) {
       setTimeout(startWakeListener, 350);
     }
   };
 
-  function startWakeListener() {
-    if (wakeRunning || !wakeEnabled) return;
+  /* ========= WAKE WORD: "Hey Amy" (improved) ========= */
 
-    wakeRecognition = new SpeechRecognition();
+  let wakeRecognition = null;
+  let wakeEnabled = false;
+  let wakeRunning = false;
+
+  const HEY_AMY_VARIANTS = [
+    "hey amy",
+    "hey ami",
+    "hey amie",
+    "hey emmy",
+    "hey ammy",
+    "hey amy assistant",
+    "hi amy",
+    "ok amy",
+    "okay amy"
+  ];
+
+  function startWakeListener() {
+    if (!hasSpeechSupport()) return;
+    if (!wakeEnabled || wakeRunning) return;
+    if (!recognition) return;
+
+    const SpeechRecognition2 =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    wakeRecognition = new SpeechRecognition2();
     wakeRecognition.lang = navigator.language || "en-US";
-    wakeRecognition.continuous = true;
+    wakeRecognition.continuous = false;      // more stable
     wakeRecognition.interimResults = true;
+    wakeRecognition.maxAlternatives = 3;
 
     wakeRecognition.onstart = () => {
       wakeRunning = true;
+      console.log("[Wake] started listening for 'Hey Amy'");
     };
 
     wakeRecognition.onend = () => {
+      console.log("[Wake] ended");
       wakeRunning = false;
       if (wakeEnabled && !document.hidden) {
-        setTimeout(startWakeListener, 250);
+        setTimeout(startWakeListener, 300);
       }
     };
 
     wakeRecognition.onerror = (e) => {
-      console.warn("Wake word error:", e.error);
+      console.warn("[Wake] error:", e.error);
       wakeRunning = false;
-      if (
-        wakeEnabled &&
-        !document.hidden &&
-        !["not-allowed", "service-not-allowed"].includes(e.error)
-      ) {
-        setTimeout(startWakeListener, 600);
+
+      if (!wakeEnabled || document.hidden) return;
+
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        alert(
+          "Microphone access is blocked for wake word. Please allow mic access in your browser permissions."
+        );
+        wakeEnabled = false;
+        if (wakeToggle) wakeToggle.checked = false;
+        return;
+      }
+
+      // no-speech / network / etc → just retry after a short delay
+      setTimeout(startWakeListener, 600);
+    };
+
+    wakeRecognition.onresult = (event) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const res = event.results[i];
+        const transcript = res[0].transcript.toLowerCase().trim();
+
+        console.log(
+          "[Wake] heard:",
+          transcript,
+          "confidence:",
+          res[0].confidence
+        );
+
+        const hit = HEY_AMY_VARIANTS.some((kw) =>
+          transcript.includes(kw)
+        );
+
+        if (hit && res[0].confidence >= 0.35) {
+          console.log("[Wake] trigger matched!");
+          try {
+            wakeRecognition.stop();
+          } catch {}
+          wakeRunning = false;
+
+          beep(1200, 90, 0.12);
+          if (overlay) overlay.classList.add("active");
+          try {
+            recognition.start();
+          } catch (err) {
+            console.warn("[Wake] failed to start main recognizer:", err);
+            if (overlay) overlay.classList.remove("active");
+          }
+          break;
+        }
       }
     };
-wakeRecognition.onresult = (event) => {
-  for (let i = event.resultIndex; i < event.results.length; i++) {
-    const res = event.results[i];
-    const transcript = res[0].transcript.toLowerCase().trim();
-
-    console.log("Wake heard raw:", transcript, "confidence:", res[0].confidence); // ← ADDED
-
-    const hit = HEY_AMY_VARIANTS.some((kw) =>
-      transcript.includes(kw)
-    );
-    if (hit && res[0].confidence >= 0.55) {
-      try {
-        wakeRecognition.stop();
-      } catch {}
-      wakeRunning = false;
-      startQueryRecognition();
-      break;
-    }
-  }
-};
-
 
     try {
       wakeRecognition.start();
     } catch (err) {
-      console.warn("Wake start error:", err);
+      console.warn("[Wake] start error:", err);
     }
   }
 
@@ -871,7 +905,11 @@ wakeRecognition.onresult = (event) => {
   });
 
   if (wakeToggle) {
-    wakeToggle.disabled = false;
+    if (!hasSpeechSupport()) {
+      wakeToggle.disabled = true;
+      wakeToggle.title =
+        "Wake word not supported in this browser. Try Chrome or Edge over HTTPS.";
+    }
 
     wakeToggle.addEventListener("change", () => {
       if (!hasSpeechSupport()) return;
@@ -879,9 +917,11 @@ wakeRecognition.onresult = (event) => {
       if (wakeToggle.checked) {
         wakeEnabled = true;
         beep(1000, 60, 0.1);
+        console.log("[Wake] enabled by user");
         startWakeListener();
       } else {
         wakeEnabled = false;
+        console.log("[Wake] disabled by user");
         stopWakeListener();
       }
     });
@@ -894,4 +934,3 @@ wakeRecognition.onresult = (event) => {
       "Wake word not supported in this browser. Try Chrome/Edge over HTTPS.";
   }
 }
-
