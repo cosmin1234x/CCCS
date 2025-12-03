@@ -588,14 +588,40 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   };
 
-  recognition.onresult = (e) => {
-    const transcript = e.results[0][0].transcript;
-    overlay.classList.remove("active");
-    overlayText.textContent = "";
-    listening = false;
-    aiInput.value = transcript;
-    sendUserMessage(transcript);
-  };
+  // ----- FIXED onresult: stop immediately after user finishes speaking -----
+recognition.onresult = (e) => {
+  const transcript = e.results[0][0].transcript;
+  console.log("[Voice] Final transcript:", transcript);
+
+  // force stop mic immediately
+  try { recognition.stop(); } catch {}
+
+  // close UI
+  overlay.classList.remove("active");
+  overlayText.textContent = "";
+  listening = false;
+
+  aiInput.value = transcript;
+  sendUserMessage(transcript);
+};
+
+// ----- SAFETY TIMEOUT: close listening even if Chrome gets stuck -----
+let voiceTimeout = null;
+
+recognition.onstart = () => {
+  listening = true;
+  console.log("[Voice] Started listening");
+
+  // reset timeout
+  if (voiceTimeout) clearTimeout(voiceTimeout);
+
+  // fallback auto-stop (5 seconds)
+  voiceTimeout = setTimeout(() => {
+    console.log("[Voice] Timeout triggered — forcing stop");
+    try { recognition.stop(); } catch {}
+  }, 5000);
+};
+
 
   recognition.onerror = (e) => {
     listening = false;
@@ -606,14 +632,23 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   };
 
-  recognition.onend = () => {
-    listening = false;
-    overlay.classList.remove("active");
-    overlayText.textContent = "";
-    if (wakeEnabled && !document.hidden && !wakeRunning) {
-      setTimeout(startWakeListener, 400);
-    }
-  };
+recognition.onend = () => {
+  console.log("[Voice] onend fired");
+  listening = false;
+
+  // close overlay only if still open
+  overlay.classList.remove("active");
+  overlayText.textContent = "";
+
+  // cancel timeout
+  if (voiceTimeout) clearTimeout(voiceTimeout);
+
+  // restart wake listener if enabled
+  if (wakeEnabled && !document.hidden && !wakeRunning) {
+    setTimeout(startWakeListener, 400);
+  }
+};
+
 
   /* ========= WAKE WORD “HEY AMY” (continuous) ========= */
 
