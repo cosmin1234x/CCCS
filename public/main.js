@@ -108,6 +108,7 @@ const logoutBtn = document.getElementById("logoutBtn");
 // voice + wake
 const micBtn = document.getElementById("aiMicBtn");
 const overlay = document.getElementById("voiceOverlay");
+const overlayText = document.getElementById("overlayText"); // NEW
 const wakeToggle = document.getElementById("wakeToggle");
 
 /* ---------- SMALL HELPERS ---------- */
@@ -134,12 +135,10 @@ function beep(f = 880, ms = 90, v = 0.08) {
       o.stop();
       ctx.close();
     }, ms);
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
-/* ---------- AUTH GUARD ---------- */
+/* ---------- AUTH ---------- */
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -151,13 +150,12 @@ onAuthStateChanged(auth, async (user) => {
   sessionUser = loadSessionUser();
 
   if (!sessionUser) {
-    const fallbackSession = {
+    sessionUser = {
       id: user.uid,
       role: "crew",
       name: user.displayName || user.email || "User",
       storeId: "store001"
     };
-    sessionUser = fallbackSession;
     localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
   }
 
@@ -172,65 +170,38 @@ onAuthStateChanged(auth, async (user) => {
 
 if (logoutBtn) {
   logoutBtn.addEventListener("click", async () => {
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      localStorage.removeItem("mc_session_user");
-      window.location.href = "index.html";
-    }
+    await signOut(auth);
+    localStorage.removeItem("mc_session_user");
+    window.location.href = "index.html";
   });
 }
 
-/* ---------- FIRESTORE: MANAGER DATA ---------- */
+/* ---------- Firestore Loader Functions ---------- */
 
 async function loadManagerDataFromFirestore() {
   const storeId = sessionUser.storeId || "store001";
-
   try {
     const storeRef = doc(db, "stores", storeId);
     const storeSnap = await getDoc(storeRef);
-
     if (storeSnap.exists()) {
-      const data = storeSnap.data();
-      managerData.storeName = data.name || managerDataDefault.storeName;
-      managerData.todaySales = data.todaySales ?? managerDataDefault.todaySales;
-      managerData.weekSales = data.weekSales ?? managerDataDefault.weekSales;
-      managerData.todayWasteValue =
-        data.todayWasteValue ?? managerDataDefault.todayWasteValue;
-      managerData.todayWastePct =
-        data.todayWastePct ?? managerDataDefault.todayWastePct;
-      managerData.staffOnShift =
-        data.staffOnShift ?? managerDataDefault.staffOnShift;
-      managerData.staffNeeded =
-        data.staffNeeded ?? managerDataDefault.staffNeeded;
-      managerData.trainingGaps =
-        data.trainingGaps ?? managerDataDefault.trainingGaps;
-      managerData.potentialOvertime =
-        data.potentialOvertime ?? managerDataDefault.potentialOvertime;
-      managerData.foodWasteByDay =
-        data.foodWasteByDay ?? managerDataDefault.foodWasteByDay;
+      const d = storeSnap.data();
+      Object.assign(managerData, d);
     }
-
     const crewCol = collection(db, "stores", storeId, "crewSummary");
     const crewSnap = await getDocs(crewCol);
-    const list = [];
-    crewSnap.forEach((docSnap) => {
-      const d = docSnap.data();
+    let list = [];
+    crewSnap.forEach((snap) => {
+      const d = snap.data();
       list.push({
-        id: docSnap.id,
-        name: d.name || "Crew member",
-        status: d.status || "",
-        badge: d.badge || "Crew"
+        id: snap.id,
+        name: d.name,
+        status: d.status,
+        badge: d.badge
       });
     });
-
-    if (list.length) {
-      managerData.crewTrainingSummary = list;
-    }
+    if (list.length) managerData.crewTrainingSummary = list;
   } catch (e) {
-    console.error("Failed to load manager data from Firestore", e);
+    console.error("Error loading manager data:", e);
   }
 }
 
@@ -240,50 +211,19 @@ async function updateCrewStatusInFirestore(crewId, newStatus) {
   await updateDoc(ref, { status: newStatus });
 }
 
-/* ---------- FIRESTORE: CREW DATA ---------- */
-
 async function loadCrewDataFromFirestore() {
   try {
-    const userRef = doc(db, "users", sessionUser.id);
-    const snap = await getDoc(userRef);
-    if (!snap.exists()) return;
-
-    const data = snap.data();
-
-    crewData.position = data.position || crewData.position;
-    crewData.hourlyRate = data.hourlyRate ?? crewData.hourlyRate;
-    crewData.hoursThisWeek = data.hoursThisWeek ?? crewData.hoursThisWeek;
-    crewData.estimatedPayThisWeek =
-      data.estimatedPayThisWeek ??
-      crewData.hoursThisWeek * crewData.hourlyRate;
-
-    if (data.nextShift) {
-      crewData.nextShift = {
-        day: data.nextShift.day || crewData.nextShift.day,
-        date: data.nextShift.date || crewData.nextShift.date,
-        start: data.nextShift.start || crewData.nextShift.start,
-        end: data.nextShift.end || crewData.nextShift.end
-      };
-    }
-
-    if (Array.isArray(data.certifications)) {
-      crewData.certifications = data.certifications;
-    }
-    if (Array.isArray(data.trainingTodo)) {
-      crewData.trainingTodo = data.trainingTodo;
-    }
-    if (Array.isArray(data.achievements)) {
-      crewData.achievements = data.achievements;
-    }
-    if (Array.isArray(data.schedule)) {
-      crewData.schedule = data.schedule;
+    const uRef = doc(db, "users", sessionUser.id);
+    const snap = await getDoc(uRef);
+    if (snap.exists()) {
+      Object.assign(crewData, snap.data());
     }
   } catch (e) {
-    console.error("Failed to load crew data from Firestore", e);
+    console.error(e);
   }
 }
 
-/* ---------- DASHBOARD RENDER ---------- */
+/* ---------- Dashboard Rendering ---------- */
 
 function initialiseDashboard() {
   if (!sessionUser) return;
@@ -293,20 +233,17 @@ function initialiseDashboard() {
 
   sidebarUserName.textContent = sessionUser.name;
   sidebarUserRole.textContent = isCrew ? "Crew Member" : "Restaurant Manager";
-  welcomeTitle.textContent = isCrew
-    ? `Welcome back, ${firstName(sessionUser.name)}`
-    : `Good shift, ${firstName(sessionUser.name)}`;
-  welcomeSubtitle.textContent = isCrew
-    ? `Here's a quick view of your hours, pay and training.`
-    : `Live snapshot for ${profile.storeName}.`;
   roleBadge.textContent = isCrew ? "Crew" : "Manager";
-  avatarCircle.textContent = sessionUser.name
-    ? sessionUser.name.charAt(0).toUpperCase()
-    : "U";
-
+  avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
+  welcomeTitle.textContent = isCrew
+    ? `Welcome back, ${sessionUser.name.split(" ")[0]}`
+    : `Good shift, ${sessionUser.name.split(" ")[0]}`;
+  welcomeSubtitle.textContent = isCrew
+    ? "Here’s your week at a glance."
+    : `Live snapshot for ${profile.storeName}.`;
   aiSubtitle.textContent = isCrew
-    ? "Ask about your pay, hours or training."
-    : "Ask about waste, sales or crew.";
+    ? "Ask about your hours, pay, shifts, or training."
+    : "Ask about waste, crew, or sales.";
 
   renderTopCards(isCrew, profile);
   renderBottomSection(isCrew, profile);
@@ -314,116 +251,88 @@ function initialiseDashboard() {
   seedIntroMessages(isCrew);
 }
 
-function firstName(full) {
-  if (!full) return "there";
-  return full.split(" ")[0];
-}
-
 function renderTopCards(isCrew, profile) {
   topCards.innerHTML = "";
-
   if (isCrew) {
     const cards = [
       {
-        title: "This Week's Hours",
+        title: "This Week’s Hours",
         icon: "⏱️",
-        main: `${profile.hoursThisWeek.toFixed(1)} hrs`,
-        sub: `Next shift: ${profile.nextShift.day} ${profile.nextShift.start}–${profile.nextShift.end}`
+        main: `${profile.hoursThisWeek} hrs`,
+        sub: `Next shift: ${profile.nextShift.day} ${profile.nextShift.start}-${profile.nextShift.end}`
       },
       {
         title: "Estimated Pay",
         icon: "💷",
         main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
-        sub: `Rate: £${profile.hourlyRate.toFixed(2)}/hr (before tax)`
+        sub: `£${profile.hourlyRate.toFixed(2)}/hr`
       },
       {
         title: "Stations",
         icon: "🍔",
-        main: profile.certifications.length
-          ? profile.certifications.join(", ")
-          : "No stations yet",
-        sub: profile.trainingTodo.length
-          ? `Next up: ${profile.trainingTodo[0]}`
-          : "All key training complete"
+        main: profile.certifications.join(", "),
+        sub: `Next: ${profile.trainingTodo[0] || "None"}`
       },
       {
         title: "Achievements",
         icon: "🏅",
         main: `${profile.achievements.length} badges`,
-        sub: profile.achievements[0]
-          ? `Latest: ${profile.achievements[0].title} (${profile.achievements[0].date})`
-          : "Start collecting achievements"
+        sub: profile.achievements[0]?.title || "Start something new"
       }
     ];
-
-    cards.forEach((c) => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.innerHTML = `
-        <div class="card-header">
-          <div class="card-title">${c.title}</div>
-          <div class="card-icon">${c.icon}</div>
-        </div>
-        <div class="card-main-value">${c.main}</div>
-        <div class="card-subtext">${c.sub}</div>
-      `;
-      topCards.appendChild(card);
-    });
+    cards.forEach((c) => addCard(c));
   } else {
-    const gap = profile.staffNeeded - profile.staffOnShift;
-    const staffingLabel =
-      gap > 0 ? `${gap} short on evening` : "Fully staffed or above plan";
-
     const cards = [
       {
         title: "Today's Sales",
         icon: "💰",
-        main: `£${profile.todaySales.toLocaleString()}`,
-        sub: `Week-to-date: £${profile.weekSales.toLocaleString()}`
+        main: `£${profile.todaySales}`,
+        sub: `Week: £${profile.weekSales}`
       },
       {
         title: "Food Waste",
         icon: "♻️",
-        main: `£${profile.todayWasteValue.toFixed(0)}`,
-        sub: `${profile.todayWastePct.toFixed(1)}% of sales today`
+        main: `£${profile.todayWasteValue}`,
+        sub: `${profile.todayWastePct.toFixed(1)}%`
       },
       {
         title: "Staffing",
         icon: "👥",
         main: `${profile.staffOnShift}/${profile.staffNeeded}`,
-        sub: staffingLabel
+        sub:
+          profile.staffNeeded - profile.staffOnShift > 0
+            ? "Short on shift"
+            : "Good coverage"
       },
       {
         title: "Training Gaps",
         icon: "📚",
-        main: `${profile.trainingGaps} crew`,
+        main: `${profile.trainingGaps}`,
         sub: `${profile.potentialOvertime} near overtime`
       }
     ];
+    cards.forEach((c) => addCard(c));
+  }
 
-    cards.forEach((c) => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.innerHTML = `
-        <div class="card-header">
-          <div class="card-title">${c.title}</div>
-          <div class="card-icon">${c.icon}</div>
-        </div>
-        <div class="card-main-value">${c.main}</div>
-        <div class="card-subtext">${c.sub}</div>
-      `;
-      topCards.appendChild(card);
-    });
+  function addCard(item) {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="card-title">${item.title}</div>
+        <div class="card-icon">${item.icon}</div>
+      </div>
+      <div class="card-main-value">${item.main}</div>
+      <div class="card-subtext">${item.sub}</div>
+    `;
+    topCards.appendChild(card);
   }
 }
 
 function renderBottomSection(isCrew, profile) {
   if (isCrew) {
     bottomSection.innerHTML = `
-      <div class="subsection-title">This Week's Shifts</div>
-      <div class="subsection-sub">
-        Ask McAssist to help you understand your hours or what you'll roughly earn.
-      </div>
+      <div class="subsection-title">Weekly Schedule</div>
       <ul class="list">
         ${profile.schedule
           .map(
@@ -431,16 +340,11 @@ function renderBottomSection(isCrew, profile) {
           <li>
             <span>${s.day}</span>
             <span class="badge-soft">${s.time}</span>
-          </li>
-        `
+          </li>`
           )
           .join("")}
       </ul>
-      <div style="margin-top:10px;"></div>
-      <div class="subsection-title">Training Focus</div>
-      <div class="subsection-sub">
-        You're currently positioned as <strong>${profile.position}</strong>. Completing these will help you grow.
-      </div>
+      <div class="subsection-title" style="margin-top:15px;">Training Focus</div>
       <ul class="list">
         ${profile.trainingTodo
           .map(
@@ -448,124 +352,95 @@ function renderBottomSection(isCrew, profile) {
           <li>
             <span>${t}</span>
             <span class="badge-soft-warn">To do</span>
-          </li>
-        `
+          </li>`
           )
           .join("")}
       </ul>
     `;
   } else {
     bottomSection.innerHTML = `
-      <div class="subsection-title">Food Waste - This Week</div>
-      <div class="subsection-sub">
-        Quick glance of waste value by day. Ask McAssist for a breakdown or targets.
-      </div>
+      <div class="subsection-title">Food Waste (Week)</div>
       <ul class="list">
         ${profile.foodWasteByDay
           .map(
             (d) => `
           <li>
             <span>${d.day}</span>
-            <span class="badge-soft-danger">£${d.value.toFixed(0)}</span>
-          </li>
-        `
+            <span class="badge-soft-danger">£${d.value}</span>
+          </li>`
           )
           .join("")}
       </ul>
-      <div style="margin-top:10px;"></div>
-      <div class="subsection-title">Crew Training & Actions</div>
-      <div class="subsection-sub">
-        Click "Edit" to update training notes for a crew member. Changes save to Firestore.
-      </div>
-      <ul class="list" id="crewSummaryList">
+      <div class="subsection-title" style="margin-top:15px;">Crew Training & Actions</div>
+      <ul class="list">
         ${profile.crewTrainingSummary
           .map(
             (c) => `
           <li data-id="${c.id}">
-            <span>
-              <strong>${c.name}</strong><br />
-              <span style="font-size:0.75rem;color:#6b7280;">${
-                c.status || "No notes yet"
-              }</span>
-            </span>
+            <span><strong>${c.name}</strong><br><small>${c.status}</small></span>
             <span class="crew-actions">
               <span class="badge-soft">${c.badge}</span>
               <button class="crew-edit-btn" data-id="${c.id}">Edit</button>
             </span>
-          </li>
-        `
+          </li>`
           )
           .join("")}
       </ul>
     `;
-
     attachCrewEditHandlers();
   }
 }
 
 function attachCrewEditHandlers() {
-  const buttons = bottomSection.querySelectorAll(".crew-edit-btn");
-  buttons.forEach((btn) => {
+  bottomSection.querySelectorAll(".crew-edit-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const crewId = btn.getAttribute("data-id");
-      const crew = managerData.crewTrainingSummary.find((c) => c.id === crewId);
+      const id = btn.dataset.id;
+      const crew = managerData.crewTrainingSummary.find((c) => c.id === id);
       if (!crew) return;
 
-      const newStatus = window.prompt(
+      const newStatus = prompt(
         `Update training status for ${crew.name}:`,
-        crew.status || ""
+        crew.status
       );
       if (newStatus === null) return;
 
-      try {
-        await updateCrewStatusInFirestore(crewId, newStatus);
-      } catch (e) {
-        console.error("Failed to update Firestore", e);
-        alert("Could not save change. Check your connection and try again.");
-        return;
-      }
-
+      await updateCrewStatusInFirestore(id, newStatus);
       crew.status = newStatus;
       renderBottomSection(false, managerData);
     });
   });
 }
 
-/* ---------- McASSIST CHAT ---------- */
+/* ---------- McAssist Chat ---------- */
 
 function renderSuggestions(isCrew) {
   aiSuggestions.innerHTML = "";
-  const crewSuggestions = [
-    "How many hours am I working this week?",
-    "How much will I earn this week?",
-    "What training do I still need?",
-    "When is my next shift?"
-  ];
+  const list = isCrew
+    ? [
+        "How many hours do I work this week?",
+        "How much will I earn?",
+        "What training do I need?",
+        "When is my next shift?"
+      ]
+    : [
+        "Show me today’s waste.",
+        "How are sales?",
+        "Crew needing training?",
+        "Who’s near overtime?"
+      ];
 
-  const managerSuggestions = [
-    "Show me today's food waste.",
-    "How are our sales this week?",
-    "Which crew need training?",
-    "Who is close to overtime?"
-  ];
-
-  const suggestions = isCrew ? crewSuggestions : managerSuggestions;
-
-  suggestions.forEach((text) => {
+  list.forEach((text) => {
     const chip = document.createElement("button");
-    chip.type = "button";
     chip.className = "suggestion-chip";
     chip.textContent = text;
-    chip.addEventListener("click", () => {
-      sendUserMessage(text);
-    });
+    chip.onclick = () => sendUserMessage(text);
     aiSuggestions.appendChild(chip);
   });
 }
 
 function addMessage(text, from) {
-  const message = document.createElement("div");
-  message.className = "message " + (from === "user" ? "msg-user" : "msg-bot");
+  const div = document.createElement("div");
+  div.className = "message " + (from === "user" ? "msg-user" : "msg-bot");
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
@@ -575,9 +450,9 @@ function addMessage(text, from) {
   meta.className = "msg-meta";
   meta.textContent = from === "user" ? "You" : "McAssist";
 
-  message.appendChild(bubble);
-  message.appendChild(meta);
-  aiChat.appendChild(message);
+  div.appendChild(bubble);
+  div.appendChild(meta);
+  aiChat.appendChild(div);
   aiChat.scrollTop = aiChat.scrollHeight;
 }
 
@@ -586,73 +461,52 @@ function addMessage(text, from) {
 let thinkingMessageEl = null;
 
 function showThinking() {
-  if (thinkingMessageEl) return;
-
-  const message = document.createElement("div");
-  message.className = "message msg-bot thinking";
-
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.innerHTML = `
-    Thinking
-    <span class="thinking-dots">
-      <span class="thinking-dot"></span>
-      <span class="thinking-dot"></span>
-      <span class="thinking-dot"></span>
-    </span>
-  `;
-
-  const meta = document.createElement("div");
-  meta.className = "msg-meta";
-  meta.textContent = "McAssist";
-
-  message.appendChild(bubble);
-  message.appendChild(meta);
-  aiChat.appendChild(message);
-  aiChat.scrollTop = aiChat.scrollHeight;
-
-  thinkingMessageEl = message;
+  hideThinking();
+  const el = document.createElement("div");
+  el.className = "message msg-bot thinking";
+  el.innerHTML = `
+    <div class="bubble">
+      Thinking
+      <span class="thinking-dots">
+        <span class="thinking-dot"></span>
+        <span class="thinking-dot"></span>
+        <span class="thinking-dot"></span>
+      </span>
+    </div>
+    <div class="msg-meta">McAssist</div>`;
+  aiChat.appendChild(el);
+  thinkingMessageEl = el;
 }
 
 function hideThinking() {
-  if (thinkingMessageEl && thinkingMessageEl.parentNode) {
-    thinkingMessageEl.parentNode.removeChild(thinkingMessageEl);
-  }
+  if (thinkingMessageEl) thinkingMessageEl.remove();
   thinkingMessageEl = null;
 }
 
 function seedIntroMessages(isCrew) {
   aiChat.innerHTML = "";
   const first = isCrew
-    ? `Hi ${firstName(
-        sessionUser.name
-      )} 👋 I'm McAssist. I can help you understand your hours, pay and training.`
-    : `Hi ${firstName(
-        sessionUser.name
-      )} 👋 I'm McAssist. I can answer quick questions about waste, sales and your crew.`;
-  const second = isCrew
-    ? "You can ask things like “How many hours am I working this week?” or “How much will I earn this week?”"
-    : "You can ask things like “Show me today's food waste” or “Which crew still need training?”";
+    ? `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with hours, pay, shifts and training.`
+    : `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with waste, sales and crew info.`;
 
   addMessage(first, "bot");
-  addMessage(second, "bot");
 }
+
+/* ---------- Send to AI Backend ---------- */
 
 async function sendUserMessage(text) {
   if (!text.trim()) return;
-  const cleaned = text.trim();
-
-  addMessage(cleaned, "user");
+  addMessage(text.trim(), "user");
   aiInput.value = "";
-  aiInput.focus();
   aiSendBtn.disabled = true;
+
   showThinking();
 
   try {
     const isCrew = sessionUser.role === "crew";
     const profile = isCrew ? crewData : managerData;
 
-    const contextData = {
+    const ctx = {
       role: sessionUser.role,
       userName: sessionUser.name,
       storeId: sessionUser.storeId,
@@ -663,37 +517,18 @@ async function sendUserMessage(text) {
     const res = await fetch("/.netlify/functions/mcassist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: cleaned,
-        user: sessionUser,
-        contextData
-      })
+      body: JSON.stringify({ message: text, user: sessionUser, contextData: ctx })
     });
 
-    if (!res.ok) {
-      console.error("McAssist HTTP error:", res.status);
-      hideThinking();
-      addMessage(
-        "Sorry, I couldn't reach the McAssist service. Please try again in a moment.",
-        "bot"
-      );
-      return;
-    }
-
     const data = await res.json();
-    const reply = data.reply || "Sorry, I couldn't generate a response.";
     hideThinking();
-    addMessage(reply, "bot");
-  } catch (err) {
-    console.error("McAssist error:", err);
+    addMessage(data.reply || "I couldn't answer that.", "bot");
+  } catch (e) {
     hideThinking();
-    addMessage(
-      "Something went wrong talking to the AI. Please try again.",
-      "bot"
-    );
-  } finally {
-    aiSendBtn.disabled = false;
+    addMessage("Something went wrong talking to me.", "bot");
   }
+
+  aiSendBtn.disabled = false;
 }
 
 aiForm.addEventListener("submit", (e) => {
@@ -701,85 +536,86 @@ aiForm.addEventListener("submit", (e) => {
   sendUserMessage(aiInput.value);
 });
 
-/* ---------- SIDEBAR MOBILE TOGGLE ---------- */
+/* ---------- SIDEBAR MOBILE ---------- */
 
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
 
-if (sidebar && sidebarToggle) {
+if (sidebarToggle) {
   sidebarToggle.addEventListener("click", () => {
     sidebar.classList.toggle("sidebar-open");
   });
 }
 
-/* ========= VOICE INPUT (click mic) + WAKE WORD ========= */
+/* ============================================================
+   VOICE INPUT (CLICK MIC) + WAKE WORD “HEY AMY”
+   ============================================================ */
 
 let recognition = null;
 let listening = false;
 
+// Setup main recognizer
 if (micBtn && overlay && hasSpeechSupport()) {
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-  recognition = new SpeechRecognition();
-  recognition.lang = navigator.language || "en-US";
+  recognition = new SR();
+  recognition.lang = "en-US";
   recognition.continuous = false;
   recognition.interimResults = false;
 
-  function startQueryRecognition() {
+  function startFullListening() {
     try {
-      overlay.classList.add("active");
-      listening = true;
+      overlayText.textContent = "Listening…";
       beep(1000, 70, 0.12);
+      listening = true;
       recognition.start();
     } catch (err) {
       listening = false;
       overlay.classList.remove("active");
-      console.error("Error starting recognition:", err);
-      alert(
-        "I couldn't start the microphone. Make sure you've allowed mic access in your browser."
-      );
+      overlayText.textContent = "";
+      console.error("Microphone error:", err);
+      alert("Couldn't start microphone. Allow mic access.");
     }
   }
 
-  micBtn.addEventListener("click", () => {
+  micBtn.onclick = () => {
     if (listening) {
       recognition.stop();
-      return;
+    } else {
+      overlay.classList.add("active");
+      overlayText.textContent = "Ask me anything";
+      setTimeout(startFullListening, 600);
     }
-    startQueryRecognition();
-  });
-
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    aiInput.value = transcript;
-    sendUserMessage(transcript);
-    overlay.classList.remove("active");
   };
 
-  recognition.onerror = (event) => {
-    console.error("Speech recognition error:", event.error);
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    overlay.classList.remove("active");
+    overlayText.textContent = "";
+    listening = false;
+    aiInput.value = transcript;
+    sendUserMessage(transcript);
+  };
+
+  recognition.onerror = (e) => {
     listening = false;
     overlay.classList.remove("active");
-
-    if (event.error === "not-allowed" || event.error === "denied") {
-      alert(
-        "Microphone access is blocked. Please allow mic access in your browser settings for this site."
-      );
-    } else if (event.error === "no-speech") {
-      console.warn("No speech detected.");
+    overlayText.textContent = "";
+    if (e.error === "not-allowed" || e.error === "denied") {
+      alert("Microphone permission blocked.");
     }
   };
 
   recognition.onend = () => {
     listening = false;
     overlay.classList.remove("active");
+    overlayText.textContent = "";
     if (wakeEnabled && !document.hidden && !wakeRunning) {
-      setTimeout(startWakeListener, 350);
+      setTimeout(startWakeListener, 400);
     }
   };
 
-  /* ========= WAKE WORD: "Hey Amy" (continuous) ========= */
+  /* ========= WAKE WORD “HEY AMY” (continuous) ========= */
 
   let wakeRecognition = null;
   let wakeEnabled = false;
@@ -791,10 +627,8 @@ if (micBtn && overlay && hasSpeechSupport()) {
     "hey amie",
     "hey emmy",
     "hey ammy",
-    "hey amy assistant",
-    "hi amy",
-    "ok amy",
-    "okay amy"
+    "okay amy",
+    "ok amy"
   ];
 
   function startWakeListener() {
@@ -802,24 +636,19 @@ if (micBtn && overlay && hasSpeechSupport()) {
     if (!wakeEnabled || wakeRunning) return;
     if (!recognition) return;
 
-    const SpeechRecognition2 =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SR2 = window.SpeechRecognition || window.webkitSpeechRecognition;
+    wakeRecognition = new SR2();
 
-    wakeRecognition = new SpeechRecognition2();
-
-    // Force English here so "Hey Amy" is clearer to the recognizer
     wakeRecognition.lang = "en-US";
-    wakeRecognition.continuous = true;          // keep listening
+    wakeRecognition.continuous = true;
     wakeRecognition.interimResults = true;
-    wakeRecognition.maxAlternatives = 3;
 
     wakeRecognition.onstart = () => {
       wakeRunning = true;
-      console.log("[Wake] started listening for 'Hey Amy'");
+      console.log("[Wake] Listening for 'Hey Amy'…");
     };
 
     wakeRecognition.onend = () => {
-      console.log("[Wake] ended");
       wakeRunning = false;
       if (wakeEnabled && !document.hidden) {
         setTimeout(startWakeListener, 400);
@@ -827,26 +656,23 @@ if (micBtn && overlay && hasSpeechSupport()) {
     };
 
     wakeRecognition.onerror = (e) => {
-      console.warn("[Wake] error:", e.error);
+      console.warn("[Wake] Error:", e.error);
 
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        alert(
-          "Microphone access is blocked for wake word. Please allow mic access in your browser permissions."
-        );
+      if (e.error === "not-allowed") {
+        alert("Mic permission blocked for wake word.");
         wakeEnabled = false;
-        wakeRunning = false;
         if (wakeToggle) wakeToggle.checked = false;
         return;
       }
 
       if (e.error === "no-speech") {
-        console.log("[Wake] no-speech (ignoring, still listening…) ");
+        // ignore
         return;
       }
 
       wakeRunning = false;
       if (wakeEnabled && !document.hidden) {
-        setTimeout(startWakeListener, 600);
+        setTimeout(startWakeListener, 700);
       }
     };
 
@@ -855,32 +681,27 @@ if (micBtn && overlay && hasSpeechSupport()) {
         const res = event.results[i];
         const transcript = res[0].transcript.toLowerCase().trim();
 
-        console.log(
-          "[Wake] heard:",
-          transcript,
-          "confidence:",
-          res[0].confidence
-        );
+        console.log("[Wake] heard:", transcript, "conf:", res[0].confidence);
 
         const hit = HEY_AMY_VARIANTS.some((kw) =>
           transcript.includes(kw)
         );
 
-        if (hit && res[0].confidence >= 0.3) {
-          console.log("[Wake] trigger matched!");
+        if (hit && res[0].confidence >= 0.25) {
+          console.log("[Wake] Trigger detected!");
+
           try {
             wakeRecognition.stop();
           } catch {}
+
           wakeRunning = false;
 
+          overlay.classList.add("active");
+          overlayText.textContent = "Ask me anything";
+
           beep(1200, 90, 0.12);
-          if (overlay) overlay.classList.add("active");
-          try {
-            recognition.start();
-          } catch (err) {
-            console.warn("[Wake] failed to start main recognizer:", err);
-            if (overlay) overlay.classList.remove("active");
-          }
+
+          setTimeout(startFullListening, 650);
           break;
         }
       }
@@ -889,7 +710,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
     try {
       wakeRecognition.start();
     } catch (err) {
-      console.warn("[Wake] start error:", err);
+      console.warn("[Wake] Start error:", err);
     }
   }
 
@@ -904,40 +725,30 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
   document.addEventListener("visibilitychange", () => {
     if (!wakeEnabled) return;
-    if (document.hidden) {
-      stopWakeListener();
-    } else {
-      startWakeListener();
-    }
+    if (document.hidden) stopWakeListener();
+    else startWakeListener();
   });
 
   if (wakeToggle) {
     if (!hasSpeechSupport()) {
       wakeToggle.disabled = true;
-      wakeToggle.title =
-        "Wake word not supported in this browser. Try Chrome or Edge over HTTPS.";
+      wakeToggle.title = "Wake word not supported in this browser.";
     }
 
     wakeToggle.addEventListener("change", () => {
-      if (!hasSpeechSupport()) return;
-
       if (wakeToggle.checked) {
         wakeEnabled = true;
-        beep(1000, 60, 0.1);
-        console.log("[Wake] enabled by user");
+        beep(900, 80, 0.1);
+        console.log("[Wake] Enabled");
         startWakeListener();
       } else {
         wakeEnabled = false;
-        console.log("[Wake] disabled by user");
         stopWakeListener();
+        console.log("[Wake] Disabled");
       }
     });
   }
 } else {
   if (micBtn) micBtn.style.display = "none";
-  if (wakeToggle) {
-    wakeToggle.disabled = true;
-    wakeToggle.title =
-      "Wake word not supported in this browser. Try Chrome/Edge over HTTPS.";
-  }
+  if (wakeToggle) wakeToggle.disabled = true;
 }
