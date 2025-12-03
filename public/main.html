@@ -2,130 +2,143 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal</title>
+  <title>McTraining Portal – Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Main theme CSS -->
   <link rel="stylesheet" href="mc-theme.css" />
 </head>
+<body class="app-page">
 
-<body>
-
-  <!-- ============================
-       SIDEBAR
-  ============================= -->
+  <!-- ========= SIDEBAR ========= -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div id="avatarCircle" class="avatar-circle">U</div>
-      <div class="sidebar-user-info">
-        <div id="sidebarUserName" class="user-name">User</div>
-        <div id="sidebarUserRole" class="user-role">Crew</div>
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Crew & Manager portal</p>
       </div>
+      <!-- Mobile toggle -->
+      <button id="sidebarToggle" class="sidebar-toggle">☰</button>
     </div>
 
-    <nav class="sidebar-links">
-      <button id="sidebarToggle" class="sidebar-close-btn">☰</button>
-
-      <a class="nav-item active">Dashboard</a>
-      <a class="nav-item">Training</a>
-      <a class="nav-item">McAssist</a>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
+      <ul class="nav-list">
+        <li class="nav-item active">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Dashboard</span>
+        </li>
+        <li class="nav-item">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🎓</span>
+          <span class="nav-label">Training</span>
+        </li>
+        <li class="nav-item">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🤖</span>
+          <span class="nav-label">McAssist</span>
+        </li>
+      </ul>
     </nav>
 
-    <button id="logoutBtn" class="logout-btn">Log out</button>
+    <div class="sidebar-footer">
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
+      </div>
+      <button id="logoutBtn">
+        Log out
+      </button>
+    </div>
   </aside>
 
-  <!-- Mobile toggle button -->
-  <button id="sidebarToggle" class="sidebar-toggle-btn">☰</button>
+  <!-- ========= MAIN LAYOUT ========= -->
+  <div class="main-layout">
 
+    <!-- ====== LEFT CONTENT (cards, schedule etc.) ====== -->
+    <div class="content-area">
 
-  <!-- ============================
-       MAIN CONTENT
-  ============================= -->
-  <main class="main">
-
-    <!-- Header Welcome -->
-    <section class="header-section">
-      <div class="header-top">
-        <div>
+      <!-- Top bar (welcome + role + avatar) -->
+      <div class="top-bar">
+        <div class="top-bar-left">
           <h2 id="welcomeTitle">Welcome back</h2>
           <p id="welcomeSubtitle">Here’s your week at a glance.</p>
         </div>
-
-        <span id="roleBadge" class="role-badge">Crew</span>
-      </div>
-    </section>
-
-
-    <!-- ============================
-         TOP CARDS (HOURS/SALES)
-    ============================= -->
-    <section id="topCards" class="card-grid">
-      <!-- Populated by JS -->
-    </section>
-
-
-    <!-- ============================
-         BOTTOM SECTION (SCHEDULE/WASTE)
-    ============================= -->
-    <section id="bottomSection" class="bottom-section">
-      <!-- Populated by JS -->
-    </section>
-
-
-    <!-- ============================
-         MCASSIST AI CHAT
-    ============================= -->
-    <section class="ai-section">
-      <h3>McAssist</h3>
-      <p id="aiSubtitle" class="ai-subtitle">
-        Ask about your hours, pay, shifts, or training.
-      </p>
-
-      <div id="aiSuggestions" class="suggestions-row">
-        <!-- Chips added by JS -->
+        <div class="top-bar-right">
+          <span id="roleBadge" class="badge-role">Crew</span>
+          <div id="avatarCircle" class="avatar">U</div>
+        </div>
       </div>
 
-      <div id="aiChat" class="chat-box">
-        <!-- Messages loaded by JS -->
+      <!-- Cards grid (hours/pay or sales/waste) -->
+      <section id="topCards" class="cards-grid">
+        <!-- Filled by main.js -->
+      </section>
+
+      <!-- Section card with schedule / waste / crew list -->
+      <section id="bottomSection" class="card section-card">
+        <!-- Filled by main.js -->
+      </section>
+    </div>
+
+    <!-- ====== RIGHT SIDE – McAssist AI PANEL ====== -->
+    <aside class="ai-panel">
+      <div class="ai-header">
+        <div class="ai-header-left">
+          <div class="ai-avatar">A</div>
+          <div class="ai-header-text">
+            <h3>McAssist</h3>
+            <p id="aiSubtitle">Ask about your hours, pay or training.</p>
+          </div>
+        </div>
+        <div class="ai-status">
+          <span class="ai-status-dot"></span>
+          <span>Online</span>
+        </div>
       </div>
 
-      <form id="aiForm" class="chat-input-row">
+      <!-- Suggestion chips -->
+      <div id="aiSuggestions" class="ai-suggestions">
+        <!-- Filled by main.js -->
+      </div>
+
+      <!-- Chat area -->
+      <div id="aiChat" class="ai-chat">
+        <!-- Messages injected by main.js -->
+      </div>
+
+      <!-- Input row (text + send + mic) -->
+      <form id="aiForm" class="ai-input-row">
         <input
           id="aiInput"
-          class="chat-input"
           type="text"
           placeholder="Ask McAssist something…"
+          autocomplete="off"
         />
-        <button id="aiSendBtn" class="send-btn">➤</button>
-
-        <!-- Voice Mode Button -->
+        <button id="aiSendBtn" type="submit" class="ai-send-btn">
+          <span>Send</span> ➤
+        </button>
         <button type="button" id="aiMicBtn" class="voice-btn">🎤</button>
       </form>
 
       <!-- Wake word toggle -->
       <label class="wake-toggle">
-        <input type="checkbox" id="wakeToggle">
+        <input type="checkbox" id="wakeToggle" />
         <span>Enable “Hey Amy”</span>
       </label>
-    </section>
+    </aside>
+  </div>
 
-  </main>
-
-
-  <!-- ============================
-       VOICE OVERLAY
-  ============================= -->
+  <!-- ========= VOICE OVERLAY (FULL SCREEN) ========= -->
   <div id="voiceOverlay" class="voice-overlay">
     <div id="overlayText" class="overlay-text">Ask me anything</div>
-
-    <!-- McDonald’s Style STOP Button -->
+    <!-- McDonald's-style big mic button -->
     <button id="overlayMic" class="overlay-mic-btn">
       🎤
     </button>
   </div>
 
-
-  <!-- JS -->
+  <!-- Scripts -->
   <script type="module" src="main.js"></script>
 </body>
 </html>
