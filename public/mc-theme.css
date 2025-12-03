@@ -1327,3 +1327,24 @@ select:focus {
     font-size: 0.75rem;
   }
 }
+
+.overlay-mic {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: none;
+  background: #d62300;
+  color: white;
+  font-size: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+.overlay-mic:active {
+  transform: scale(0.95);
+}
+

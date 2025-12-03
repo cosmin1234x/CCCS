@@ -1,4 +1,7 @@
-// main.js
+// ------------------------
+// main.js (PART 1 / 3)
+// ------------------------
+
 import { auth, db } from "./firebase-init.js";
 import {
   signOut,
@@ -12,7 +15,10 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ---------- DEFAULT CREW DATA (fallback) ---------- */
+/* ============================================================
+   DEFAULT CREW & MANAGER DATA (fallback if missing in Firestore)
+   ============================================================ */
+
 const crewDataDefault = {
   position: "Front Counter",
   hourlyRate: 10.5,
@@ -34,7 +40,6 @@ const crewDataDefault = {
 
 let crewData = JSON.parse(JSON.stringify(crewDataDefault));
 
-/* ---------- DEFAULT MANAGER DATA (fallback) ---------- */
 const managerDataDefault = {
   storeName: "Your restaurant",
   todaySales: 4320,
@@ -76,15 +81,16 @@ const managerDataDefault = {
 
 let managerData = JSON.parse(JSON.stringify(managerDataDefault));
 
-/* ---------- SESSION + DOM ---------- */
+/* ============================================================
+   SESSION + DOM ELEMENTS
+   ============================================================ */
 
 let sessionUser = null;
 
 function loadSessionUser() {
   try {
-    const raw = localStorage.getItem("mc_session_user");
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
+    return JSON.parse(localStorage.getItem("mc_session_user"));
+  } catch {
     return null;
   }
 }
@@ -105,40 +111,42 @@ const aiInput = document.getElementById("aiInput");
 const aiSendBtn = document.getElementById("aiSendBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 
-// voice + wake
+// Voice + overlay
 const micBtn = document.getElementById("aiMicBtn");
 const overlay = document.getElementById("voiceOverlay");
-const overlayText = document.getElementById("overlayText"); // NEW
+const overlayText = document.getElementById("overlayText");
+const overlayMic = document.getElementById("overlayMic"); // NEW STOP MIC BTN
 const wakeToggle = document.getElementById("wakeToggle");
 
-/* ---------- SMALL HELPERS ---------- */
+/* ============================================================
+   HELPERS
+   ============================================================ */
 
 function hasSpeechSupport() {
-  return (
-    "SpeechRecognition" in window ||
-    "webkitSpeechRecognition" in window
-  );
+  return "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
 }
 
 function beep(f = 880, ms = 90, v = 0.08) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.value = f;
-    g.gain.value = v;
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.start();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = f;
+    gain.gain.value = v;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
     setTimeout(() => {
-      o.stop();
+      osc.stop();
       ctx.close();
     }, ms);
   } catch {}
 }
 
-/* ---------- AUTH ---------- */
+/* ============================================================
+   AUTH + FIRESTORE LOAD
+   ============================================================ */
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -176,19 +184,22 @@ if (logoutBtn) {
   });
 }
 
-/* ---------- Firestore Loader Functions ---------- */
+/* ============================================================
+   FIRESTORE LOADERS
+   ============================================================ */
 
 async function loadManagerDataFromFirestore() {
   const storeId = sessionUser.storeId || "store001";
+
   try {
     const storeRef = doc(db, "stores", storeId);
     const storeSnap = await getDoc(storeRef);
-    if (storeSnap.exists()) {
-      const d = storeSnap.data();
-      Object.assign(managerData, d);
-    }
+
+    if (storeSnap.exists()) Object.assign(managerData, storeSnap.data());
+
     const crewCol = collection(db, "stores", storeId, "crewSummary");
     const crewSnap = await getDocs(crewCol);
+
     let list = [];
     crewSnap.forEach((snap) => {
       const d = snap.data();
@@ -199,6 +210,7 @@ async function loadManagerDataFromFirestore() {
         badge: d.badge
       });
     });
+
     if (list.length) managerData.crewTrainingSummary = list;
   } catch (e) {
     console.error("Error loading manager data:", e);
@@ -215,15 +227,15 @@ async function loadCrewDataFromFirestore() {
   try {
     const uRef = doc(db, "users", sessionUser.id);
     const snap = await getDoc(uRef);
-    if (snap.exists()) {
-      Object.assign(crewData, snap.data());
-    }
+    if (snap.exists()) Object.assign(crewData, snap.data());
   } catch (e) {
-    console.error(e);
+    console.error("Crew load error", e);
   }
 }
 
-/* ---------- Dashboard Rendering ---------- */
+/* ============================================================
+   DASHBOARD RENDER
+   ============================================================ */
 
 function initialiseDashboard() {
   if (!sessionUser) return;
@@ -235,12 +247,15 @@ function initialiseDashboard() {
   sidebarUserRole.textContent = isCrew ? "Crew Member" : "Restaurant Manager";
   roleBadge.textContent = isCrew ? "Crew" : "Manager";
   avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
+
   welcomeTitle.textContent = isCrew
     ? `Welcome back, ${sessionUser.name.split(" ")[0]}`
     : `Good shift, ${sessionUser.name.split(" ")[0]}`;
+
   welcomeSubtitle.textContent = isCrew
     ? "Here’s your week at a glance."
     : `Live snapshot for ${profile.storeName}.`;
+
   aiSubtitle.textContent = isCrew
     ? "Ask about your hours, pay, shifts, or training."
     : "Ask about waste, crew, or sales.";
@@ -253,85 +268,82 @@ function initialiseDashboard() {
 
 function renderTopCards(isCrew, profile) {
   topCards.innerHTML = "";
-  if (isCrew) {
-    const cards = [
-      {
-        title: "This Week’s Hours",
-        icon: "⏱️",
-        main: `${profile.hoursThisWeek} hrs`,
-        sub: `Next shift: ${profile.nextShift.day} ${profile.nextShift.start}-${profile.nextShift.end}`
-      },
-      {
-        title: "Estimated Pay",
-        icon: "💷",
-        main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
-        sub: `£${profile.hourlyRate.toFixed(2)}/hr`
-      },
-      {
-        title: "Stations",
-        icon: "🍔",
-        main: profile.certifications.join(", "),
-        sub: `Next: ${profile.trainingTodo[0] || "None"}`
-      },
-      {
-        title: "Achievements",
-        icon: "🏅",
-        main: `${profile.achievements.length} badges`,
-        sub: profile.achievements[0]?.title || "Start something new"
-      }
-    ];
-    cards.forEach((c) => addCard(c));
-  } else {
-    const cards = [
-      {
-        title: "Today's Sales",
-        icon: "💰",
-        main: `£${profile.todaySales}`,
-        sub: `Week: £${profile.weekSales}`
-      },
-      {
-        title: "Food Waste",
-        icon: "♻️",
-        main: `£${profile.todayWasteValue}`,
-        sub: `${profile.todayWastePct.toFixed(1)}%`
-      },
-      {
-        title: "Staffing",
-        icon: "👥",
-        main: `${profile.staffOnShift}/${profile.staffNeeded}`,
-        sub:
-          profile.staffNeeded - profile.staffOnShift > 0
-            ? "Short on shift"
-            : "Good coverage"
-      },
-      {
-        title: "Training Gaps",
-        icon: "📚",
-        main: `${profile.trainingGaps}`,
-        sub: `${profile.potentialOvertime} near overtime`
-      }
-    ];
-    cards.forEach((c) => addCard(c));
-  }
 
-  function addCard(item) {
+  const cards = isCrew
+    ? [
+        {
+          title: "This Week’s Hours",
+          icon: "⏱️",
+          main: `${profile.hoursThisWeek} hrs`,
+          sub: `Next shift: ${profile.nextShift.day} ${profile.nextShift.start}-${profile.nextShift.end}`
+        },
+        {
+          title: "Estimated Pay",
+          icon: "💷",
+          main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
+          sub: `£${profile.hourlyRate.toFixed(2)}/hr`
+        },
+        {
+          title: "Stations",
+          icon: "🍔",
+          main: profile.certifications.join(", "),
+          sub: `Next: ${profile.trainingTodo[0] || "None"}`
+        },
+        {
+          title: "Achievements",
+          icon: "🏅",
+          main: `${profile.achievements.length} badges`,
+          sub: profile.achievements[0]?.title || "Start something new"
+        }
+      ]
+    : [
+        {
+          title: "Today's Sales",
+          icon: "💰",
+          main: `£${profile.todaySales}`,
+          sub: `Week: £${profile.weekSales}`
+        },
+        {
+          title: "Food Waste",
+          icon: "♻️",
+          main: `£${profile.todayWasteValue}`,
+          sub: `${profile.todayWastePct.toFixed(1)}%`
+        },
+        {
+          title: "Staffing",
+          icon: "👥",
+          main: `${profile.staffOnShift}/${profile.staffNeeded}`,
+          sub:
+            profile.staffNeeded - profile.staffOnShift > 0
+              ? "Short on shift"
+              : "Good coverage"
+        },
+        {
+          title: "Training Gaps",
+          icon: "📚",
+          main: `${profile.trainingGaps}`,
+          sub: `${profile.potentialOvertime} near overtime`
+        }
+      ];
+
+  cards.forEach((c) => {
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
       <div class="card-header">
-        <div class="card-title">${item.title}</div>
-        <div class="card-icon">${item.icon}</div>
+        <div class="card-title">${c.title}</div>
+        <div class="card-icon">${c.icon}</div>
       </div>
-      <div class="card-main-value">${item.main}</div>
-      <div class="card-subtext">${item.sub}</div>
+      <div class="card-main-value">${c.main}</div>
+      <div class="card-subtext">${c.sub}</div>
     `;
     topCards.appendChild(card);
-  }
+  });
 }
 
 function renderBottomSection(isCrew, profile) {
-  if (isCrew) {
-    bottomSection.innerHTML = `
+  bottomSection.innerHTML = isCrew
+    ? `
       <div class="subsection-title">Weekly Schedule</div>
       <ul class="list">
         ${profile.schedule
@@ -356,9 +368,8 @@ function renderBottomSection(isCrew, profile) {
           )
           .join("")}
       </ul>
-    `;
-  } else {
-    bottomSection.innerHTML = `
+    `
+    : `
       <div class="subsection-title">Food Waste (Week)</div>
       <ul class="list">
         ${profile.foodWasteByDay
@@ -387,9 +398,13 @@ function renderBottomSection(isCrew, profile) {
           .join("")}
       </ul>
     `;
-    attachCrewEditHandlers();
-  }
+
+  if (!isCrew) attachCrewEditHandlers();
 }
+
+/* ============================================================
+   CREW EDIT BUTTON HANDLING
+   ============================================================ */
 
 function attachCrewEditHandlers() {
   bottomSection.querySelectorAll(".crew-edit-btn").forEach((btn) => {
@@ -411,7 +426,9 @@ function attachCrewEditHandlers() {
   });
 }
 
-/* ---------- McAssist Chat ---------- */
+/* ============================================================
+   AI SUGGESTIONS & CHAT SYSTEM
+   ============================================================ */
 
 function renderSuggestions(isCrew) {
   aiSuggestions.innerHTML = "";
@@ -456,7 +473,9 @@ function addMessage(text, from) {
   aiChat.scrollTop = aiChat.scrollHeight;
 }
 
-/* THINKING INDICATOR */
+/* ============================================================
+   THINKING INDICATOR
+   ============================================================ */
 
 let thinkingMessageEl = null;
 
@@ -483,6 +502,10 @@ function hideThinking() {
   thinkingMessageEl = null;
 }
 
+/* ============================================================
+   SEED INTRO MESSAGE
+   ============================================================ */
+
 function seedIntroMessages(isCrew) {
   aiChat.innerHTML = "";
   const first = isCrew
@@ -492,7 +515,9 @@ function seedIntroMessages(isCrew) {
   addMessage(first, "bot");
 }
 
-/* ---------- Send to AI Backend ---------- */
+/* ============================================================
+   SEND TO AI BACKEND
+   ============================================================ */
 
 async function sendUserMessage(text) {
   if (!text.trim()) return;
@@ -525,7 +550,7 @@ async function sendUserMessage(text) {
     addMessage(data.reply || "I couldn't answer that.", "bot");
   } catch (e) {
     hideThinking();
-    addMessage("Something went wrong talking to me.", "bot");
+    addMessage("Something went wrong contacting McAssist.", "bot");
   }
 
   aiSendBtn.disabled = false;
@@ -536,7 +561,9 @@ aiForm.addEventListener("submit", (e) => {
   sendUserMessage(aiInput.value);
 });
 
-/* ---------- SIDEBAR MOBILE ---------- */
+/* ============================================================
+   SIDEBAR MOBILE HANDLING
+   ============================================================ */
 
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
@@ -546,15 +573,15 @@ if (sidebarToggle) {
     sidebar.classList.toggle("sidebar-open");
   });
 }
-
 /* ============================================================
-   VOICE INPUT (CLICK MIC) + WAKE WORD “HEY AMY”
+   VOICE MODE (MIC BUTTON) + WAKE WORD “HEY AMY”
    ============================================================ */
 
 let recognition = null;
 let listening = false;
+let voiceTimeout = null;
 
-// Setup main recognizer
+// Create SpeechRecognition instance
 if (micBtn && overlay && hasSpeechSupport()) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -563,94 +590,123 @@ if (micBtn && overlay && hasSpeechSupport()) {
   recognition.continuous = false;
   recognition.interimResults = false;
 
+  /* ------------------------------
+      START FULL LISTENING (AFTER WAKE OR MIC PRESS)
+  ------------------------------ */
   function startFullListening() {
     try {
+      // Set UI
       overlayText.textContent = "Listening…";
+
+      // Sound
       beep(1000, 70, 0.12);
+
       listening = true;
       recognition.start();
+
+      // Safety timeout (Chrome bug fix)
+      if (voiceTimeout) clearTimeout(voiceTimeout);
+      voiceTimeout = setTimeout(() => {
+        console.log("[Voice] Timeout — forcing stop");
+        try { recognition.stop(); } catch {}
+      }, 6000);
+
     } catch (err) {
       listening = false;
       overlay.classList.remove("active");
       overlayText.textContent = "";
-      console.error("Microphone error:", err);
-      alert("Couldn't start microphone. Allow mic access.");
+      alert("Microphone blocked. Allow access.");
     }
   }
 
+  /* ------------------------------
+      MIC BUTTON (USER CLICK)
+  ------------------------------ */
   micBtn.onclick = () => {
     if (listening) {
       recognition.stop();
     } else {
       overlay.classList.add("active");
       overlayText.textContent = "Ask me anything";
+      // Delay to allow user to breathe before talking
       setTimeout(startFullListening, 600);
     }
   };
 
-  // ----- FIXED onresult: stop immediately after user finishes speaking -----
-recognition.onresult = (e) => {
-  const transcript = e.results[0][0].transcript;
-  console.log("[Voice] Final transcript:", transcript);
+  /* ------------------------------
+      OVERLAY STOP MIC BUTTON (McDONALD’S STYLE)
+  ------------------------------ */
+  if (overlayMic) {
+    overlayMic.onclick = () => {
+      console.log("[Voice] STOP pressed");
+      listening = false;
+      try { recognition.stop(); } catch {}
+      overlay.classList.remove("active");
+      overlayText.textContent = "";
+    };
+  }
 
-  // force stop mic immediately
-  try { recognition.stop(); } catch {}
+  /* ------------------------------
+      RECOGNITION: ONRESULT
+  ------------------------------ */
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    console.log("[Voice] Transcript:", transcript);
 
-  // close UI
-  overlay.classList.remove("active");
-  overlayText.textContent = "";
-  listening = false;
-
-  aiInput.value = transcript;
-  sendUserMessage(transcript);
-};
-
-// ----- SAFETY TIMEOUT: close listening even if Chrome gets stuck -----
-let voiceTimeout = null;
-
-recognition.onstart = () => {
-  listening = true;
-  console.log("[Voice] Started listening");
-
-  // reset timeout
-  if (voiceTimeout) clearTimeout(voiceTimeout);
-
-  // fallback auto-stop (5 seconds)
-  voiceTimeout = setTimeout(() => {
-    console.log("[Voice] Timeout triggered — forcing stop");
+    // Stop mic immediately
     try { recognition.stop(); } catch {}
-  }, 5000);
-};
 
+    // Close overlay
+    overlay.classList.remove("active");
+    overlayText.textContent = "";
+    listening = false;
 
+    // Clear timeout
+    if (voiceTimeout) clearTimeout(voiceTimeout);
+
+    // Send to AI
+    aiInput.value = transcript;
+    sendUserMessage(transcript);
+  };
+
+  /* ------------------------------
+      RECOGNITION: ONERROR
+  ------------------------------ */
   recognition.onerror = (e) => {
+    console.warn("[Voice] Error:", e.error);
+
     listening = false;
     overlay.classList.remove("active");
     overlayText.textContent = "";
+
+    if (voiceTimeout) clearTimeout(voiceTimeout);
+
     if (e.error === "not-allowed" || e.error === "denied") {
       alert("Microphone permission blocked.");
     }
   };
 
-recognition.onend = () => {
-  console.log("[Voice] onend fired");
-  listening = false;
+  /* ------------------------------
+      RECOGNITION: ONEND
+  ------------------------------ */
+  recognition.onend = () => {
+    console.log("[Voice] onend fired");
+    listening = false;
 
-  // close overlay only if still open
-  overlay.classList.remove("active");
-  overlayText.textContent = "";
+    if (voiceTimeout) clearTimeout(voiceTimeout);
 
-  // cancel timeout
-  if (voiceTimeout) clearTimeout(voiceTimeout);
+    overlay.classList.remove("active");
+    overlayText.textContent = "";
 
-  // restart wake listener if enabled
-  if (wakeEnabled && !document.hidden && !wakeRunning) {
-    setTimeout(startWakeListener, 400);
-  }
-};
+    // Restart wake listener if enabled
+    if (wakeEnabled && !document.hidden && !wakeRunning) {
+      setTimeout(startWakeListener, 400);
+    }
+  };
 
-
-  /* ========= WAKE WORD “HEY AMY” (continuous) ========= */
+  /* ============================================================
+      WAKE WORD ENGINE — “HEY AMY”
+     ============================================================ */
 
   let wakeRecognition = null;
   let wakeEnabled = false;
@@ -662,8 +718,8 @@ recognition.onend = () => {
     "hey amie",
     "hey emmy",
     "hey ammy",
-    "okay amy",
-    "ok amy"
+    "ok amy",
+    "okay amy"
   ];
 
   function startWakeListener() {
@@ -680,7 +736,7 @@ recognition.onend = () => {
 
     wakeRecognition.onstart = () => {
       wakeRunning = true;
-      console.log("[Wake] Listening for 'Hey Amy'…");
+      console.log("[Wake] Listening for ‘Hey Amy’…");
     };
 
     wakeRecognition.onend = () => {
@@ -694,15 +750,14 @@ recognition.onend = () => {
       console.warn("[Wake] Error:", e.error);
 
       if (e.error === "not-allowed") {
-        alert("Mic permission blocked for wake word.");
+        alert("Mic blocked. Wake word disabled.");
         wakeEnabled = false;
-        if (wakeToggle) wakeToggle.checked = false;
+        wakeToggle.checked = false;
         return;
       }
 
       if (e.error === "no-speech") {
-        // ignore
-        return;
+        return; // ignore
       }
 
       wakeRunning = false;
@@ -711,31 +766,33 @@ recognition.onend = () => {
       }
     };
 
+    /* ------------------------------
+        WAKE WORD DETECTION
+    ------------------------------ */
     wakeRecognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const res = event.results[i];
         const transcript = res[0].transcript.toLowerCase().trim();
 
-        console.log("[Wake] heard:", transcript, "conf:", res[0].confidence);
+        console.log("[Wake] Heard:", transcript, "conf:", res[0].confidence);
 
         const hit = HEY_AMY_VARIANTS.some((kw) =>
           transcript.includes(kw)
         );
 
         if (hit && res[0].confidence >= 0.25) {
-          console.log("[Wake] Trigger detected!");
+          console.log("[Wake] TRIGGER DETECTED!");
 
-          try {
-            wakeRecognition.stop();
-          } catch {}
-
+          try { wakeRecognition.stop(); } catch {}
           wakeRunning = false;
 
+          // Open overlay
           overlay.classList.add("active");
           overlayText.textContent = "Ask me anything";
 
           beep(1200, 90, 0.12);
 
+          // Delay → THEN start listening
           setTimeout(startFullListening, 650);
           break;
         }
@@ -751,19 +808,19 @@ recognition.onend = () => {
 
   function stopWakeListener() {
     if (wakeRecognition) {
-      try {
-        wakeRecognition.stop();
-      } catch {}
+      try { wakeRecognition.stop(); } catch {}
     }
     wakeRunning = false;
   }
 
+  // Pause wake word when page hidden
   document.addEventListener("visibilitychange", () => {
     if (!wakeEnabled) return;
     if (document.hidden) stopWakeListener();
     else startWakeListener();
   });
 
+  // Toggle wake word
   if (wakeToggle) {
     if (!hasSpeechSupport()) {
       wakeToggle.disabled = true;
@@ -778,8 +835,8 @@ recognition.onend = () => {
         startWakeListener();
       } else {
         wakeEnabled = false;
-        stopWakeListener();
         console.log("[Wake] Disabled");
+        stopWakeListener();
       }
     });
   }
