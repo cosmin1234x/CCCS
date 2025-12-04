@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining Portal – Shift Creator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="mc-theme.css" />
+
+  <!-- Small extra styles just for this page -->
+  <style>
+    .shift-meta {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .shift-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: 999px;
+      padding: 3px 6px;
+      font-size: 0.72rem;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+    }
+    .shift-pill-manager {
+      background: #fef3c7;
+      border-color: #fbbf24;
+      color: #92400e;
+    }
+    .shift-actions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+      font-size: 0.72rem;
+    }
+    .shift-btn {
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      background: #ffffff;
+      cursor: pointer;
+    }
+    .shift-btn:hover {
+      background: #f3f4f6;
+    }
+
+    /* Overlay for creating / editing shifts */
+    .shift-editor-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    .shift-editor-overlay.show {
+      display: flex;
+    }
+    .shift-editor-card {
+      width: 100%;
+      max-width: 420px;
+      background: #fff7ed;
+      border-radius: 18px;
+      padding: 16px 18px 14px;
+      box-shadow: 0 18px 40px rgba(148, 27, 12, 0.45);
+      border: 1px solid rgba(250, 204, 21, 0.9);
+    }
+    .shift-editor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .shift-editor-header h3 {
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+    .shift-editor-close {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .shift-editor-form {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.8rem;
+    }
+    .shift-editor-form label {
+      font-size: 0.78rem;
+      margin-bottom: 2px;
+    }
+    .shift-editor-form select,
+    .shift-editor-form input {
+      border-radius: 999px;
+      border: 1px solid #fecaca;
+      padding: 7px 11px;
+      font-size: 0.8rem;
+      background: #fff;
+      outline: none;
+    }
+    .shift-editor-form-row {
+      display: flex;
+      gap: 6px;
+    }
+    .shift-editor-form-row > div {
+      flex: 1;
+    }
+    .shift-editor-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      gap: 8px;
+    }
+    .shift-primary-btn {
+      border-radius: 999px;
+      border: none;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #d9091c, #a30716);
+      color: #fefce8;
+      cursor: pointer;
+      box-shadow: 0 10px 18px rgba(148, 27, 12, 0.5);
+    }
+    .shift-danger-link {
+      border: none;
+      background: transparent;
+      color: #b91c1c;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .shift-danger-link:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  </style>
+</head>
+<body class="app-page">
+
+  <!-- ========= SIDEBAR ========= -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Crew & Manager portal</p>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
+      <ul class="nav-list">
+        <li class="nav-item" onclick="window.location.href='main.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Dashboard</span>
+        </li>
+        <li class="nav-item" onclick="window.location.href='training.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🎓</span>
+          <span class="nav-label">Training</span>
+        </li>
+        <li class="nav-item" onclick="window.location.href='schedule.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">📅</span>
+          <span class="nav-label">Shifts</span>
+        </li>
+        <li class="nav-item active" onclick="window.location.href='shifts-admin.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🛠️</span>
+          <span class="nav-label">Shift creator</span>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <!-- ========= MAIN LAYOUT ========= -->
+  <div class="main-layout">
+    <div class="content-area">
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <h2 id="pageTitle">Shift creator</h2>
+          <p id="pageSubtitle">
+            Plan weekly shifts and assign a shift manager for each day.
+          </p>
+        </div>
+        <div class="top-bar-right">
+          <span id="roleBadge" class="badge-role">Shift Creator</span>
+          <div id="avatarCircle" class="avatar">U</div>
+        </div>
+      </div>
+
+      <!-- Week selector -->
+      <div class="card section-card" style="margin-top:6px;">
+        <div class="subsection-title">Week selection</div>
+        <div class="subsection-sub">
+          Only shift creators can edit. Other roles can view shifts on the Shifts page.
+        </div>
+        <div id="weekTabs" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="pill-filter active" data-week-offset="0">This week</button>
+          <button class="pill-filter" data-week-offset="1">Next week</button>
+        </div>
+      </div>
+
+      <!-- Week grid -->
+      <section id="adminScheduleGrid" class="card section-card" style="margin-top:10px;">
+        <!-- Filled by shifts-admin.js -->
+      </section>
+    </div>
+  </div>
+
+  <!-- ========= SHIFT EDITOR OVERLAY ========= -->
+  <div id="shiftEditorOverlay" class="shift-editor-overlay">
+    <div class="shift-editor-card">
+      <div class="shift-editor-header">
+        <h3 id="shiftEditorTitle">Add shift</h3>
+        <button id="shiftEditorClose" class="shift-editor-close">✕</button>
+      </div>
+
+      <form id="shiftEditorForm" class="shift-editor-form">
+        <div>
+          <label for="shiftDate">Date</label>
+          <input type="date" id="shiftDate" required />
+        </div>
+
+        <div>
+          <label for="shiftPerson">Crew / Manager</label>
+          <select id="shiftPerson" required>
+            <!-- filled by JS -->
+          </select>
+        </div>
+
+        <div class="shift-editor-form-row">
+          <div>
+            <label for="shiftStart">Start</label>
+            <input type="time" id="shiftStart" required />
+          </div>
+          <div>
+            <label for="shiftEnd">End</label>
+            <input type="time" id="shiftEnd" required />
+          </div>
+        </div>
+
+        <div>
+          <label for="shiftStation">Station (optional)</label>
+          <input
+            type="text"
+            id="shiftStation"
+            placeholder="e.g. Front counter, Kitchen, Drive-thru"
+          />
+        </div>
+
+        <div>
+          <label>
+            <input type="checkbox" id="shiftIsManager" />
+            Mark as shift manager for that day
+          </label>
+        </div>
+
+        <div class="shift-editor-footer">
+          <button type="button" id="shiftDeleteBtn" class="shift-danger-link">
+            Delete shift
+          </button>
+          <button type="submit" class="shift-primary-btn">
+            Save shift
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="shifts-admin.js"></script>
+</body>
+</html>
