@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining Portal – Shifts</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="mc-theme.css" />
+</head>
+<body class="app-page">
+
+  <!-- ========= SIDEBAR ========= -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Crew & Manager portal</p>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
+      <ul class="nav-list">
+        <li class="nav-item" onclick="window.location.href='main.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Dashboard</span>
+        </li>
+        <li class="nav-item" onclick="window.location.href='training.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🎓</span>
+          <span class="nav-label">Training</span>
+        </li>
+        <li class="nav-item active" onclick="window.location.href='schedule.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">📅</span>
+          <span class="nav-label">Shifts</span>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <!-- ========= MAIN LAYOUT ========= -->
+  <div class="main-layout">
+    <div class="content-area">
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <h2 id="scheduleTitle">Weekly schedule</h2>
+          <p id="scheduleSubtitle">
+            See your shifts for this week and upcoming weeks.
+          </p>
+        </div>
+        <div class="top-bar-right">
+          <span id="roleBadge" class="badge-role">Crew</span>
+          <div id="avatarCircle" class="avatar">U</div>
+        </div>
+      </div>
+
+      <!-- Week selector -->
+      <div class="card section-card" style="margin-top:6px;">
+        <div class="subsection-title">Week selection</div>
+        <div class="subsection-sub">
+          Switch between this week and next week. If no schedule exists, you'll see a message.
+        </div>
+        <div id="weekTabs" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="pill-filter active" data-week-offset="0">This week</button>
+          <button class="pill-filter" data-week-offset="1">Next week</button>
+        </div>
+      </div>
+
+      <!-- Schedule card -->
+      <section id="scheduleCard" class="card section-card" style="margin-top:10px;">
+        <!-- Filled by schedule.js -->
+      </section>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="schedule.js"></script>
+</body>
+</html>
