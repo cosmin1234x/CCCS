@@ -1528,3 +1528,153 @@ select:focus {
   color: #111827;
   box-shadow: 0 2px 6px rgba(248, 113, 22, 0.5);
 }
+/* ===== McStars row styling ===== */
+
+.crew-list {
+  margin-top: 6px;
+}
+
+.crew-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed #facc15;
+}
+
+.crew-row:last-child {
+  border-bottom: none;
+}
+
+.crew-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.crew-row-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.crew-row-sub {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.crew-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* McStar pills */
+
+.mcstar-pill {
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+  box-shadow: 0 6px 12px rgba(248, 113, 22, 0.35);
+  color: #fff7ed;
+}
+
+.mcstar-pill span:first-child {
+  font-size: 0.9rem;
+}
+
+/* tiers */
+.mcstar-pill--bronze {
+  background: linear-gradient(135deg, #f97316, #b45309);
+}
+
+.mcstar-pill--silver {
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+}
+
+.mcstar-pill--gold {
+  background: linear-gradient(135deg, #facc15, #f97316);
+}
+
+.mcstar-pill--none {
+  background: #e5e7eb;
+  color: #4b5563;
+  box-shadow: none;
+}
+
+/* Training status chip */
+
+.training-chip {
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  cursor: default;
+}
+
+.training-chip--ok {
+  border-color: #bbf7d0;
+  background: #ecfdf5;
+  color: #15803d;
+}
+
+.training-chip--overdue {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.training-chip--recert {
+  border-color: #fed7aa;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+/* Profile / Edit buttons in row */
+
+.crew-row-btn {
+  border-radius: 999px;
+  border: none;
+  padding: 4px 9px;
+  font-size: 0.72rem;
+  background: #111827;
+  color: #f9fafb;
+  cursor: pointer;
+}
+
+.crew-row-btn--outline {
+  background: #fff7ed;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+}
+
+/* summary footer */
+
+.crew-summary-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+}
+
+/* mobile tweak */
+@media (max-width: 640px) {
+  .crew-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .crew-row-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}

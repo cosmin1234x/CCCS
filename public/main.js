@@ -286,44 +286,68 @@ function renderBottomSection() {
   const isManagerLike = role === "manager" || role === "shiftCreator";
 
   if (isManagerLike) {
-    // Manager / Shift Creator – crew training + profiles
     const overdue = storeDoc?.trainingOverdueCount ?? 0;
     const needsRecert = storeDoc?.trainingRecertCount ?? 0;
     const highVers = storeDoc?.trainingHighVersatilityCrewCount ?? 0;
 
     const crewRows = crewSummary
       .map((c) => {
-        const badge =
-          c.trainingStatus === "Overdue"
-            ? `<span class="badge-soft-danger">${c.trainingStatus}</span>`
-            : c.trainingStatus === "Needs recert"
-            ? `<span class="badge-soft-warn">${c.trainingStatus}</span>`
-            : `<span class="badge-soft-success">${c.trainingStatus}</span>`;
+        const stars = c.mcStars || 0;
 
-        const mcStars = `<span class="badge-soft">⭐ ${c.mcStars}</span>`;
+        // Decide McStar tier
+        let tierLabel = "No McStars yet";
+        let tierClass = "mcstar-pill--none";
+
+        if (stars >= 10) {
+          tierLabel = "Gold McStar";
+          tierClass = "mcstar-pill--gold";
+        } else if (stars >= 5) {
+          tierLabel = "Silver McStar";
+          tierClass = "mcstar-pill--silver";
+        } else if (stars >= 1) {
+          tierLabel = "Bronze McStar";
+          tierClass = "mcstar-pill--bronze";
+        }
+
+        // Training status chip text
+        let trainingLabel = "all training completed";
+        let trainingClass = "training-chip--ok";
+
+        const status = (c.trainingStatus || "OK").toLowerCase();
+        if (status.includes("overdue")) {
+          trainingLabel = "training overdue";
+          trainingClass = "training-chip--overdue";
+        } else if (status.includes("recert")) {
+          trainingLabel = "recertification needed";
+          trainingClass = "training-chip--recert";
+        }
 
         return `
-          <li>
-            <div style="display:flex; flex-direction:column; gap:2px;">
-              <strong>${c.name}</strong>
-              <span style="font-size:0.75rem; color:#6b7280;">
-                ${c.primaryStation || "All stations"}${
-          c.versatility
-            ? ` · ${c.versatility}+ stations`
-            : ""
-        }
-              </span>
-            </div>
-            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-              <div style="display:flex; gap:4px; align-items:center;">
-                ${badge}
-                ${mcStars}
+          <li class="crew-row">
+            <div class="crew-row-main">
+              <div class="crew-row-name">${c.name}</div>
+              <div class="crew-row-sub">
+                ${c.primaryStation || "All stations"}
+                ${
+                  c.versatility
+                    ? ` · ${c.versatility}+ stations`
+                    : ""
+                }
               </div>
-              ${
-                c.notes
-                  ? `<span style="font-size:0.7rem; color:#9ca3af; max-width:180px; text-align:right;">${c.notes}</span>`
-                  : ""
-              }
+            </div>
+
+            <div class="crew-row-actions">
+              <button type="button" class="mcstar-pill ${tierClass}">
+                <span>⭐</span>
+                <span>${tierLabel}</span>
+              </button>
+
+              <button type="button" class="training-chip ${trainingClass}">
+                ${trainingLabel}
+              </button>
+
+              <button type="button" class="crew-row-btn">Profile</button>
+              <button type="button" class="crew-row-btn crew-row-btn--outline">Edit</button>
             </div>
           </li>
         `;
@@ -331,30 +355,40 @@ function renderBottomSection() {
       .join("");
 
     bottomSection.innerHTML = `
-      <div class="subsection-title">Crew Training & Profiles</div>
+      <div class="subsection-title">Crew Training & McStars</div>
       <div class="subsection-sub">
         Quick overview of who needs training and who can flex to more stations.
       </div>
 
-      <ul class="list">
-        ${crewRows || "<li><span>No crew profiles yet. Add some in Firestore.</span></li>"}
+      <ul class="list crew-list">
+        ${
+          crewRows ||
+          "<li><span>No crew profiles yet. Add some in Firestore.</span></li>"
+        }
       </ul>
 
-      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; font-size:0.78rem;">
-        <span class="badge-soft-warn">${overdue} crew with overdue modules</span>
-        <span class="badge-soft">${highVers} high versatility crew</span>
-        <span class="badge-soft-danger">${needsRecert} need recertification</span>
+      <div class="crew-summary-footer">
+        <span class="badge-soft-warn">
+          ${overdue} crew with overdue modules
+        </span>
+        <span class="badge-soft">
+          ${highVers} high versatility crew
+        </span>
+        <span class="badge-soft-danger">
+          ${needsRecert} need recertification
+        </span>
       </div>
     `;
   } else {
-    // Crew – personal training summary card
+    // Crew view – personal card
     bottomSection.innerHTML = `
       <div class="subsection-title">Your training & McStars</div>
       <div class="subsection-sub">
         See which stations you’re signed off on and what to do next.
       </div>
       <p style="font-size:0.8rem; color:#4b5563; margin-bottom:8px;">
-        Use the Training tab for full details. When you complete a module or get signed off on a new station, your McStars and profile update here automatically.
+        Use the Training tab for full details. When you complete a module or get signed off on a new station,
+        your McStars and profile update here automatically.
       </p>
       <button class="btn" type="button" onclick="window.location.href='training.html'">
         <span>🎓</span>
@@ -363,6 +397,7 @@ function renderBottomSection() {
     `;
   }
 }
+
 
 /* ========= MCASSIST CHAT ========= */
 
