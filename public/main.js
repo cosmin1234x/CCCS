@@ -1,6 +1,6 @@
-// ------------------------
-// main.js (PART 1 / 3)
-// ------------------------
+// ================================
+// main.js – McTraining Dashboard
+// ================================
 
 import { auth, db } from "./firebase-init.js";
 import {
@@ -16,8 +16,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ============================================================
-   DEFAULT CREW & MANAGER DATA (fallback if missing in Firestore)
-   ============================================================ */
+   DEFAULT DATA (fallbacks)
+============================================================ */
 
 const crewDataDefault = {
   position: "Front Counter",
@@ -83,7 +83,7 @@ let managerData = JSON.parse(JSON.stringify(managerDataDefault));
 
 /* ============================================================
    SESSION + DOM ELEMENTS
-   ============================================================ */
+============================================================ */
 
 let sessionUser = null;
 
@@ -115,12 +115,29 @@ const logoutBtn = document.getElementById("logoutBtn");
 const micBtn = document.getElementById("aiMicBtn");
 const overlay = document.getElementById("voiceOverlay");
 const overlayText = document.getElementById("overlayText");
-const overlayMic = document.getElementById("overlayMic"); // NEW STOP MIC BTN
+const overlayMic = document.getElementById("overlayMic");
 const wakeToggle = document.getElementById("wakeToggle");
+
+// Crew profile overlay
+const crewProfileOverlay = document.getElementById("crewProfileOverlay");
+const crewProfileClose = document.getElementById("crewProfileClose");
+const crewProfileName = document.getElementById("crewProfileName");
+const crewProfileRole = document.getElementById("crewProfileRole");
+const crewProfileStore = document.getElementById("crewProfileStore");
+const crewProfileStatus = document.getElementById("crewProfileStatus");
+const crewProfileBadge = document.getElementById("crewProfileBadge");
+const crewProfileNextShift = document.getElementById("crewProfileNextShift");
+const crewProfileStations = document.getElementById("crewProfileStations");
+const crewProfileNotes = document.getElementById("crewProfileNotes");
+const crewProfileAvatar = document.getElementById("crewProfileAvatar");
+
+/* Sidebar toggle (mobile) */
+const sidebar = document.querySelector(".sidebar");
+const sidebarToggle = document.getElementById("sidebarToggle");
 
 /* ============================================================
    HELPERS
-   ============================================================ */
+============================================================ */
 
 function hasSpeechSupport() {
   return "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
@@ -141,12 +158,14 @@ function beep(f = 880, ms = 90, v = 0.08) {
       osc.stop();
       ctx.close();
     }, ms);
-  } catch {}
+  } catch {
+    // ignore if AudioContext is blocked
+  }
 }
 
 /* ============================================================
    AUTH + FIRESTORE LOAD
-   ============================================================ */
+============================================================ */
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -185,8 +204,8 @@ if (logoutBtn) {
 }
 
 /* ============================================================
-   FIRESTORE LOADERS
-   ============================================================ */
+   FIRESTORE HELPERS
+============================================================ */
 
 async function loadManagerDataFromFirestore() {
   const storeId = sessionUser.storeId || "store001";
@@ -195,12 +214,14 @@ async function loadManagerDataFromFirestore() {
     const storeRef = doc(db, "stores", storeId);
     const storeSnap = await getDoc(storeRef);
 
-    if (storeSnap.exists()) Object.assign(managerData, storeSnap.data());
+    if (storeSnap.exists()) {
+      Object.assign(managerData, storeSnap.data());
+    }
 
     const crewCol = collection(db, "stores", storeId, "crewSummary");
     const crewSnap = await getDocs(crewCol);
 
-    let list = [];
+    const list = [];
     crewSnap.forEach((snap) => {
       const d = snap.data();
       list.push({
@@ -211,7 +232,9 @@ async function loadManagerDataFromFirestore() {
       });
     });
 
-    if (list.length) managerData.crewTrainingSummary = list;
+    if (list.length) {
+      managerData.crewTrainingSummary = list;
+    }
   } catch (e) {
     console.error("Error loading manager data:", e);
   }
@@ -220,22 +243,28 @@ async function loadManagerDataFromFirestore() {
 async function updateCrewStatusInFirestore(crewId, newStatus) {
   const storeId = sessionUser.storeId || "store001";
   const ref = doc(db, "stores", storeId, "crewSummary", crewId);
-  await updateDoc(ref, { status: newStatus });
+  try {
+    await updateDoc(ref, { status: newStatus });
+  } catch (e) {
+    console.error("Update crew status error:", e);
+  }
 }
 
 async function loadCrewDataFromFirestore() {
   try {
     const uRef = doc(db, "users", sessionUser.id);
     const snap = await getDoc(uRef);
-    if (snap.exists()) Object.assign(crewData, snap.data());
+    if (snap.exists()) {
+      Object.assign(crewData, snap.data());
+    }
   } catch (e) {
     console.error("Crew load error", e);
   }
 }
 
 /* ============================================================
-   DASHBOARD RENDER
-   ============================================================ */
+   DASHBOARD RENDERING
+============================================================ */
 
 function initialiseDashboard() {
   if (!sessionUser) return;
@@ -243,22 +272,34 @@ function initialiseDashboard() {
   const isCrew = sessionUser.role === "crew";
   const profile = isCrew ? crewData : managerData;
 
-  sidebarUserName.textContent = sessionUser.name;
-  sidebarUserRole.textContent = isCrew ? "Crew Member" : "Restaurant Manager";
-  roleBadge.textContent = isCrew ? "Crew" : "Manager";
-  avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
+  // Sidebar user info
+  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
+  if (sidebarUserRole) {
+    sidebarUserRole.textContent = isCrew ? "Crew Member" : "Restaurant Manager";
+  }
 
-  welcomeTitle.textContent = isCrew
-    ? `Welcome back, ${sessionUser.name.split(" ")[0]}`
-    : `Good shift, ${sessionUser.name.split(" ")[0]}`;
+  if (roleBadge) roleBadge.textContent = isCrew ? "Crew" : "Manager";
+  if (avatarCircle) {
+    avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
+  }
 
-  welcomeSubtitle.textContent = isCrew
-    ? "Here’s your week at a glance."
-    : `Live snapshot for ${profile.storeName}.`;
+  if (welcomeTitle) {
+    welcomeTitle.textContent = isCrew
+      ? `Welcome back, ${sessionUser.name.split(" ")[0]}`
+      : `Good shift, ${sessionUser.name.split(" ")[0]}`;
+  }
 
-  aiSubtitle.textContent = isCrew
-    ? "Ask about your hours, pay, shifts, or training."
-    : "Ask about waste, crew, or sales.";
+  if (welcomeSubtitle) {
+    welcomeSubtitle.textContent = isCrew
+      ? "Here’s your week at a glance."
+      : `Live snapshot for ${profile.storeName}.`;
+  }
+
+  if (aiSubtitle) {
+    aiSubtitle.textContent = isCrew
+      ? "Ask about your hours, pay, shifts or training."
+      : "Ask about waste, crew or sales.";
+  }
 
   renderTopCards(isCrew, profile);
   renderBottomSection(isCrew, profile);
@@ -267,6 +308,7 @@ function initialiseDashboard() {
 }
 
 function renderTopCards(isCrew, profile) {
+  if (!topCards) return;
   topCards.innerHTML = "";
 
   const cards = isCrew
@@ -342,6 +384,8 @@ function renderTopCards(isCrew, profile) {
 }
 
 function renderBottomSection(isCrew, profile) {
+  if (!bottomSection) return;
+
   bottomSection.innerHTML = isCrew
     ? `
       <div class="subsection-title">Weekly Schedule</div>
@@ -388,9 +432,13 @@ function renderBottomSection(isCrew, profile) {
           .map(
             (c) => `
           <li data-id="${c.id}">
-            <span><strong>${c.name}</strong><br><small>${c.status}</small></span>
+            <span>
+              <strong>${c.name}</strong><br>
+              <small>${c.status}</small>
+            </span>
             <span class="crew-actions">
               <span class="badge-soft">${c.badge}</span>
+              <button class="crew-profile-btn" data-id="${c.id}">Profile</button>
               <button class="crew-edit-btn" data-id="${c.id}">Edit</button>
             </span>
           </li>`
@@ -399,14 +447,19 @@ function renderBottomSection(isCrew, profile) {
       </ul>
     `;
 
-  if (!isCrew) attachCrewEditHandlers();
+  if (!isCrew) {
+    attachCrewEditHandlers();
+  }
 }
 
 /* ============================================================
-   CREW EDIT BUTTON HANDLING
-   ============================================================ */
+   CREW EDIT + PROFILE HANDLERS
+============================================================ */
 
 function attachCrewEditHandlers() {
+  if (!bottomSection) return;
+
+  // Edit training status
   bottomSection.querySelectorAll(".crew-edit-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
@@ -424,14 +477,71 @@ function attachCrewEditHandlers() {
       renderBottomSection(false, managerData);
     });
   });
+
+  // Open crew profile overlay
+  bottomSection.querySelectorAll(".crew-profile-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      openCrewProfile(id);
+    });
+  });
+}
+
+function openCrewProfile(id) {
+  if (!crewProfileOverlay) return;
+  const crew = managerData.crewTrainingSummary.find((c) => c.id === id);
+  if (!crew) return;
+
+  const firstName = crew.name.split(" ")[0] || crew.name;
+
+  if (crewProfileName) crewProfileName.textContent = crew.name;
+  if (crewProfileRole) crewProfileRole.textContent = "Crew Member";
+  if (crewProfileStore) {
+    crewProfileStore.textContent =
+      managerData.storeName || sessionUser.storeId || "Restaurant";
+  }
+  if (crewProfileStatus) crewProfileStatus.textContent = crew.status;
+  if (crewProfileBadge) crewProfileBadge.textContent = crew.badge;
+  if (crewProfileAvatar) {
+    crewProfileAvatar.textContent = crew.name.charAt(0).toUpperCase();
+  }
+
+  // Demo data for now
+  if (crewProfileNextShift) {
+    crewProfileNextShift.textContent = "Tomorrow 17:00–23:00 — Front counter";
+  }
+  if (crewProfileStations) {
+    crewProfileStations.textContent = "Front counter · Fries · Drinks";
+  }
+  if (crewProfileNotes) {
+    crewProfileNotes.textContent =
+      `${firstName} handles peak times well. Recommended for drive-thru training next.`;
+  }
+
+  crewProfileOverlay.classList.add("show");
+}
+
+// Close profile overlay
+if (crewProfileOverlay && crewProfileClose) {
+  crewProfileClose.addEventListener("click", () => {
+    crewProfileOverlay.classList.remove("show");
+  });
+
+  crewProfileOverlay.addEventListener("click", (e) => {
+    if (e.target === crewProfileOverlay) {
+      crewProfileOverlay.classList.remove("show");
+    }
+  });
 }
 
 /* ============================================================
-   AI SUGGESTIONS & CHAT SYSTEM
-   ============================================================ */
+   AI SUGGESTIONS & CHAT
+============================================================ */
 
 function renderSuggestions(isCrew) {
+  if (!aiSuggestions) return;
   aiSuggestions.innerHTML = "";
+
   const list = isCrew
     ? [
         "How many hours do I work this week?",
@@ -456,6 +566,7 @@ function renderSuggestions(isCrew) {
 }
 
 function addMessage(text, from) {
+  if (!aiChat) return;
   const div = document.createElement("div");
   div.className = "message " + (from === "user" ? "msg-user" : "msg-bot");
 
@@ -473,13 +584,12 @@ function addMessage(text, from) {
   aiChat.scrollTop = aiChat.scrollHeight;
 }
 
-/* ============================================================
-   THINKING INDICATOR
-   ============================================================ */
+/* THINKING INDICATOR */
 
 let thinkingMessageEl = null;
 
 function showThinking() {
+  if (!aiChat) return;
   hideThinking();
   const el = document.createElement("div");
   el.className = "message msg-bot thinking";
@@ -494,6 +604,7 @@ function showThinking() {
     </div>
     <div class="msg-meta">McAssist</div>`;
   aiChat.appendChild(el);
+  aiChat.scrollTop = aiChat.scrollHeight;
   thinkingMessageEl = el;
 }
 
@@ -502,28 +613,28 @@ function hideThinking() {
   thinkingMessageEl = null;
 }
 
-/* ============================================================
-   SEED INTRO MESSAGE
-   ============================================================ */
+/* INTRO MESSAGE */
 
 function seedIntroMessages(isCrew) {
+  if (!aiChat) return;
   aiChat.innerHTML = "";
   const first = isCrew
     ? `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with hours, pay, shifts and training.`
     : `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with waste, sales and crew info.`;
-
   addMessage(first, "bot");
 }
 
 /* ============================================================
    SEND TO AI BACKEND
-   ============================================================ */
+============================================================ */
 
 async function sendUserMessage(text) {
-  if (!text.trim()) return;
+  if (!text || !text.trim()) return;
+  if (!sessionUser) return;
+
   addMessage(text.trim(), "user");
-  aiInput.value = "";
-  aiSendBtn.disabled = true;
+  if (aiInput) aiInput.value = "";
+  if (aiSendBtn) aiSendBtn.disabled = true;
 
   showThinking();
 
@@ -542,142 +653,138 @@ async function sendUserMessage(text) {
     const res = await fetch("/.netlify/functions/mcassist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, user: sessionUser, contextData: ctx })
+      body: JSON.stringify({
+        message: text,
+        user: sessionUser,
+        contextData: ctx
+      })
     });
 
-    const data = await res.json();
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
     hideThinking();
     addMessage(data.reply || "I couldn't answer that.", "bot");
   } catch (e) {
+    console.error("McAssist error:", e);
     hideThinking();
     addMessage("Something went wrong contacting McAssist.", "bot");
   }
 
-  aiSendBtn.disabled = false;
+  if (aiSendBtn) aiSendBtn.disabled = false;
 }
 
-aiForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  sendUserMessage(aiInput.value);
-});
+if (aiForm) {
+  aiForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!aiInput) return;
+    sendUserMessage(aiInput.value);
+  });
+}
 
 /* ============================================================
-   SIDEBAR MOBILE HANDLING
-   ============================================================ */
+   SIDEBAR MOBILE TOGGLE
+============================================================ */
 
-const sidebar = document.querySelector(".sidebar");
-const sidebarToggle = document.getElementById("sidebarToggle");
-
-if (sidebarToggle) {
+if (sidebar && sidebarToggle) {
   sidebarToggle.addEventListener("click", () => {
     sidebar.classList.toggle("sidebar-open");
   });
 }
+
 /* ============================================================
-   VOICE MODE (MIC BUTTON) + WAKE WORD “HEY AMY”
-   ============================================================ */
+   VOICE MODE + WAKE WORD
+============================================================ */
 
 let recognition = null;
 let listening = false;
 let voiceTimeout = null;
 
-// Create SpeechRecognition instance
 if (micBtn && overlay && hasSpeechSupport()) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-
   recognition = new SR();
   recognition.lang = "en-US";
   recognition.continuous = false;
   recognition.interimResults = false;
 
-  /* ------------------------------
-      START FULL LISTENING (AFTER WAKE OR MIC PRESS)
-  ------------------------------ */
   function startFullListening() {
     try {
-      // Set UI
-      overlayText.textContent = "Listening…";
-
-      // Sound
+      if (overlayText) overlayText.textContent = "Listening…";
       beep(1000, 70, 0.12);
-
       listening = true;
       recognition.start();
 
-      // Safety timeout (Chrome bug fix)
       if (voiceTimeout) clearTimeout(voiceTimeout);
       voiceTimeout = setTimeout(() => {
         console.log("[Voice] Timeout — forcing stop");
-        try { recognition.stop(); } catch {}
+        try {
+          recognition.stop();
+        } catch {}
       }, 6000);
-
     } catch (err) {
+      console.error("Voice start error:", err);
       listening = false;
-      overlay.classList.remove("active");
-      overlayText.textContent = "";
-      alert("Microphone blocked. Allow access.");
+      if (overlay) overlay.classList.remove("active");
+      if (overlayText) overlayText.textContent = "";
+      alert("Microphone blocked. Please allow access.");
     }
   }
 
-  /* ------------------------------
-      MIC BUTTON (USER CLICK)
-  ------------------------------ */
+  // Small mic button next to input
   micBtn.onclick = () => {
     if (listening) {
-      recognition.stop();
+      try {
+        recognition.stop();
+      } catch {}
     } else {
+      if (!overlay) return;
       overlay.classList.add("active");
-      overlayText.textContent = "Ask me anything";
-      // Delay to allow user to breathe before talking
+      if (overlayText) overlayText.textContent = "Ask me anything";
       setTimeout(startFullListening, 600);
     }
   };
 
-  /* ------------------------------
-      OVERLAY STOP MIC BUTTON (McDONALD’S STYLE)
-  ------------------------------ */
+  // Big mic button inside overlay (STOP)
   if (overlayMic) {
     overlayMic.onclick = () => {
       console.log("[Voice] STOP pressed");
       listening = false;
-      try { recognition.stop(); } catch {}
-      overlay.classList.remove("active");
-      overlayText.textContent = "";
+      try {
+        recognition.stop();
+      } catch {}
+      if (overlay) overlay.classList.remove("active");
+      if (overlayText) overlayText.textContent = "";
     };
   }
 
-  /* ------------------------------
-      RECOGNITION: ONRESULT
-  ------------------------------ */
   recognition.onresult = (e) => {
     const transcript = e.results[0][0].transcript;
     console.log("[Voice] Transcript:", transcript);
 
-    // Stop mic immediately
-    try { recognition.stop(); } catch {}
+    try {
+      recognition.stop();
+    } catch {}
 
-    // Close overlay
-    overlay.classList.remove("active");
-    overlayText.textContent = "";
+    if (overlay) overlay.classList.remove("active");
+    if (overlayText) overlayText.textContent = "";
     listening = false;
 
-    // Clear timeout
     if (voiceTimeout) clearTimeout(voiceTimeout);
 
-    // Send to AI
-    aiInput.value = transcript;
+    if (aiInput) aiInput.value = transcript;
     sendUserMessage(transcript);
   };
 
-  /* ------------------------------
-      RECOGNITION: ONERROR
-  ------------------------------ */
   recognition.onerror = (e) => {
     console.warn("[Voice] Error:", e.error);
-
     listening = false;
-    overlay.classList.remove("active");
-    overlayText.textContent = "";
+
+    if (overlay) overlay.classList.remove("active");
+    if (overlayText) overlayText.textContent = "";
 
     if (voiceTimeout) clearTimeout(voiceTimeout);
 
@@ -686,27 +793,19 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   };
 
-  /* ------------------------------
-      RECOGNITION: ONEND
-  ------------------------------ */
   recognition.onend = () => {
     console.log("[Voice] onend fired");
     listening = false;
-
     if (voiceTimeout) clearTimeout(voiceTimeout);
+    if (overlay) overlay.classList.remove("active");
+    if (overlayText) overlayText.textContent = "";
 
-    overlay.classList.remove("active");
-    overlayText.textContent = "";
-
-    // Restart wake listener if enabled
     if (wakeEnabled && !document.hidden && !wakeRunning) {
       setTimeout(startWakeListener, 400);
     }
   };
 
-  /* ============================================================
-      WAKE WORD ENGINE — “HEY AMY”
-     ============================================================ */
+  /* --------- WAKE WORD: "HEY AMY" ---------- */
 
   let wakeRecognition = null;
   let wakeEnabled = false;
@@ -729,14 +828,13 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
     const SR2 = window.SpeechRecognition || window.webkitSpeechRecognition;
     wakeRecognition = new SR2();
-
     wakeRecognition.lang = "en-US";
     wakeRecognition.continuous = true;
     wakeRecognition.interimResults = true;
 
     wakeRecognition.onstart = () => {
       wakeRunning = true;
-      console.log("[Wake] Listening for ‘Hey Amy’…");
+      console.log("[Wake] Listening for 'Hey Amy'…");
     };
 
     wakeRecognition.onend = () => {
@@ -752,12 +850,13 @@ if (micBtn && overlay && hasSpeechSupport()) {
       if (e.error === "not-allowed") {
         alert("Mic blocked. Wake word disabled.");
         wakeEnabled = false;
-        wakeToggle.checked = false;
+        if (wakeToggle) wakeToggle.checked = false;
         return;
       }
 
       if (e.error === "no-speech") {
-        return; // ignore
+        // ignore
+        return;
       }
 
       wakeRunning = false;
@@ -766,33 +865,27 @@ if (micBtn && overlay && hasSpeechSupport()) {
       }
     };
 
-    /* ------------------------------
-        WAKE WORD DETECTION
-    ------------------------------ */
     wakeRecognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const res = event.results[i];
         const transcript = res[0].transcript.toLowerCase().trim();
+        const hit = HEY_AMY_VARIANTS.some((kw) => transcript.includes(kw));
 
         console.log("[Wake] Heard:", transcript, "conf:", res[0].confidence);
-
-        const hit = HEY_AMY_VARIANTS.some((kw) =>
-          transcript.includes(kw)
-        );
 
         if (hit && res[0].confidence >= 0.25) {
           console.log("[Wake] TRIGGER DETECTED!");
 
-          try { wakeRecognition.stop(); } catch {}
+          try {
+            wakeRecognition.stop();
+          } catch {}
           wakeRunning = false;
 
-          // Open overlay
-          overlay.classList.add("active");
-          overlayText.textContent = "Ask me anything";
+          if (overlay) overlay.classList.add("active");
+          if (overlayText) overlayText.textContent = "Ask me anything";
 
           beep(1200, 90, 0.12);
 
-          // Delay → THEN start listening
           setTimeout(startFullListening, 650);
           break;
         }
@@ -808,19 +901,22 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
   function stopWakeListener() {
     if (wakeRecognition) {
-      try { wakeRecognition.stop(); } catch {}
+      try {
+        wakeRecognition.stop();
+      } catch {}
     }
     wakeRunning = false;
   }
 
-  // Pause wake word when page hidden
   document.addEventListener("visibilitychange", () => {
     if (!wakeEnabled) return;
-    if (document.hidden) stopWakeListener();
-    else startWakeListener();
+    if (document.hidden) {
+      stopWakeListener();
+    } else {
+      startWakeListener();
+    }
   });
 
-  // Toggle wake word
   if (wakeToggle) {
     if (!hasSpeechSupport()) {
       wakeToggle.disabled = true;
@@ -841,6 +937,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
     });
   }
 } else {
+  // No speech support or no mic button – hide voice controls
   if (micBtn) micBtn.style.display = "none";
   if (wakeToggle) wakeToggle.disabled = true;
 }

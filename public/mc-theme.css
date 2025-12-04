@@ -1392,3 +1392,131 @@ select:focus {
     transform: scale(1.3);
   }
 }
+/* === Crew Profile Overlay === */
+
+.crew-profile-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+}
+
+.crew-profile-overlay.show {
+  display: flex;
+}
+
+.crew-profile-card {
+  width: min(480px, 92vw);
+  background:
+    radial-gradient(circle at top, #fff7ed, #ffedd5);
+  border-radius: 24px;
+  border: 1px solid rgba(250, 204, 21, 0.9);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.6);
+  padding: 18px 18px 16px;
+  position: relative;
+  animation: crewProfilePop 0.18s ease-out;
+}
+
+.crew-profile-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  border: none;
+  background: rgba(0, 0, 0, 0.15);
+  color: #fefce8;
+  border-radius: 999px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.crew-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.crew-profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--mc-red);
+  color: var(--mc-yellow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.2rem;
+  box-shadow: 0 6px 14px rgba(185, 28, 28, 0.6);
+}
+
+.crew-profile-header h3 {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.crew-profile-header p {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.crew-profile-body {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crew-profile-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.crew-profile-row .label {
+  color: #6b7280;
+}
+
+.crew-profile-row .value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.crew-profile-notes {
+  margin-top: 8px;
+  font-size: 0.78rem;
+}
+
+.crew-profile-notes .label {
+  display: block;
+  margin-bottom: 2px;
+  color: #6b7280;
+}
+
+.crew-profile-notes p {
+  background: #fffbeb;
+  border-radius: 12px;
+  padding: 8px 10px;
+  border: 1px solid #fed7aa;
+}
+
+/* Simple pop-up animation */
+@keyframes crewProfilePop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
