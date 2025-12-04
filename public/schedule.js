@@ -97,7 +97,7 @@ async function loadStoreName(storeId) {
 async function loadShiftsFromFirestore(storeId) {
   allShifts = [];
   try {
-    const col = collection(db, "stores", storeId, "shifts");
+    const col = collection(db, "stores", storeId, "Shifts");
     const snap = await getDocs(col);
     snap.forEach((docSnap) => {
       const d = docSnap.data();
