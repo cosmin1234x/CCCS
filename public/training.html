@@ -2,122 +2,110 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal - Training</title>
+  <title>McTraining Portal – Training</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 </head>
 <body class="app-page">
+
+  <!-- ========= SIDEBAR ========= -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo-circle">M</div>
       <div class="sidebar-header-text">
         <h1>McTraining</h1>
-        <p>Powered by McAssist AI</p>
+        <p>Crew & Manager portal</p>
       </div>
-      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">
-        ☰
-      </button>
+      <button id="sidebarToggle" class="sidebar-toggle">☰</button>
     </div>
 
     <nav class="sidebar-nav">
       <div class="nav-section-title">Main</div>
       <ul class="nav-list">
-        <li class="nav-item" data-page="dashboard" onclick="location.href='main.html'">
+        <li class="nav-item" onclick="window.location.href='main.html'">
           <span class="nav-dot"></span>
-          <span class="nav-icon">📊</span>
+          <span class="nav-icon">🏠</span>
           <span class="nav-label">Dashboard</span>
         </li>
-        <li class="nav-item active" data-page="training" onclick="location.href='training.html'">
-          <span class="nav-icon">📚</span>
+        <li class="nav-item active" onclick="window.location.href='training.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🎓</span>
           <span class="nav-label">Training</span>
-        </li>
-        <li class="nav-item" data-page="stations">
-          <span class="nav-icon">🧑‍🍳</span>
-          <span class="nav-label">Stations</span>
-        </li>
-        <li class="nav-item" data-page="shifts">
-          <span class="nav-icon">🕒</span>
-          <span class="nav-label">Shifts</span>
         </li>
       </ul>
     </nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <span class="sidebar-user-label">Signed in as</span><br />
-        <strong id="sidebarUserName">—</strong><br />
-        <span id="sidebarUserRole">—</span>
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
       </div>
       <button id="logoutBtn">Log out</button>
     </div>
   </aside>
 
-  <main class="main-layout">
-    <section class="content-area">
+  <!-- ========= MAIN LAYOUT ========= -->
+  <div class="main-layout">
+    <div class="content-area">
       <div class="top-bar">
         <div class="top-bar-left">
-          <h2 id="pageTitle">Training overview</h2>
-          <p id="pageSubtitle">Loading your modules…</p>
+          <h2>Training overview</h2>
+          <p>Modules and certifications for your store.</p>
         </div>
         <div class="top-bar-right">
-          <span class="badge-role" id="roleBadge">Role</span>
-          <div class="avatar" id="avatarCircle">U</div>
+          <span id="roleBadge" class="badge-role">Crew</span>
+          <div id="avatarCircle" class="avatar">U</div>
         </div>
       </div>
 
-      <div class="cards-grid">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Your Progress</div>
-            <div class="card-icon">📈</div>
-          </div>
-          <div class="subsection-sub" id="progressText">Loading…</div>
-          <div class="progress-bar">
-            <div class="progress-bar-inner" id="progressBarInner"></div>
-          </div>
-
-          <div style="margin-top:10px;"></div>
-          <div class="subsection-title">Filters</div>
-          <div>
-            <button class="pill-filter active" data-filter="all">All modules</button>
-            <button class="pill-filter" data-filter="required">Required</button>
-            <button class="pill-filter" data-filter="optional">Optional</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Recommended next steps</div>
-            <div class="card-icon">⭐</div>
-          </div>
-          <div class="subsection-sub">
-            Focus on these to unlock more stations and responsibilities.
-          </div>
-          <ul id="recommendedList" class="list" style="border-top: 1px dashed transparent;"></ul>
-        </div>
-      </div>
-
+      <!-- Filters + progress -->
       <div class="card section-card">
-        <div class="card-header">
-          <div class="card-title">Training Modules</div>
-          <div class="card-icon">📚</div>
+        <div class="subsection-title">Filters</div>
+        <div class="subsection-sub">
+          Focus on a role or status to see the most important modules.
         </div>
+
+        <div id="filterRow">
+          <button class="pill-filter active" data-filter="all">All modules</button>
+          <button class="pill-filter" data-filter="crew">Crew basics</button>
+          <button class="pill-filter" data-filter="kitchen">Kitchen</button>
+          <button class="pill-filter" data-filter="drive">Drive-thru</button>
+          <button class="pill-filter" data-filter="manager">Manager</button>
+        </div>
+
+        <div style="margin-top:10px;">
+          <span style="font-size:0.8rem;color:#6b7280;">Overall completion</span>
+          <div class="progress-bar">
+            <div id="trainingProgress" class="progress-bar-inner"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modules table -->
+      <div class="card section-card" style="margin-top:10px;">
+        <div class="subsection-title">Modules</div>
+        <div class="subsection-sub">
+          Click a status to update it if you’re a manager.
+        </div>
+
         <table id="modulesTable">
           <thead>
             <tr>
               <th>Module</th>
-              <th>Station</th>
-              <th>Type</th>
+              <th>Category</th>
               <th>Status</th>
-              <th>Action</th>
+              <th>Crew name</th>
             </tr>
           </thead>
-          <tbody></tbody>
+          <tbody id="modulesBody">
+            <!-- Filled by training.js -->
+          </tbody>
         </table>
       </div>
-    </section>
-  </main>
+    </div>
+  </div>
 
+  <!-- Scripts (separate from main.js) -->
   <script type="module" src="training.js"></script>
 </body>
 </html>
