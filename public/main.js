@@ -50,6 +50,7 @@ let sessionUser = null; // {id, role, name, storeId}
 let storeDoc = null;    // store-level metrics
 let crewSummary = [];   // [{id, name, trainingStatus, mcStars, ...}]
 let mcassistBusy = false;
+let mcassistInitialShown = false;
 
 function loadSessionUser() {
   try {
@@ -323,7 +324,7 @@ function renderBottomSection() {
         }
 
         return `
-          <li class="crew-row">
+          <li class="crew-row" data-crew-id="${c.id}">
             <div class="crew-row-main">
               <div class="crew-row-name">${c.name}</div>
               <div class="crew-row-sub">
@@ -337,17 +338,29 @@ function renderBottomSection() {
             </div>
 
             <div class="crew-row-actions">
-              <button type="button" class="mcstar-pill ${tierClass}">
+              <button type="button"
+                      class="mcstar-pill ${tierClass}"
+                      data-crew-id="${c.id}">
                 <span>⭐</span>
                 <span>${tierLabel}</span>
               </button>
 
-              <button type="button" class="training-chip ${trainingClass}">
+              <button type="button"
+                      class="training-chip ${trainingClass}"
+                      data-crew-id="${c.id}">
                 ${trainingLabel}
               </button>
 
-              <button type="button" class="crew-row-btn">Profile</button>
-              <button type="button" class="crew-row-btn crew-row-btn--outline">Edit</button>
+              <button type="button"
+                      class="crew-row-btn"
+                      data-crew-id="${c.id}">
+                Profile
+              </button>
+              <button type="button"
+                      class="crew-row-btn crew-row-btn--outline"
+                      data-crew-id="${c.id}">
+                Edit
+              </button>
             </div>
           </li>
         `;
@@ -379,6 +392,8 @@ function renderBottomSection() {
         </span>
       </div>
     `;
+
+    attachCrewRowHandlers();   // <-- hook up buttons
   } else {
     // Crew view – personal card
     bottomSection.innerHTML = `
@@ -397,6 +412,47 @@ function renderBottomSection() {
     `;
   }
 }
+
+
+function attachCrewRowHandlers() {
+  if (!bottomSection) return;
+
+  const rows = bottomSection.querySelectorAll(".crew-row");
+  rows.forEach((row) => {
+    const crewId = row.dataset.crewId;
+    const crew = crewSummary.find((c) => c.id === crewId);
+    if (!crew) return;
+
+    const buttons = row.querySelectorAll(".crew-row-btn");
+
+    buttons.forEach((btn) => {
+      const isEdit = btn.classList.contains("crew-row-btn--outline");
+
+      if (isEdit) {
+        // EDIT – for demo, just a nice message
+        btn.addEventListener("click", () => {
+          alert(
+            `Edit training for ${crew.name}\n\n` +
+            `For now, update this in Firestore (stores/${sessionUser.storeId}/crewSummary).`
+          );
+        });
+      } else {
+        // PROFILE – show a quick profile popup
+        btn.addEventListener("click", () => {
+          const text =
+            `${crew.name}\n\n` +
+            `Primary station: ${crew.primaryStation || "All stations"}\n` +
+            `Versatility: ${crew.versatility || 0}+ stations\n` +
+            `McStars: ${crew.mcStars || 0}\n` +
+            `Training status: ${crew.trainingStatus || "OK"}\n\n` +
+            `Notes: ${crew.notes || "—"}`;
+          alert(text);
+        });
+      }
+    });
+  });
+}
+
 
 
 /* ========= MCASSIST CHAT ========= */
@@ -795,8 +851,8 @@ onAuthStateChanged(auth, async (user) => {
   renderBottomSection();
   renderSuggestions();
 
-  // initial friendly AI message
-  if (aiChat) {
+  // initial friendly AI message (only once)
+  if (aiChat && !mcassistInitialShown) {
     const role = sessionUser.role;
     const isManagerLike = role === "manager" || role === "shiftCreator";
     addMessage(
@@ -806,7 +862,9 @@ onAuthStateChanged(auth, async (user) => {
         : "Hi 👋 I’m McAssist. Ask me about your hours, pay, training or McStars.",
       { meta: "McAssist" }
     );
+    mcassistInitialShown = true;
   }
+
 });
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
