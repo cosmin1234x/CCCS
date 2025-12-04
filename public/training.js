@@ -1,10 +1,14 @@
-// training.js – Training Progress Dashboard
+// training.js – Training Progress Dashboard (with Firestore stats)
 
-import { auth } from "./firebase-init.js";
+import { auth, db } from "./firebase-init.js";
 import {
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  doc,
+  getDoc
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ========= DOM ELEMENTS ========= */
 
@@ -40,24 +44,23 @@ function loadSessionUser() {
   }
 }
 
-/* ========= STATIC DEMO DATA (for store visualization) ========= */
-/* In future, this could come from Firestore per store.         */
+/* ========= DEFAULT DEMO DATA (fallback if Firestore empty) ========= */
 
-const storeTrainingStats = {
+let storeTrainingStats = {
   completionPercent: 76,
   overdueCount: 5,
   recertCount: 3,
   highVersatilityCrew: 4 // crew who can run 3+ stations
 };
 
-const stationVersatility = [
+let stationVersatility = [
   { station: "Front counter", crewCount: 7, completionPercent: 82 },
   { station: "Kitchen", crewCount: 6, completionPercent: 73 },
   { station: "Drive-thru", crewCount: 4, completionPercent: 65 },
   { station: "Drinks / McCafé", crewCount: 3, completionPercent: 71 }
 ];
 
-/* Training modules table (demo) */
+/* Training modules table (demo, still local for now) */
 
 const allModules = [
   {
@@ -100,9 +103,58 @@ const allModules = [
 let currentFilter = "all";
 let currentModules = [...allModules];
 
+/* ========= FIRESTORE LOAD FOR TRAINING STATS ========= */
+
+async function loadTrainingStatsFromFirestore(storeId) {
+  try {
+    const ref = doc(db, "stores", storeId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      console.log("[Training] No store doc, using defaults");
+      return;
+    }
+
+    const d = snap.data();
+
+    // Store-level training numbers
+    if (typeof d.trainingCompletionPercent === "number") {
+      storeTrainingStats.completionPercent = d.trainingCompletionPercent;
+    }
+    if (typeof d.trainingOverdueCount === "number") {
+      storeTrainingStats.overdueCount = d.trainingOverdueCount;
+    }
+    if (typeof d.trainingRecertCount === "number") {
+      storeTrainingStats.recertCount = d.trainingRecertCount;
+    }
+    if (typeof d.trainingHighVersatilityCrew === "number") {
+      storeTrainingStats.highVersatilityCrew = d.trainingHighVersatilityCrew;
+    }
+
+    // Station versatility array
+    if (Array.isArray(d.stationVersatility)) {
+      stationVersatility = d.stationVersatility
+        .map((item) => ({
+          station: item.station || "Station",
+          crewCount: typeof item.crewCount === "number" ? item.crewCount : 0,
+          completionPercent:
+            typeof item.completionPercent === "number"
+              ? item.completionPercent
+              : 0
+        }));
+    }
+
+    console.log("[Training] Loaded stats from Firestore:", {
+      storeTrainingStats,
+      stationVersatility
+    });
+  } catch (err) {
+    console.error("[Training] Failed to load stats from Firestore:", err);
+  }
+}
+
 /* ========= AUTH / INIT ========= */
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = "index.html";
     return;
@@ -111,10 +163,17 @@ onAuthStateChanged(auth, (user) => {
   sessionUser = loadSessionUser() || {
     id: user.uid,
     role: "crew",
-    name: user.displayName || user.email || "User"
+    name: user.displayName || user.email || "User",
+    storeId: "store001"
   };
 
   const isManager = sessionUser.role === "manager";
+  const storeId = sessionUser.storeId || "store001";
+
+  // If manager, pull store training stats from Firestore
+  if (isManager) {
+    await loadTrainingStatsFromFirestore(storeId);
+  }
 
   // Sidebar
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
@@ -177,7 +236,7 @@ function renderTrainingMetrics(isManager) {
   trainingMetrics.innerHTML = "";
 
   if (!isManager) {
-    // For crew: show personal-style metrics (based on demo modules)
+    // Crew view: personal-style metrics (still local demo)
     const completed = allModules.filter((m) => m.status === "Completed").length;
     const total = allModules.length;
     const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
@@ -221,7 +280,7 @@ function renderTrainingMetrics(isManager) {
     return;
   }
 
-  // Manager view – store-wide
+  // Manager view – store-wide stats (from Firestore or defaults)
   const s = storeTrainingStats;
 
   const cards = [
@@ -383,9 +442,15 @@ function updateProgressBarCrew() {
 }
 
 function updateProgressGeneric() {
-  // For now, just reuse crew-based completion for both views.
-  // Later this could split out store vs individual.
-  updateProgressBarCrew();
+  if (!sessionUser) {
+    updateProgressBarCrew();
+    return;
+  }
+  if (sessionUser.role === "manager") {
+    updateProgressBarManager();
+  } else {
+    updateProgressBarCrew();
+  }
 }
 
 /* ========= MANAGER: UPDATE STATUS HANDLERS ========= */
