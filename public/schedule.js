@@ -1,4 +1,4 @@
-// schedule.js – Weekly shifts view + manager tools (create, auto-generate, delete)
+// schedule.js – shifts with Shift Creator role
 
 import { auth, db } from "./firebase-init.js";
 import {
@@ -16,7 +16,7 @@ import {
   deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ========= DOM ELEMENTS ========= */
+/* ========= DOM ========= */
 
 const sidebarUserName = document.getElementById("sidebarUserName");
 const sidebarUserRole = document.getElementById("sidebarUserRole");
@@ -30,7 +30,6 @@ const scheduleCard = document.getElementById("scheduleCard");
 const weekTabs = document.getElementById("weekTabs");
 const shiftManageCard = document.getElementById("shiftManageCard");
 
-// Sidebar toggle (mobile)
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
 
@@ -47,24 +46,24 @@ function loadSessionUser() {
   }
 }
 
-/* ========= SHIFTS & CREW DATA ========= */
+/* ========= DATA ========= */
 
 let allShifts = [];
-let storeCrew = []; // {id, name, role}
-let currentWeekOffset = 0; // 0 = this week, 1 = next week
+let storeCrew = [];
+let currentWeekOffset = 0;
 
 /* ========= DATE HELPERS ========= */
 
 function toISODateString(d) {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return `${y}-${m}-${day}`;
 }
 
 function getMonday(date) {
   const d = new Date(date);
-  const day = d.getDay(); // 0 (Sun) - 6 (Sat)
+  const day = d.getDay();
   const diff = (day === 0 ? -6 : 1) - day;
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
@@ -87,12 +86,12 @@ function formatDayLabel(d) {
 
 function formatWeekLabel(start, end) {
   const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
   ];
-  const startLabel = `${start.getDate()} ${months[start.getMonth()]}`;
-  const endLabel = `${end.getDate()} ${months[end.getMonth()]}`;
-  return `${startLabel} – ${endLabel}`;
+  const s = `${start.getDate()} ${months[start.getMonth()]}`;
+  const e = `${end.getDate()} ${months[end.getMonth()]}`;
+  return `${s} – ${e}`;
 }
 
 /* ========= FIRESTORE LOAD ========= */
@@ -114,15 +113,14 @@ async function loadStoreName(storeId) {
 async function loadShiftsFromFirestore(storeId) {
   allShifts = [];
   try {
-    // NOTE: collection name is "Shifts" (capital S) in your Firestore
-    const col = collection(db, "stores", storeId, "Shifts");
+    const col = collection(db, "stores", storeId, "Shifts"); // capital S
     const snap = await getDocs(col);
     snap.forEach((docSnap) => {
       const d = docSnap.data();
       if (!d.date || !d.start || !d.end || !d.userId) return;
       allShifts.push({
         id: docSnap.id,
-        date: d.date, // "YYYY-MM-DD"
+        date: d.date,
         start: d.start,
         end: d.end,
         userId: d.userId,
@@ -158,7 +156,7 @@ async function loadCrewForStore(storeId) {
   }
 }
 
-/* ========= AUTH / INIT ========= */
+/* ========= AUTH ========= */
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -174,41 +172,51 @@ onAuthStateChanged(auth, async (user) => {
       storeId: "store001"
     };
 
-  const isManager = sessionUser.role === "manager";
   currentStoreId = sessionUser.storeId || "store001";
-  const storeId = currentStoreId;
 
-  // Sidebar
+  const role = sessionUser.role;
+  const isManagerLike = role === "manager" || role === "shiftCreator";
+  const canManageShifts = role === "shiftCreator";
+
+  // Sidebar labels
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
   if (sidebarUserRole) {
-    sidebarUserRole.textContent = isManager ? "Restaurant Manager" : "Crew Member";
+    sidebarUserRole.textContent =
+      role === "shiftCreator"
+        ? "Shift Creator"
+        : role === "manager"
+        ? "Restaurant Manager"
+        : "Crew Member";
   }
-  if (roleBadge) roleBadge.textContent = isManager ? "Manager" : "Crew";
+  if (roleBadge) {
+    roleBadge.textContent =
+      role === "shiftCreator" ? "Shift Creator" :
+      role === "manager"      ? "Manager" :
+                                "Crew";
+  }
   if (avatarCircle) {
     avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
   }
 
   // Titles
   if (scheduleTitle) {
-    scheduleTitle.textContent = isManager ? "Store shifts" : "Your shifts";
+    scheduleTitle.textContent = isManagerLike ? "Store shifts" : "Your shifts";
   }
   if (scheduleSubtitle) {
-    const storeName = await loadStoreName(storeId);
-    scheduleSubtitle.textContent = isManager
-      ? `View your shifts and, when you're shift manager, see who is working at ${storeName}.`
+    const storeName = await loadStoreName(currentStoreId);
+    scheduleSubtitle.textContent = isManagerLike
+      ? `See your shifts and, when you're shift manager, view who is working at ${storeName}.`
       : "See your shifts for this week and upcoming weeks.";
   }
 
-  // Load shifts + crew
-  await loadShiftsFromFirestore(storeId);
-  if (isManager) {
-    await loadCrewForStore(storeId);
+  await loadShiftsFromFirestore(currentStoreId);
+  if (canManageShifts) {
+    await loadCrewForStore(currentStoreId);
   }
 
-  // Render page
-  renderSchedule(isManager);
-  setupWeekTabs(isManager);
-  renderShiftManageTools(isManager, storeId);
+  renderSchedule(isManagerLike, canManageShifts);
+  setupWeekTabs(isManagerLike, canManageShifts);
+  renderShiftManageTools(canManageShifts, currentStoreId);
 });
 
 /* Logout */
@@ -223,7 +231,7 @@ if (logoutBtn) {
 
 /* ========= RENDER SCHEDULE ========= */
 
-function renderSchedule(isManager) {
+function renderSchedule(isManagerLike, canManageShifts) {
   if (!scheduleCard || !sessionUser) return;
 
   const { start, end } = getWeekRange(currentWeekOffset, new Date());
@@ -238,17 +246,13 @@ function renderSchedule(isManager) {
     (s) => s.userId === sessionUser.id
   );
 
-  // Determine message about schedule being posted or not
   let scheduleMsg = "";
   if (shiftsInWeek.length === 0) {
     scheduleMsg = "Schedule not posted yet for this week.";
-  } else if (!isManager && myShiftsInWeek.length === 0) {
+  } else if (!isManagerLike && myShiftsInWeek.length === 0) {
     scheduleMsg = "You have no shifts this week.";
-  } else {
-    scheduleMsg = "";
   }
 
-  // Build days array
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(start);
@@ -256,7 +260,6 @@ function renderSchedule(isManager) {
     days.push(d);
   }
 
-  // Build HTML
   let html = `
     <div class="subsection-title">
       ${currentWeekOffset === 0 ? "This week" : "Next week"}
@@ -280,26 +283,22 @@ function renderSchedule(isManager) {
     const dayISO = toISODateString(d);
     const label = formatDayLabel(d);
 
-    // All shifts for this day (store-level)
     const dayShifts = shiftsInWeek.filter((s) => s.date === dayISO);
-
-    // My shifts this day
     const myShifts = dayShifts.filter((s) => s.userId === sessionUser.id);
 
     let isShiftManagerToday = false;
-    if (isManager) {
+    if (isManagerLike) {
       isShiftManagerToday = dayShifts.some(
         (s) => s.userId === sessionUser.id && s.isShiftManager
       );
     }
 
-    // Decide what to show for this day
     let dayContent = "";
 
     if (!dayShifts.length) {
       dayContent = `<li><span>No shifts posted.</span></li>`;
-    } else if (!isManager) {
-      // Crew view: only show own shift(s)
+    } else if (!isManagerLike) {
+      // Crew: only own shifts
       if (!myShifts.length) {
         dayContent = `<li><span>No shift for you.</span></li>`;
       } else {
@@ -315,7 +314,7 @@ function renderSchedule(isManager) {
           .join("");
       }
     } else {
-      // Manager view
+      // Manager-like: show own shift, and if shift manager, show crew
       const myMain = myShifts
         .map(
           (s) => `
@@ -326,14 +325,14 @@ function renderSchedule(isManager) {
                 ${s.isShiftManager ? "Shift manager" : "Manager"}
               </span>
             </div>
-            <button
-              class="shift-delete-btn"
-              data-id="${s.id}"
-              title="Delete shift"
-              style="border:none;background:transparent;font-size:0.8rem;cursor:pointer;color:#9ca3af;"
-            >
-              ✕
-            </button>
+            ${
+              canManageShifts
+                ? `<button class="shift-delete-btn" data-id="${s.id}" title="Delete shift"
+                    style="border:none;background:transparent;font-size:0.8rem;cursor:pointer;color:#9ca3af;">
+                    ✕
+                   </button>`
+                : ""
+            }
           </li>
         `
         )
@@ -345,7 +344,6 @@ function renderSchedule(isManager) {
         const others = dayShifts.filter((s) => s.userId !== sessionUser.id);
 
         if (others.length) {
-          // Group by crew so we don't see the same person twice
           const crewMap = {};
           others.forEach((s) => {
             if (!crewMap[s.userId]) {
@@ -356,24 +354,21 @@ function renderSchedule(isManager) {
           const crewLines = Object.values(crewMap)
             .map(
               (s) => `
-              <li
-                style="display:flex;align-items:center;justify-content:space-between;gap:6px;"
-                data-shift-id="${s.id}"
-              >
+              <li style="display:flex;align-items:center;justify-content:space-between;gap:6px;" data-shift-id="${s.id}">
                 <div style="display:flex;flex-direction:column;">
                   <span style="font-weight:600;">${s.userName}</span>
                   <span style="font-size:0.75rem;color:#4b5563;">
                     ${s.start}–${s.end}${s.station ? " · " + s.station : ""}
                   </span>
                 </div>
-                <button
-                  class="shift-delete-btn"
-                  data-id="${s.id}"
-                  title="Delete shift"
-                  style="border:none;background:transparent;font-size:0.8rem;cursor:pointer;color:#9ca3af;"
-                >
-                  ✕
-                </button>
+                ${
+                  canManageShifts
+                    ? `<button class="shift-delete-btn" data-id="${s.id}" title="Delete shift"
+                        style="border:none;background:transparent;font-size:0.8rem;cursor:pointer;color:#9ca3af;">
+                        ✕
+                       </button>`
+                    : ""
+                }
               </li>
             `
             )
@@ -409,17 +404,15 @@ function renderSchedule(isManager) {
   });
 
   html += `</div>`;
-
   scheduleCard.innerHTML = html;
 
-  // After rendering, hook up delete buttons for managers
-  attachDeleteHandlers(isManager);
+  attachDeleteHandlers(canManageShifts);
 }
 
-/* ========= DELETE SHIFT (manager only) ========= */
+/* ========= DELETE ========= */
 
-function attachDeleteHandlers(isManager) {
-  if (!isManager) return;
+function attachDeleteHandlers(canManageShifts) {
+  if (!canManageShifts) return;
   if (!currentStoreId) return;
 
   const buttons = scheduleCard.querySelectorAll(".shift-delete-btn");
@@ -427,15 +420,12 @@ function attachDeleteHandlers(isManager) {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
       if (!id) return;
-
-      const ok = confirm("Delete this shift?");
-      if (!ok) return;
+      if (!confirm("Delete this shift?")) return;
 
       try {
         await deleteDoc(doc(db, "stores", currentStoreId, "Shifts", id));
-        // Reload and refresh
         await loadShiftsFromFirestore(currentStoreId);
-        renderSchedule(true);
+        renderSchedule(true, true);
         renderShiftManageTools(true, currentStoreId);
       } catch (err) {
         console.error("[Schedule] delete shift error:", err);
@@ -445,12 +435,12 @@ function attachDeleteHandlers(isManager) {
   });
 }
 
-/* ========= MANAGER TOOLS: CREATE + AUTO-GENERATE ========= */
+/* ========= MANAGER TOOLS (only Shift Creator) ========= */
 
-function renderShiftManageTools(isManager, storeId) {
+function renderShiftManageTools(canManageShifts, storeId) {
   if (!shiftManageCard) return;
 
-  if (!isManager) {
+  if (!canManageShifts) {
     shiftManageCard.style.display = "none";
     shiftManageCard.innerHTML = "";
     return;
@@ -540,7 +530,7 @@ function renderShiftManageTools(isManager, storeId) {
     </div>
   `;
 
-  // Populate crew dropdowns
+  // populate crew
   const userSelect = document.getElementById("shiftUserSelect");
   const autoCrewList = document.getElementById("autoCrewList");
 
@@ -557,9 +547,8 @@ function renderShiftManageTools(isManager, storeId) {
   if (autoCrewList) {
     autoCrewList.innerHTML = "";
     storeCrew
-      .filter((c) => c.role === "crew") // only crew for auto pattern
+      .filter((c) => c.role === "crew")
       .forEach((c) => {
-        const id = `auto-crew-${c.id}`;
         const wrapper = document.createElement("label");
         wrapper.style.display = "flex";
         wrapper.style.alignItems = "center";
@@ -567,14 +556,14 @@ function renderShiftManageTools(isManager, storeId) {
         wrapper.style.fontSize = "0.75rem";
         wrapper.style.marginBottom = "2px";
         wrapper.innerHTML = `
-          <input type="checkbox" id="${id}" data-user-id="${c.id}" />
+          <input type="checkbox" data-user-id="${c.id}" />
           <span>${c.name}</span>
         `;
         autoCrewList.appendChild(wrapper);
       });
   }
 
-  // Hook up buttons
+  // form controls
   const createShiftBtn = document.getElementById("createShiftBtn");
   const shiftDateInput = document.getElementById("shiftDateInput");
   const shiftStartInput = document.getElementById("shiftStartInput");
@@ -592,34 +581,28 @@ function renderShiftManageTools(isManager, storeId) {
 
   if (createShiftBtn) {
     createShiftBtn.addEventListener("click", async () => {
-      if (!shiftDateInput || !userSelect || !shiftStartInput || !shiftEndInput) return;
-
       const date = shiftDateInput.value;
       const start = shiftStartInput.value;
       const end = shiftEndInput.value;
       const userId = userSelect.value;
-      const station = (shiftStationInput && shiftStationInput.value.trim()) || "";
-      const isShiftManager = !!(shiftIsManagerCheckbox && shiftIsManagerCheckbox.checked);
+      const station = (shiftStationInput.value || "").trim();
+      const isShiftManager = shiftIsManagerCheckbox.checked;
 
       const crewObj = storeCrew.find((c) => c.id === userId);
 
       if (!date || !start || !end || !crewObj) {
-        if (shiftManageMessage) {
-          shiftManageMessage.style.color = "#b91c1c";
-          shiftManageMessage.textContent = "Please fill date, times and select a crew member.";
-        }
+        shiftManageMessage.style.color = "#b91c1c";
+        shiftManageMessage.textContent = "Fill date, times and crew.";
         return;
       }
 
-      // ❌ Prevent multiple shifts for same person on same day
+      // prevent double-booking that day
       const clash = allShifts.some(
         (s) => s.userId === userId && s.date === date
       );
       if (clash) {
-        if (shiftManageMessage) {
-          shiftManageMessage.style.color = "#b91c1c";
-          shiftManageMessage.textContent = "This person already has a shift that day.";
-        }
+        shiftManageMessage.style.color = "#b91c1c";
+        shiftManageMessage.textContent = "This person already has a shift that day.";
         return;
       }
 
@@ -635,54 +618,43 @@ function renderShiftManageTools(isManager, storeId) {
           isShiftManager
         });
 
-        if (shiftManageMessage) {
-          shiftManageMessage.style.color = "#15803d";
-          shiftManageMessage.textContent = "Shift created.";
-        }
+        shiftManageMessage.style.color = "#15803d";
+        shiftManageMessage.textContent = "Shift created.";
 
-        // Reload shifts + refresh schedule (in case it's in that week)
         await loadShiftsFromFirestore(storeId);
-        renderSchedule(true);
+        renderSchedule(true, true);
       } catch (err) {
         console.error("[Schedule] create shift error:", err);
-        if (shiftManageMessage) {
-          shiftManageMessage.style.color = "#b91c1c";
-          shiftManageMessage.textContent = "Failed to create shift.";
-        }
+        shiftManageMessage.style.color = "#b91c1c";
+        shiftManageMessage.textContent = "Failed to create shift.";
       }
     });
   }
 
   if (autoGenerateBtn) {
     autoGenerateBtn.addEventListener("click", async () => {
-      if (!autoWeekSelect || !autoStartInput || !autoEndInput) return;
       const weekOffset = parseInt(autoWeekSelect.value, 10) || 0;
       const startTime = autoStartInput.value;
       const endTime = autoEndInput.value;
-      const station = (autoStationInput && autoStationInput.value.trim()) || "Shift";
+      const station = (autoStationInput.value || "Shift").trim();
 
       const { start, end } = getWeekRange(weekOffset, new Date());
 
       const selectedCrewIds = [];
-      if (autoCrewList) {
-        autoCrewList.querySelectorAll("input[type='checkbox']").forEach((cb) => {
-          if (cb.checked && cb.dataset.userId) {
-            selectedCrewIds.push(cb.dataset.userId);
-          }
-        });
-      }
+      autoCrewList.querySelectorAll("input[type='checkbox']").forEach((cb) => {
+        if (cb.checked && cb.dataset.userId) {
+          selectedCrewIds.push(cb.dataset.userId);
+        }
+      });
 
       if (!startTime || !endTime || selectedCrewIds.length === 0) {
-        if (autoManageMessage) {
-          autoManageMessage.style.color = "#b91c1c";
-          autoManageMessage.textContent =
-            "Pick at least one crew member and make sure times are set.";
-        }
+        autoManageMessage.style.color = "#b91c1c";
+        autoManageMessage.textContent =
+          "Pick at least one crew and set times.";
         return;
       }
 
       try {
-        // Create Mon–Sun shifts for each selected crew, skipping duplicates
         const days = [];
         for (let i = 0; i < 7; i++) {
           const d = new Date(start);
@@ -696,9 +668,9 @@ function renderShiftManageTools(isManager, storeId) {
         for (const crewId of selectedCrewIds) {
           const crewObj = storeCrew.find((c) => c.id === crewId);
           if (!crewObj) continue;
+
           for (const d of days) {
             const date = toISODateString(d);
-
             const clash = allShifts.some(
               (s) => s.userId === crewObj.id && s.date === date
             );
@@ -721,20 +693,16 @@ function renderShiftManageTools(isManager, storeId) {
           }
         }
 
-        if (autoManageMessage) {
-          autoManageMessage.style.color = "#15803d";
-          autoManageMessage.textContent =
-            `Weekly pattern generated. Created ${created} shifts, skipped ${skipped} existing.`;
-        }
+        autoManageMessage.style.color = "#15803d";
+        autoManageMessage.textContent =
+          `Generated ${created} shifts, skipped ${skipped} existing.`;
 
         await loadShiftsFromFirestore(storeId);
-        renderSchedule(true);
+        renderSchedule(true, true);
       } catch (err) {
         console.error("[Schedule] auto-generate error:", err);
-        if (autoManageMessage) {
-          autoManageMessage.style.color = "#b91c1c";
-          autoManageMessage.textContent = "Failed to generate shifts.";
-        }
+        autoManageMessage.style.color = "#b91c1c";
+        autoManageMessage.textContent = "Failed to generate shifts.";
       }
     });
   }
@@ -742,7 +710,7 @@ function renderShiftManageTools(isManager, storeId) {
 
 /* ========= WEEK TABS ========= */
 
-function setupWeekTabs(isManager) {
+function setupWeekTabs(isManagerLike, canManageShifts) {
   if (!weekTabs) return;
 
   weekTabs.addEventListener("click", (e) => {
@@ -758,11 +726,11 @@ function setupWeekTabs(isManager) {
       b.classList.toggle("active", b === btn);
     });
 
-    renderSchedule(isManager);
+    renderSchedule(isManagerLike, canManageShifts);
   });
 }
 
-/* ========= SIDEBAR MOBILE TOGGLE ========= */
+/* ========= SIDEBAR MOBILE ========= */
 
 if (sidebar && sidebarToggle) {
   sidebarToggle.addEventListener("click", () => {

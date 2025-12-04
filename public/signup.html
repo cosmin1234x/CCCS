@@ -193,6 +193,7 @@
         <select id="role" required>
           <option value="crew">Crew Member</option>
           <option value="manager">Manager</option>
+          <option value="shiftCreator">Shift Creator (Scheduler)</option>
         </select>
       </div>
 
@@ -237,7 +238,7 @@
       const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
-      const role = document.getElementById("role").value; // "crew" or "manager"
+      const role = document.getElementById("role").value; // crew / manager / shiftCreator
       const storeId = document.getElementById("storeId").value.trim() || "store001";
 
       errorBox.style.display = "none";
@@ -253,32 +254,22 @@
       signupBtn.disabled = true;
 
       try {
-        // 1) Create auth user
         const cred = await createUserWithEmailAndPassword(auth, email, password);
 
-        // 2) Set display name
         await updateProfile(cred.user, { displayName: name });
 
-        // 3) Store profile in Firestore (role is exactly what you picked)
         await setDoc(doc(db, "users", cred.user.uid), {
           name,
           email,
-          role,      // <--- this is "manager" or "crew"
+          role,      // <-- stores "shiftCreator" if chosen
           storeId,
           createdAt: new Date().toISOString()
         });
 
-        // 4) Create local session so dashboard knows the correct role
-        const sessionUser = {
-          id: cred.user.uid,
-          role,      // <--- same role here
-          name,
-          storeId
-        };
-        localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
-
-        // 5) Go straight to the dashboard
-        window.location.href = "main.html";
+        showSuccess("Account created. You can now log in.");
+        setTimeout(() => {
+          window.location.href = "index.html";
+        }, 1000);
       } catch (err) {
         console.error(err);
         if (err.code === "auth/email-already-in-use") {
