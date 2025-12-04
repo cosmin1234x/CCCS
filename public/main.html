@@ -33,7 +33,7 @@
           <span class="nav-icon">🎓</span>
           <span class="nav-label">Training</span>
         </li>
-        <!-- McAssist page removed; AI lives on dashboard -->
+        <!-- McAssist is part of dashboard, no separate page -->
       </ul>
     </nav>
 
@@ -49,7 +49,7 @@
   <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
 
-    <!-- ===== LEFT CONTENT (cards, schedule, waste, etc.) ===== -->
+    <!-- ===== LEFT CONTENT (cards, schedule / waste, crew, etc.) ===== -->
     <div class="content-area">
 
       <!-- Top bar -->
@@ -64,12 +64,12 @@
         </div>
       </div>
 
-      <!-- Cards (hours/pay or sales/waste/staffing/training) -->
+      <!-- Cards grid (hours/pay OR sales/waste/etc.) -->
       <section id="topCards" class="cards-grid">
         <!-- Filled by main.js -->
       </section>
 
-      <!-- Bottom section (schedule & training OR waste & crew list) -->
+      <!-- Bottom section (schedule + training OR waste + crew + McStars) -->
       <section id="bottomSection" class="card section-card">
         <!-- Filled by main.js -->
       </section>
@@ -123,13 +123,13 @@
     </aside>
   </div>
 
-  <!-- ========= VOICE OVERLAY (FULL SCREEN “Talking to Amy”) ========= -->
+  <!-- ========= VOICE OVERLAY (FULL-SCREEN “Talking to Amy”) ========= -->
   <div id="voiceOverlay" class="voice-overlay">
     <div id="overlayText" class="overlay-text">Ask me anything</div>
     <button id="overlayMic" class="overlay-mic-btn">🎤</button>
   </div>
 
-  <!-- ========= CREW PROFILE OVERLAY ========= -->
+  <!-- ========= CREW PROFILE OVERLAY (with McStars) ========= -->
   <div id="crewProfileOverlay" class="crew-profile-overlay">
     <div class="crew-profile-card">
       <button id="crewProfileClose" class="crew-profile-close">×</button>
@@ -148,12 +148,23 @@
       <div class="crew-profile-body">
         <div class="crew-profile-row">
           <span class="label">Training status</span>
-          <span id="crewProfileStatus" class="value">Drive-thru not started</span>
+          <span id="crewProfileStatus" class="value">
+            Drive-thru not started
+          </span>
         </div>
 
         <div class="crew-profile-row">
           <span class="label">Badge</span>
-          <span id="crewProfileBadge" class="value badge-soft">Needs training</span>
+          <span id="crewProfileBadge" class="value badge-soft">
+            Needs training
+          </span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="label">McStars</span>
+          <span id="crewProfileStars" class="value">
+            ⭐ Bronze McStar
+          </span>
         </div>
 
         <div class="crew-profile-row">

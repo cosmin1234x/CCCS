@@ -1520,3 +1520,11 @@ select:focus {
     transform: translateY(0) scale(1);
   }
 }
+.mcstar-pill {
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.7rem;
+  background: linear-gradient(135deg, #facc15, #f97316);
+  color: #111827;
+  box-shadow: 0 2px 6px rgba(248, 113, 22, 0.5);
+}

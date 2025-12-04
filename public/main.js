@@ -62,19 +62,22 @@ const managerDataDefault = {
       id: "alex",
       name: "Alex Johnson",
       status: "Drive-Thru not started",
-      badge: "Needs training"
+      badge: "Needs training",
+      stars: 1
     },
     {
       id: "maria",
       name: "Maria Lopez",
       status: "All stations certified",
-      badge: "Star performer"
+      badge: "Star performer",
+      stars: 3
     },
     {
       id: "james",
       name: "James Lee",
       status: "Food Safety expires soon",
-      badge: "Action needed"
+      badge: "Action needed",
+      stars: 2
     }
   ]
 };
@@ -130,6 +133,7 @@ const crewProfileNextShift = document.getElementById("crewProfileNextShift");
 const crewProfileStations = document.getElementById("crewProfileStations");
 const crewProfileNotes = document.getElementById("crewProfileNotes");
 const crewProfileAvatar = document.getElementById("crewProfileAvatar");
+const crewProfileStars = document.getElementById("crewProfileStars");
 
 /* Sidebar toggle (mobile) */
 const sidebar = document.querySelector(".sidebar");
@@ -161,6 +165,14 @@ function beep(f = 880, ms = 90, v = 0.08) {
   } catch {
     // ignore if AudioContext is blocked
   }
+}
+
+function describeStars(stars) {
+  const n = typeof stars === "number" ? stars : 0;
+  if (n <= 0) return "☆ New";
+  if (n === 1) return "⭐ Bronze McStar";
+  if (n === 2) return "⭐⭐ Silver McStar";
+  return "⭐⭐⭐ Gold McStar";
 }
 
 /* ============================================================
@@ -228,7 +240,8 @@ async function loadManagerDataFromFirestore() {
         id: snap.id,
         name: d.name,
         status: d.status,
-        badge: d.badge
+        badge: d.badge,
+        stars: typeof d.stars === "number" ? d.stars : 0
       });
     });
 
@@ -240,13 +253,13 @@ async function loadManagerDataFromFirestore() {
   }
 }
 
-async function updateCrewStatusInFirestore(crewId, newStatus) {
+async function updateCrewFieldsInFirestore(crewId, fields) {
   const storeId = sessionUser.storeId || "store001";
   const ref = doc(db, "stores", storeId, "crewSummary", crewId);
   try {
-    await updateDoc(ref, { status: newStatus });
+    await updateDoc(ref, fields);
   } catch (e) {
-    console.error("Update crew status error:", e);
+    console.error("Update crew fields error:", e);
   }
 }
 
@@ -426,7 +439,7 @@ function renderBottomSection(isCrew, profile) {
           )
           .join("")}
       </ul>
-      <div class="subsection-title" style="margin-top:15px;">Crew Training & Actions</div>
+      <div class="subsection-title" style="margin-top:15px;">Crew Training & McStars</div>
       <ul class="list">
         ${profile.crewTrainingSummary
           .map(
@@ -437,6 +450,7 @@ function renderBottomSection(isCrew, profile) {
               <small>${c.status}</small>
             </span>
             <span class="crew-actions">
+              <span class="mcstar-pill">${describeStars(c.stars)}</span>
               <span class="badge-soft">${c.badge}</span>
               <button class="crew-profile-btn" data-id="${c.id}">Profile</button>
               <button class="crew-edit-btn" data-id="${c.id}">Edit</button>
@@ -459,7 +473,7 @@ function renderBottomSection(isCrew, profile) {
 function attachCrewEditHandlers() {
   if (!bottomSection) return;
 
-  // Edit training status
+  // Edit training status + badge + stars
   bottomSection.querySelectorAll(".crew-edit-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
@@ -472,13 +486,39 @@ function attachCrewEditHandlers() {
       );
       if (newStatus === null) return;
 
-      await updateCrewStatusInFirestore(id, newStatus);
+      const newBadge = prompt(
+        `Update badge for ${crew.name}:`,
+        crew.badge
+      );
+      if (newBadge === null) return;
+
+      const starsInput = prompt(
+        `Update McStars for ${crew.name} (0 = New, 1 = Bronze, 2 = Silver, 3 = Gold):`,
+        String(crew.stars ?? 0)
+      );
+      if (starsInput === null) return;
+
+      let newStars = parseInt(starsInput, 10);
+      if (isNaN(newStars) || newStars < 0) newStars = 0;
+      if (newStars > 3) newStars = 3;
+
+      // Save to Firestore
+      await updateCrewFieldsInFirestore(id, {
+        status: newStatus,
+        badge: newBadge,
+        stars: newStars
+      });
+
+      // Update local data so UI refreshes
       crew.status = newStatus;
+      crew.badge = newBadge;
+      crew.stars = newStars;
+
       renderBottomSection(false, managerData);
     });
   });
 
-  // Open crew profile overlay
+  // Open profile overlay
   bottomSection.querySelectorAll(".crew-profile-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.id;
@@ -504,6 +544,9 @@ function openCrewProfile(id) {
   if (crewProfileBadge) crewProfileBadge.textContent = crew.badge;
   if (crewProfileAvatar) {
     crewProfileAvatar.textContent = crew.name.charAt(0).toUpperCase();
+  }
+  if (crewProfileStars) {
+    crewProfileStars.textContent = describeStars(crew.stars);
   }
 
   // Demo data for now
@@ -855,7 +898,6 @@ if (micBtn && overlay && hasSpeechSupport()) {
       }
 
       if (e.error === "no-speech") {
-        // ignore
         return;
       }
 
@@ -937,7 +979,6 @@ if (micBtn && overlay && hasSpeechSupport()) {
     });
   }
 } else {
-  // No speech support or no mic button – hide voice controls
   if (micBtn) micBtn.style.display = "none";
   if (wakeToggle) wakeToggle.disabled = true;
 }
