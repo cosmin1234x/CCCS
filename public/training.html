@@ -49,8 +49,8 @@
     <div class="content-area">
       <div class="top-bar">
         <div class="top-bar-left">
-          <h2>Training overview</h2>
-          <p>Modules and certifications for your store.</p>
+          <h2 id="trainingTitle">Training overview</h2>
+          <p id="trainingSubtitle">Modules and certifications for your store.</p>
         </div>
         <div class="top-bar-right">
           <span id="roleBadge" class="badge-role">Crew</span>
@@ -58,10 +58,20 @@
         </div>
       </div>
 
-      <!-- Filters + progress -->
-      <div class="card section-card">
+      <!-- ===== STORE-WIDE TRAINING METRICS (manager focus) ===== -->
+      <section id="trainingMetrics" class="cards-grid">
+        <!-- Filled by training.js -->
+      </section>
+
+      <!-- Station versatility block -->
+      <section id="stationVersatilityCard" class="card section-card" style="margin-top:10px;">
+        <!-- Filled by training.js -->
+      </section>
+
+      <!-- Filters + personal/store modules -->
+      <div class="card section-card" style="margin-top:10px;">
         <div class="subsection-title">Filters</div>
-        <div class="subsection-sub">
+        <div class="subsection-sub" id="filtersDescription">
           Focus on a role or status to see the most important modules.
         </div>
 
@@ -83,8 +93,8 @@
 
       <!-- Modules table -->
       <div class="card section-card" style="margin-top:10px;">
-        <div class="subsection-title">Modules</div>
-        <div class="subsection-sub">
+        <div class="subsection-title" id="modulesTitle">Modules</div>
+        <div class="subsection-sub" id="modulesSubtitle">
           Click a status to update it if you’re a manager.
         </div>
 
@@ -105,7 +115,7 @@
     </div>
   </div>
 
-  <!-- Scripts (separate from main.js) -->
+  <!-- Scripts -->
   <script type="module" src="training.js"></script>
 </body>
 </html>
