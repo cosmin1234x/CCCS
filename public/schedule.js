@@ -1,4 +1,4 @@
-// schedule.js – Weekly shifts view + manager tools (create & auto-generate)
+// schedule.js – Weekly shifts view + manager tools (create, auto-generate, delete)
 
 import { auth, db } from "./firebase-init.js";
 import {
@@ -12,7 +12,8 @@ import {
   getDoc,
   addDoc,
   query,
-  where
+  where,
+  deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ========= DOM ELEMENTS ========= */
@@ -36,6 +37,7 @@ const sidebarToggle = document.getElementById("sidebarToggle");
 /* ========= SESSION ========= */
 
 let sessionUser = null;
+let currentStoreId = "store001";
 
 function loadSessionUser() {
   try {
@@ -173,7 +175,8 @@ onAuthStateChanged(auth, async (user) => {
     };
 
   const isManager = sessionUser.role === "manager";
-  const storeId = sessionUser.storeId || "store001";
+  currentStoreId = sessionUser.storeId || "store001";
+  const storeId = currentStoreId;
 
   // Sidebar
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
@@ -303,7 +306,7 @@ function renderSchedule(isManager) {
         dayContent = myShifts
           .map(
             (s) => `
-            <li>
+            <li style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
               <span>${s.start}–${s.end}</span>
               <span class="badge-soft">${s.station || "Shift"}</span>
             </li>
@@ -316,11 +319,21 @@ function renderSchedule(isManager) {
       const myMain = myShifts
         .map(
           (s) => `
-          <li>
-            <span>${s.start}–${s.end}</span>
-            <span class="badge-soft-warn">
-              ${s.isShiftManager ? "Shift manager" : "Manager"}
-            </span>
+          <li style="display:flex;align-items:center;justify-content:space-between;gap:6px;" data-shift-id="${s.id}">
+            <div>
+              <span>${s.start}–${s.end}</span>
+              <span class="badge-soft-warn" style="margin-left:6px;">
+                ${s.isShiftManager ? "Shift manager" : "Manager"}
+              </span>
+            </div>
+            <button
+              class="shift-delete-btn"
+              data-id="${s.id}"
+              title="Delete shift"
+              style="border:none;background:transparent;font-size:0.8rem;cursor:pointer;color:#9ca3af;"
+            >
+              ✕
+            </button>
           </li>
         `
         )
@@ -330,15 +343,37 @@ function renderSchedule(isManager) {
 
       if (isShiftManagerToday) {
         const others = dayShifts.filter((s) => s.userId !== sessionUser.id);
+
         if (others.length) {
-          const crewLines = others
+          // Group by crew so we don't see the same person twice
+          const crewMap = {};
+          others.forEach((s) => {
+            if (!crewMap[s.userId]) {
+              crewMap[s.userId] = s;
+            }
+          });
+
+          const crewLines = Object.values(crewMap)
             .map(
               (s) => `
-              <li>
-                <span>${s.userName}</span>
-                <span class="badge-soft">
-                  ${s.start}–${s.end} ${s.station ? "· " + s.station : ""}
-                </span>
+              <li
+                style="display:flex;align-items:center;justify-content:space-between;gap:6px;"
+                data-shift-id="${s.id}"
+              >
+                <div style="display:flex;flex-direction:column;">
+                  <span style="font-weight:600;">${s.userName}</span>
+                  <span style="font-size:0.75rem;color:#4b5563;">
+                    ${s.start}–${s.end}${s.station ? " · " + s.station : ""}
+                  </span>
+                </div>
+                <button
+                  class="shift-delete-btn"
+                  data-id="${s.id}"
+                  title="Delete shift"
+                  style="border:none;background:transparent;font-size:0.8rem;cursor:pointer;color:#9ca3af;"
+                >
+                  ✕
+                </button>
               </li>
             `
             )
@@ -376,6 +411,38 @@ function renderSchedule(isManager) {
   html += `</div>`;
 
   scheduleCard.innerHTML = html;
+
+  // After rendering, hook up delete buttons for managers
+  attachDeleteHandlers(isManager);
+}
+
+/* ========= DELETE SHIFT (manager only) ========= */
+
+function attachDeleteHandlers(isManager) {
+  if (!isManager) return;
+  if (!currentStoreId) return;
+
+  const buttons = scheduleCard.querySelectorAll(".shift-delete-btn");
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      if (!id) return;
+
+      const ok = confirm("Delete this shift?");
+      if (!ok) return;
+
+      try {
+        await deleteDoc(doc(db, "stores", currentStoreId, "Shifts", id));
+        // Reload and refresh
+        await loadShiftsFromFirestore(currentStoreId);
+        renderSchedule(true);
+        renderShiftManageTools(true, currentStoreId);
+      } catch (err) {
+        console.error("[Schedule] delete shift error:", err);
+        alert("Failed to delete shift.");
+      }
+    });
+  });
 }
 
 /* ========= MANAGER TOOLS: CREATE + AUTO-GENERATE ========= */
@@ -544,6 +611,18 @@ function renderShiftManageTools(isManager, storeId) {
         return;
       }
 
+      // ❌ Prevent multiple shifts for same person on same day
+      const clash = allShifts.some(
+        (s) => s.userId === userId && s.date === date
+      );
+      if (clash) {
+        if (shiftManageMessage) {
+          shiftManageMessage.style.color = "#b91c1c";
+          shiftManageMessage.textContent = "This person already has a shift that day.";
+        }
+        return;
+      }
+
       try {
         await addDoc(collection(db, "stores", storeId, "Shifts"), {
           date,
@@ -603,7 +682,7 @@ function renderShiftManageTools(isManager, storeId) {
       }
 
       try {
-        // Create Mon–Sun shifts for each selected crew
+        // Create Mon–Sun shifts for each selected crew, skipping duplicates
         const days = [];
         for (let i = 0; i < 7; i++) {
           const d = new Date(start);
@@ -611,11 +690,23 @@ function renderShiftManageTools(isManager, storeId) {
           days.push(d);
         }
 
+        let created = 0;
+        let skipped = 0;
+
         for (const crewId of selectedCrewIds) {
           const crewObj = storeCrew.find((c) => c.id === crewId);
           if (!crewObj) continue;
           for (const d of days) {
             const date = toISODateString(d);
+
+            const clash = allShifts.some(
+              (s) => s.userId === crewObj.id && s.date === date
+            );
+            if (clash) {
+              skipped++;
+              continue;
+            }
+
             await addDoc(collection(db, "stores", storeId, "Shifts"), {
               date,
               start: startTime,
@@ -626,12 +717,14 @@ function renderShiftManageTools(isManager, storeId) {
               station,
               isShiftManager: false
             });
+            created++;
           }
         }
 
         if (autoManageMessage) {
           autoManageMessage.style.color = "#15803d";
-          autoManageMessage.textContent = "Weekly pattern generated.";
+          autoManageMessage.textContent =
+            `Weekly pattern generated. Created ${created} shifts, skipped ${skipped} existing.`;
         }
 
         await loadShiftsFromFirestore(storeId);
