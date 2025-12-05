@@ -1,7 +1,13 @@
 // netlify/functions/mcassist.js
+// McAssist serverless function – safe CommonJS version (no TS complaints)
 
-export async function handler(event, context) {
-  // Only allow POST
+const OpenAI = require("openai");
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+exports.handler = async function (event, context) {
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
@@ -11,125 +17,130 @@ export async function handler(event, context) {
 
   try {
     const body = JSON.parse(event.body || "{}");
-    const { message, user, contextData } = body;
+    const message = body.message;
+    const user = body.user || {};
+    const contextData = body.contextData || {};
 
     if (!message) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: "Missing 'message' in request body" })
+        body: JSON.stringify({ error: "Missing message" })
       };
     }
 
-    // --- System prompt: how McAssist should behave ---
-    const systemPrompt = `
-You are **McAssist**, an internal AI helper for a McDonald's restaurant training & operations portal.
+    const role = contextData.role || user.role || "crew";
 
-GENERAL RULES
-- Be short, clear and friendly – talk like a helpful shift manager.
-- Focus on **practical, actionable answers** (what to do next, who to speak to, what to check).
-- If something depends on local store/HR policy, say that and suggest they check with a real manager.
-- Never pretend to be official HR, payroll, or legal advice.
-- Never mention OpenAI or that you are a generic language model – you are just "McAssist".
+    // -------- System prompt (no backticks / interpolation) --------
+    const systemPrompt = [
+      "You are McAssist, a friendly assistant for a McDonald's-style restaurant portal.",
+      "",
+      "ALWAYS:",
+      "- Be concise (2–5 short sentences).",
+      "- Never invent data that is not present in the context JSON.",
+      "- Prefer concrete numbers or dates when they exist.",
+      "- If you don't know something, say you don't know and point the user to the right page (Shifts, Training, Dashboard).",
+      "",
+      "You receive a JSON object called contextData with fields like:",
+      "- role: 'crew', 'manager', or 'shiftCreator'",
+      "- userName: current user's name",
+      "- storeId: ID of their restaurant",
+      "- crewData: for crew users. May include:",
+      "  - hoursThisWeek, estimatedPayThisWeek, hourlyRate",
+      "  - schedule: array of { day, time, station? } for the next 7 days",
+      "  - trainingTodo: list of modules the crew member needs",
+      "- managerData: for managers / shiftCreators. May include:",
+      "  - storeName",
+      "  - todaySales, weekSales",
+      "  - todayWasteValue, todayWastePct",
+      "  - staffOnShift, staffNeeded",
+      "  - trainingGaps, potentialOvertime",
+      "  - foodWasteByDay: [{ day, value }]",
+      "  - crewTrainingSummary: array of { id, name, status, badge, stars } (0–3 McStars)",
+      "  - dayBriefing: { salesTarget, salesActual, wasteTarget, wasteActual, notes }",
+      "",
+      "HOW TO ANSWER:",
+      "",
+      "1) Crew user asking about THEIR OWN shifts:",
+      "- Use crewData.schedule if available.",
+      "- For 'When am I working next?', answer using the first entry in schedule.",
+      "- For 'When do I work Saturday?', look for that day (e.g. 'Sat') in schedule.",
+      "- If schedule is missing, say you can't see it and tell them to open the Shifts page.",
+      "",
+      "2) Manager/shiftCreator asking about shifts of OTHER people:",
+      "- You do NOT have full per-crew shift data here.",
+      "- If asked 'When is Alex working?' or 'Who is on shift tonight?':",
+      "  * Explain you can't see individual shift assignments in this assistant.",
+      "  * Tell them to open the Shifts page in the portal for details.",
+      "",
+      "3) Hours and pay (crew):",
+      "- Use crewData.hoursThisWeek, estimatedPayThisWeek, hourlyRate.",
+      "- Example style: 'You're scheduled for 18.5 hours and will earn about £194.25 before tax at £10.50/hr.'",
+      "",
+      "4) Training status (crew):",
+      "- Use crewData.trainingTodo.",
+      "- Mention the most important modules still to complete.",
+      "",
+      "5) Training / McStars (manager/shiftCreator):",
+      "- Use managerData.crewTrainingSummary.",
+      "- 'Who needs training?' → people with badges like 'Needs training', 'Action needed', or statuses like 'not started', 'expires soon'.",
+      "- 'Who are my top performers?' → people with stars = 3 or badges like 'Star performer'.",
+      "- Always mention names and their badges concisely.",
+      "",
+      "6) Sales / waste / staffing (manager/shiftCreator):",
+      "- Use todaySales, weekSales, todayWasteValue, todayWastePct, staffOnShift, staffNeeded.",
+      "- Say if the store is under-staffed (staffOnShift < staffNeeded).",
+      "",
+      "7) Day briefing (manager/shiftCreator):",
+      "- If managerData.dayBriefing exists, summarise sales vs target, waste vs target, and notes in 2–3 sentences.",
+      "",
+      "8) Off-topic questions:",
+      "- Politely refuse if the question is unrelated to work, shifts, training, performance, or the restaurant.",
+      "",
+      "UI references:",
+      "- Tell users to check the Shifts page for detailed schedules.",
+      "- Tell users to check the Training page for full modules.",
+      "- Tell users to check the Dashboard for full sales/waste breakdown.",
+      "",
+      "Never show raw JSON. Always answer in natural language."
+    ].join("\n");
 
-USER TYPES
-You will be told about the user:
-- role = "crew" → crew member
-- role = "manager" → shift/restaurant manager
+    const userContent =
+      "User message:\n" +
+      JSON.stringify(message) +
+      "\n\nContext JSON:\n" +
+      JSON.stringify(contextData, null, 2);
 
-If role is "crew":
-- Focus on: hours, estimated pay, positions/stations, training modules, achievements, next shifts.
-- Explain pay as **rough estimates** only (before tax; actual pay may differ).
-- Encourage them to ask their manager or check official systems for exact pay, contracts, or rota changes.
-- Be motivating and supportive. If they are behind on training, be encouraging, not negative.
-
-If role is "manager":
-- Focus on: sales, food waste, staffing, training gaps, overtime risk, and daily/weekly performance.
-- Help them think about actions: adjusting rota, coaching crew, improving waste control, planning training.
-- If the question is about HR/disciplinary stuff, be general and tell them to follow local policy and talk to franchise/HR.
-
-USING CONTEXT DATA
-You will receive JSON "contextData" with some of:
-- role, userName, storeId
-- crewData: hoursThisWeek, estimatedPayThisWeek, hourlyRate, nextShift, trainingTodo, certifications, schedule, achievements
-- managerData: storeName, todaySales, weekSales, todayWasteValue, todayWastePct, staffOnShift, staffNeeded, trainingGaps, potentialOvertime, foodWasteByDay, crewTrainingSummary
-
-Rules:
-- **Use numbers from contextData when answering**, do NOT invent new exact numbers.
-- If you must give an example number that's NOT from contextData, clearly say it's just an example.
-- If some info is missing, say "I only have partial data" and then give general guidance.
-
-STYLE
-- 1–3 short paragraphs max, plus bullets if helpful.
-- No long essays.
-- Use simple wording – imagine someone is reading quickly between orders.
-- Occasionally use emojis like ✅, ⚠️, 💡, but not too many.
-
-If the question is not related to work at all (e.g. random trivia), answer briefly but still be friendly and then gently offer to help with work-related things.
-    `.trim();
-
-    const contextText = contextData
-      ? JSON.stringify(contextData, null, 2)
-      : "{}";
-
-    const userInfoText = user
-      ? `User name: ${user.name || "Unknown"}
-Role: ${user.role || "unknown"}
-Store: ${user.storeId || "unknown"}`
-      : "User info unknown";
-
-    // Call OpenAI Chat Completions API
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // Make sure OPENAI_API_KEY is set in Netlify env vars
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini", // cheap + good for this use case
-        temperature: 0.3,
-        max_tokens: 350,
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: `
-${userInfoText}
-
-Relevant app data (JSON):
-${contextText}
-
-User question:
-${message}
-            `.trim()
-          }
-        ]
-      })
+    const completion = await client.chat.completions.create({
+      model: "gpt-4.1-mini",
+      temperature: 0.2,
+      max_tokens: 350,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ]
     });
 
-    if (!openaiRes.ok) {
-      const errText = await openaiRes.text();
-      console.error("OpenAI error:", errText);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "OpenAI request failed" })
-      };
-    }
+    let reply = "Sorry, I couldn't think of a good answer.";
 
-    const data = await openaiRes.json();
-    const reply =
-      data.choices?.[0]?.message?.content ||
-      "Sorry, I couldn't generate a response.";
+    if (
+      completion &&
+      completion.choices &&
+      completion.choices[0] &&
+      completion.choices[0].message &&
+      completion.choices[0].message.content
+    ) {
+      reply = completion.choices[0].message.content.trim();
+    }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ reply })
+      body: JSON.stringify({ reply: reply })
     };
   } catch (err) {
-    console.error("mcassist function error:", err);
+    console.error("McAssist error:", err);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Internal server error" })
+      body: JSON.stringify({ error: "Server error" })
     };
   }
-}
+};
