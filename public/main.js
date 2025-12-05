@@ -12,7 +12,8 @@ import {
   getDoc,
   collection,
   getDocs,
-  updateDoc
+  updateDoc,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ============================================================
@@ -35,14 +36,7 @@ const crewDataDefault = {
     { day: "Mon", time: "17:00–23:00" },
     { day: "Wed", time: "10:00–16:00" },
     { day: "Sat", time: "12:00–20:00" }
-  ],
-
-  // Extra fields for self-profile
-  trainingStatus: "crew trainer in development",
-  badge: "all training completed",
-  mcStars: 2, // 0–3
-  managerNotes:
-    "Handles peak times well. Recommended for drive-thru training next."
+  ]
 };
 
 let crewData = JSON.parse(JSON.stringify(crewDataDefault));
@@ -86,7 +80,8 @@ const managerDataDefault = {
       badge: "Action needed",
       stars: 2
     }
-  ]
+  ],
+  dayBriefing: null
 };
 
 let managerData = JSON.parse(JSON.stringify(managerDataDefault));
@@ -113,6 +108,7 @@ const roleBadge = document.getElementById("roleBadge");
 const avatarCircle = document.getElementById("avatarCircle");
 const topCards = document.getElementById("topCards");
 const bottomSection = document.getElementById("bottomSection");
+const dailyBriefCard = document.getElementById("dailyBriefCard");
 const aiSubtitle = document.getElementById("aiSubtitle");
 const aiSuggestions = document.getElementById("aiSuggestions");
 const aiChat = document.getElementById("aiChat");
@@ -120,9 +116,6 @@ const aiForm = document.getElementById("aiForm");
 const aiInput = document.getElementById("aiInput");
 const aiSendBtn = document.getElementById("aiSendBtn");
 const logoutBtn = document.getElementById("logoutBtn");
-
-const myProfileBtn = document.getElementById("myProfileBtn");
-const navShiftCreator = document.getElementById("navShiftCreator");
 
 // Voice + overlay
 const micBtn = document.getElementById("aiMicBtn");
@@ -145,7 +138,7 @@ const crewProfileNotes = document.getElementById("crewProfileNotes");
 const crewProfileAvatar = document.getElementById("crewProfileAvatar");
 const crewProfileStars = document.getElementById("crewProfileStars");
 
-/* Sidebar toggle (mobile) */
+// Sidebar toggle (mobile)
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
 
@@ -185,8 +178,21 @@ function describeStars(stars) {
   return "⭐⭐⭐ Gold McStar";
 }
 
+function toISODateString(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dayShortLabelFromISO(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return days[d.getDay()];
+}
+
 /* ============================================================
-   AUTH + FIRESTORE LOAD
+   AUTH + INITIAL LOAD
 ============================================================ */
 
 onAuthStateChanged(auth, async (user) => {
@@ -208,8 +214,8 @@ onAuthStateChanged(auth, async (user) => {
     localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
   }
 
-  const role = sessionUser.role;
-  const isManagerLike = role === "manager" || role === "shiftCreator";
+  const isManagerLike =
+    sessionUser.role === "manager" || sessionUser.role === "shiftCreator";
 
   if (isManagerLike) {
     await loadManagerDataFromFirestore();
@@ -231,6 +237,60 @@ if (logoutBtn) {
 /* ============================================================
    FIRESTORE HELPERS
 ============================================================ */
+
+async function recomputeTodayStaffingFromShifts(storeId) {
+  const todayISO = toISODateString(new Date());
+  try {
+    const col = collection(db, "stores", storeId, "shifts");
+    const snap = await getDocs(col);
+    let count = 0;
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (d.date === todayISO) count += 1;
+    });
+    managerData.staffOnShift = count;
+  } catch (err) {
+    console.error("[Dashboard] Error recomputing staffing:", err);
+  }
+}
+
+async function loadDayBriefingFromFirestore(storeId) {
+  const today = new Date();
+  const todayISO = toISODateString(today);
+
+  try {
+    const ref = doc(db, "stores", storeId, "dayBriefings", todayISO);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      managerData.dayBriefing = snap.data();
+    } else {
+      managerData.dayBriefing = {
+        date: todayISO,
+        salesTarget: managerData.dayBriefing?.salesTarget || 5000,
+        salesActual:
+          managerData.dayBriefing?.salesActual || managerData.todaySales || 0,
+        wasteTarget: managerData.dayBriefing?.wasteTarget || 40,
+        wasteActual:
+          managerData.dayBriefing?.wasteActual ||
+          managerData.todayWasteValue ||
+          0,
+        notes: ""
+      };
+    }
+  } catch (err) {
+    console.error("[Dashboard] loadDayBriefing error:", err);
+  }
+}
+
+async function saveDayBriefingToFirestore(storeId, data) {
+  const todayISO = data.date;
+  try {
+    const ref = doc(db, "stores", storeId, "dayBriefings", todayISO);
+    await setDoc(ref, data, { merge: true });
+  } catch (err) {
+    console.error("[Dashboard] saveDayBriefing error:", err);
+  }
+}
 
 async function loadManagerDataFromFirestore() {
   const storeId = sessionUser.storeId || "store001";
@@ -262,14 +322,12 @@ async function loadManagerDataFromFirestore() {
       managerData.crewTrainingSummary = list;
     }
 
-    // 🔴 NEW: recompute staffing based on today's shifts
     await recomputeTodayStaffingFromShifts(storeId);
-
+    await loadDayBriefingFromFirestore(storeId);
   } catch (e) {
     console.error("Error loading manager data:", e);
   }
 }
-
 
 async function updateCrewFieldsInFirestore(crewId, fields) {
   const storeId = sessionUser.storeId || "store001";
@@ -278,6 +336,45 @@ async function updateCrewFieldsInFirestore(crewId, fields) {
     await updateDoc(ref, fields);
   } catch (e) {
     console.error("Update crew fields error:", e);
+  }
+}
+
+async function loadCrewScheduleFromShifts(storeId, userId) {
+  const today = new Date();
+  const startISO = toISODateString(today);
+  const end = new Date(today);
+  end.setDate(end.getDate() + 6);
+  const endISO = toISODateString(end);
+
+  const out = [];
+
+  try {
+    const colRef = collection(db, "stores", storeId, "shifts");
+    const snap = await getDocs(colRef);
+
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (!d.date || !d.start || !d.end || !d.userId) return;
+      if (d.userId !== userId) return;
+      if (d.date < startISO || d.date > endISO) return;
+
+      out.push({
+        date: d.date,
+        day: dayShortLabelFromISO(d.date),
+        time: `${d.start}–${d.end}`,
+        station: d.station || ""
+      });
+    });
+
+    out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    crewData.schedule = out.map((s) => ({
+      day: s.day,
+      time: s.time,
+      station: s.station
+    }));
+  } catch (err) {
+    console.error("[Dashboard] loadCrewScheduleFromShifts error:", err);
   }
 }
 
@@ -291,14 +388,9 @@ async function loadCrewDataFromFirestore() {
   } catch (e) {
     console.error("Crew load error", e);
   }
-}
 
-
-function toISODateString(d) {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const storeId = sessionUser.storeId || "store001";
+  await loadCrewScheduleFromShifts(storeId, sessionUser.id);
 }
 
 /* ============================================================
@@ -308,44 +400,25 @@ function toISODateString(d) {
 function initialiseDashboard() {
   if (!sessionUser) return;
 
-  const role = sessionUser.role;
-  const isCrew = role === "crew";
-  const isManagerLike = role === "manager" || role === "shiftCreator";
+  const isCrew = sessionUser.role === "crew";
   const profile = isCrew ? crewData : managerData;
-
-  // Show Shift creator nav only for that role
-  if (navShiftCreator) {
-    navShiftCreator.style.display =
-      role === "shiftCreator" ? "" : "none";
-  }
-
-  // Show "My profile" for crew
-  if (myProfileBtn) {
-    if (isCrew) {
-      myProfileBtn.style.display = "inline-flex";
-      myProfileBtn.onclick = () => openCrewSelfProfile();
-    } else {
-      myProfileBtn.style.display = "none";
-      myProfileBtn.onclick = null;
-    }
-  }
 
   // Sidebar user info
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
   if (sidebarUserRole) {
-    sidebarUserRole.textContent = isCrew
-      ? "Crew Member"
-      : role === "shiftCreator"
-      ? "Shift Creator"
-      : "Restaurant Manager";
+    if (isCrew) {
+      sidebarUserRole.textContent = "Crew Member";
+    } else if (sessionUser.role === "shiftCreator") {
+      sidebarUserRole.textContent = "Shift Creator";
+    } else {
+      sidebarUserRole.textContent = "Restaurant Manager";
+    }
   }
 
   if (roleBadge) {
-    roleBadge.textContent = isCrew
-      ? "Crew"
-      : role === "shiftCreator"
-      ? "Shift Creator"
-      : "Manager";
+    if (isCrew) roleBadge.textContent = "Crew";
+    else if (sessionUser.role === "shiftCreator") roleBadge.textContent = "Shift creator";
+    else roleBadge.textContent = "Manager";
   }
 
   if (avatarCircle) {
@@ -354,9 +427,7 @@ function initialiseDashboard() {
 
   if (welcomeTitle) {
     const first = sessionUser.name.split(" ")[0];
-    welcomeTitle.textContent = isCrew
-      ? `Welcome back, ${first}`
-      : `Good shift, ${first}`;
+    welcomeTitle.textContent = isCrew ? `Welcome back, ${first}` : `Good shift, ${first}`;
   }
 
   if (welcomeSubtitle) {
@@ -371,6 +442,7 @@ function initialiseDashboard() {
       : "Ask about waste, crew or sales.";
   }
 
+  renderDailyBriefCard();
   renderTopCards(isCrew, profile);
   renderBottomSection(isCrew, profile);
   renderSuggestions(isCrew);
@@ -453,48 +525,31 @@ function renderTopCards(isCrew, profile) {
   });
 }
 
-
-async function recomputeTodayStaffingFromShifts(storeId) {
-  const today = new Date();
-  const todayISO = toISODateString(today);
-
-  try {
-    const col = collection(db, "stores", storeId, "shifts");
-    const snap = await getDocs(col);
-
-    let count = 0;
-    snap.forEach((docSnap) => {
-      const d = docSnap.data();
-      if (d.date === todayISO) {
-        count += 1;
-      }
-    });
-
-    // overwrite the default with real count
-    managerData.staffOnShift = count;
-  } catch (err) {
-    console.error("[Dashboard] Error recomputing staffing:", err);
-  }
-}
-
-
 function renderBottomSection(isCrew, profile) {
   if (!bottomSection) return;
 
-  bottomSection.innerHTML = isCrew
-    ? `
+  if (isCrew) {
+    const scheduleItems =
+      profile.schedule && profile.schedule.length
+        ? profile.schedule
+            .map(
+              (s) => `
+        <li>
+          <span>${s.day}</span>
+          <span class="badge-soft">
+            ${s.time}${s.station ? " · " + s.station : ""}
+          </span>
+        </li>`
+            )
+            .join("")
+        : `<li><span>No shifts posted for the next 7 days.</span></li>`;
+
+    bottomSection.innerHTML = `
       <div class="subsection-title">Weekly Schedule</div>
       <ul class="list">
-        ${profile.schedule
-          .map(
-            (s) => `
-          <li>
-            <span>${s.day}</span>
-            <span class="badge-soft">${s.time}</span>
-          </li>`
-          )
-          .join("")}
+        ${scheduleItems}
       </ul>
+
       <div class="subsection-title" style="margin-top:15px;">Training Focus</div>
       <ul class="list">
         ${profile.trainingTodo
@@ -507,8 +562,9 @@ function renderBottomSection(isCrew, profile) {
           )
           .join("")}
       </ul>
-    `
-    : `
+    `;
+  } else {
+    bottomSection.innerHTML = `
       <div class="subsection-title">Food Waste (Week)</div>
       <ul class="list">
         ${profile.foodWasteByDay
@@ -543,8 +599,103 @@ function renderBottomSection(isCrew, profile) {
       </ul>
     `;
 
-  if (!isCrew) {
     attachCrewEditHandlers();
+  }
+}
+
+/* =============== DAILY BRIEF CARD ================= */
+
+function renderDailyBriefCard() {
+  if (!dailyBriefCard || !sessionUser) return;
+
+  const role = sessionUser.role;
+  const isManagerLike = role === "manager" || role === "shiftCreator";
+  if (!isManagerLike) {
+    dailyBriefCard.style.display = "none";
+    dailyBriefCard.innerHTML = "";
+    return;
+  }
+
+  const today = new Date();
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const label = `${days[today.getDay()]} ${today.getDate()}`;
+
+  const b = managerData.dayBriefing || {};
+  const salesTarget = b.salesTarget ?? 5000;
+  const salesActual = b.salesActual ?? managerData.todaySales ?? 0;
+  const wasteTarget = b.wasteTarget ?? 40;
+  const wasteActual = b.wasteActual ?? managerData.todayWasteValue ?? 0;
+  const notes = b.notes ?? "";
+
+  const staffing = `${managerData.staffOnShift}/${managerData.staffNeeded}`;
+
+  dailyBriefCard.style.display = "block";
+  dailyBriefCard.innerHTML = `
+    <div class="card-header">
+      <div class="card-title">Today’s briefing</div>
+      <div class="card-icon">📋</div>
+    </div>
+    <div class="card-subtext" style="margin-bottom:6px;">
+      ${label} · Live snapshot for ${managerData.storeName || "your restaurant"}
+    </div>
+
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;">
+      <div class="brief-metric-pill">
+        <div class="brief-label">Sales</div>
+        <div class="brief-value">£${salesActual} / £${salesTarget}</div>
+      </div>
+      <div class="brief-metric-pill">
+        <div class="brief-label">Waste</div>
+        <div class="brief-value">£${wasteActual} / £${wasteTarget}</div>
+      </div>
+      <div class="brief-metric-pill">
+        <div class="brief-label">Staffing</div>
+        <div class="brief-value">${staffing}</div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <div class="subsection-sub" style="margin-bottom:4px;">
+        Manager notes for this day
+      </div>
+      <textarea id="dailyBriefNotes" class="brief-notes-textarea"
+        placeholder="Notes for today’s shift handover…">${notes}</textarea>
+      <button id="dailyBriefSaveBtn" class="brief-save-btn">
+        Save notes
+      </button>
+      <span id="dailyBriefSaved" class="brief-saved-label" style="display:none;">
+        ✓ Saved
+      </span>
+    </div>
+  `;
+
+  const notesEl = document.getElementById("dailyBriefNotes");
+  const saveBtn = document.getElementById("dailyBriefSaveBtn");
+  const savedLabel = document.getElementById("dailyBriefSaved");
+
+  if (saveBtn && notesEl) {
+    saveBtn.onclick = async () => {
+      const storeId = sessionUser.storeId || "store001";
+      const updated = {
+        ...(managerData.dayBriefing || {}),
+        date: toISODateString(today),
+        salesTarget,
+        salesActual,
+        wasteTarget,
+        wasteActual,
+        notes: notesEl.value || ""
+      };
+
+      managerData.dayBriefing = updated;
+      await saveDayBriefingToFirestore(storeId, updated);
+
+      if (savedLabel) {
+        savedLabel.style.display = "inline";
+        setTimeout(() => {
+          savedLabel.style.display = "none";
+        }, 1500);
+      }
+    };
   }
 }
 
@@ -555,7 +706,6 @@ function renderBottomSection(isCrew, profile) {
 function attachCrewEditHandlers() {
   if (!bottomSection) return;
 
-  // Edit training status + badge + stars
   bottomSection.querySelectorAll(".crew-edit-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
@@ -568,10 +718,7 @@ function attachCrewEditHandlers() {
       );
       if (newStatus === null) return;
 
-      const newBadge = prompt(
-        `Update badge for ${crew.name}:`,
-        crew.badge
-      );
+      const newBadge = prompt(`Update badge for ${crew.name}:`, crew.badge);
       if (newBadge === null) return;
 
       const starsInput = prompt(
@@ -584,14 +731,12 @@ function attachCrewEditHandlers() {
       if (isNaN(newStars) || newStars < 0) newStars = 0;
       if (newStars > 3) newStars = 3;
 
-      // Save to Firestore
       await updateCrewFieldsInFirestore(id, {
         status: newStatus,
         badge: newBadge,
         stars: newStars
       });
 
-      // Update local data so UI refreshes
       crew.status = newStatus;
       crew.badge = newBadge;
       crew.stars = newStars;
@@ -600,7 +745,6 @@ function attachCrewEditHandlers() {
     });
   });
 
-  // Manager: open crew profile overlay
   bottomSection.querySelectorAll(".crew-profile-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.id;
@@ -609,7 +753,6 @@ function attachCrewEditHandlers() {
   });
 }
 
-// Manager-only: view crew member profile
 function openCrewProfile(id) {
   if (!crewProfileOverlay) return;
   const crew = managerData.crewTrainingSummary.find((c) => c.id === id);
@@ -632,7 +775,6 @@ function openCrewProfile(id) {
     crewProfileStars.textContent = describeStars(crew.stars);
   }
 
-  // Demo data for now
   if (crewProfileNextShift) {
     crewProfileNextShift.textContent = "Tomorrow 17:00–23:00 — Front counter";
   }
@@ -647,72 +789,6 @@ function openCrewProfile(id) {
   crewProfileOverlay.classList.add("show");
 }
 
-// Crew self-service: view own profile
-function openCrewSelfProfile() {
-  if (!crewProfileOverlay || !sessionUser) return;
-
-  const d = crewData;
-  const fullName = sessionUser.name || "Crew Member";
-  const firstName = fullName.split(" ")[0] || fullName;
-  const storeLabel =
-    managerData.storeName || sessionUser.storeId || "Your restaurant";
-
-  if (crewProfileName) crewProfileName.textContent = fullName;
-  if (crewProfileRole) crewProfileRole.textContent = "Crew Member";
-  if (crewProfileStore) crewProfileStore.textContent = storeLabel;
-
-  if (crewProfileStatus) {
-    crewProfileStatus.textContent =
-      d.trainingStatus || "Training in progress";
-  }
-
-  if (crewProfileBadge) {
-    const badge =
-      d.badge ||
-      (Array.isArray(d.trainingTodo) && d.trainingTodo.length === 0
-        ? "all training completed"
-        : "training required");
-    crewProfileBadge.textContent = badge;
-  }
-
-  if (crewProfileAvatar) {
-    crewProfileAvatar.textContent = fullName.charAt(0).toUpperCase();
-  }
-
-  if (crewProfileStars) {
-    crewProfileStars.textContent = describeStars(d.mcStars || 0);
-  }
-
-  if (crewProfileNextShift) {
-    if (d.nextShift && d.nextShift.start && d.nextShift.end) {
-      const dayLabel =
-        d.nextShift.day || (d.nextShift.date ? d.nextShift.date : "Next shift");
-      crewProfileNextShift.textContent = `${dayLabel} ${d.nextShift.start}–${d.nextShift.end} — ${
-        d.position || "Your station"
-      }`;
-    } else {
-      crewProfileNextShift.textContent = "No future shifts saved.";
-    }
-  }
-
-  if (crewProfileStations) {
-    if (Array.isArray(d.certifications) && d.certifications.length) {
-      crewProfileStations.textContent = d.certifications.join(" · ");
-    } else {
-      crewProfileStations.textContent = "Stations not set yet.";
-    }
-  }
-
-  if (crewProfileNotes) {
-    crewProfileNotes.textContent =
-      d.managerNotes ||
-      `${firstName} handles peak times well. Recommended for more station training next.`;
-  }
-
-  crewProfileOverlay.classList.add("show");
-}
-
-// Close profile overlay
 if (crewProfileOverlay && crewProfileClose) {
   crewProfileClose.addEventListener("click", () => {
     crewProfileOverlay.classList.remove("show");
@@ -809,15 +885,14 @@ function hideThinking() {
 function seedIntroMessages(isCrew) {
   if (!aiChat) return;
   aiChat.innerHTML = "";
-  const first = isCrew
-    ? `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with hours, pay, shifts and training.`
-    : `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with waste, sales and crew info.`;
-  addMessage(first, "bot");
+  const first = sessionUser.name.split(" ")[0];
+  const msg = isCrew
+    ? `Hi ${first} 👋 I can help with hours, pay, shifts and training.`
+    : `Hi ${first} 👋 I can help with waste, sales and crew info.`;
+  addMessage(msg, "bot");
 }
 
-/* ============================================================
-   SEND TO AI BACKEND
-============================================================ */
+/* SEND TO AI BACKEND */
 
 async function sendUserMessage(text) {
   if (!text || !text.trim()) return;
@@ -925,7 +1000,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   }
 
-  // Small mic button next to input
+  // small mic button near input
   micBtn.onclick = () => {
     if (listening) {
       try {
@@ -939,7 +1014,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   };
 
-  // Big mic button inside overlay (STOP)
+  // big mic in overlay = STOP
   if (overlayMic) {
     overlayMic.onclick = () => {
       console.log("[Voice] STOP pressed");
@@ -996,7 +1071,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   };
 
-  /* --------- WAKE WORD: "HEY AMY" ---------- */
+  // ----- WAKE WORD: "HEY AMY" -----
 
   let wakeRecognition = null;
   let wakeEnabled = false;
@@ -1046,7 +1121,6 @@ if (micBtn && overlay && hasSpeechSupport()) {
       }
 
       if (e.error === "no-speech") {
-        // just ignore
         return;
       }
 
