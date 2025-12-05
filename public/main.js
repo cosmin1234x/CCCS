@@ -261,10 +261,15 @@ async function loadManagerDataFromFirestore() {
     if (list.length) {
       managerData.crewTrainingSummary = list;
     }
+
+    // 🔴 NEW: recompute staffing based on today's shifts
+    await recomputeTodayStaffingFromShifts(storeId);
+
   } catch (e) {
     console.error("Error loading manager data:", e);
   }
 }
+
 
 async function updateCrewFieldsInFirestore(crewId, fields) {
   const storeId = sessionUser.storeId || "store001";
@@ -286,6 +291,14 @@ async function loadCrewDataFromFirestore() {
   } catch (e) {
     console.error("Crew load error", e);
   }
+}
+
+
+function toISODateString(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /* ============================================================
@@ -439,6 +452,31 @@ function renderTopCards(isCrew, profile) {
     topCards.appendChild(card);
   });
 }
+
+
+async function recomputeTodayStaffingFromShifts(storeId) {
+  const today = new Date();
+  const todayISO = toISODateString(today);
+
+  try {
+    const col = collection(db, "stores", storeId, "shifts");
+    const snap = await getDocs(col);
+
+    let count = 0;
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (d.date === todayISO) {
+        count += 1;
+      }
+    });
+
+    // overwrite the default with real count
+    managerData.staffOnShift = count;
+  } catch (err) {
+    console.error("[Dashboard] Error recomputing staffing:", err);
+  }
+}
+
 
 function renderBottomSection(isCrew, profile) {
   if (!bottomSection) return;
