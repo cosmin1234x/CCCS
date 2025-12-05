@@ -1696,3 +1696,8 @@ select:focus {
 .crew-profile-top-btn:hover {
   background: #fde68a;
 }
+.shift-btn {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
