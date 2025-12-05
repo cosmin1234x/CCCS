@@ -35,7 +35,14 @@ const crewDataDefault = {
     { day: "Mon", time: "17:00–23:00" },
     { day: "Wed", time: "10:00–16:00" },
     { day: "Sat", time: "12:00–20:00" }
-  ]
+  ],
+
+  // Extra fields for self-profile
+  trainingStatus: "crew trainer in development",
+  badge: "all training completed",
+  mcStars: 2, // 0–3
+  managerNotes:
+    "Handles peak times well. Recommended for drive-thru training next."
 };
 
 let crewData = JSON.parse(JSON.stringify(crewDataDefault));
@@ -113,6 +120,9 @@ const aiForm = document.getElementById("aiForm");
 const aiInput = document.getElementById("aiInput");
 const aiSendBtn = document.getElementById("aiSendBtn");
 const logoutBtn = document.getElementById("logoutBtn");
+
+const myProfileBtn = document.getElementById("myProfileBtn");
+const navShiftCreator = document.getElementById("navShiftCreator");
 
 // Voice + overlay
 const micBtn = document.getElementById("aiMicBtn");
@@ -199,8 +209,6 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   const role = sessionUser.role;
-
-  // manager-like = manager OR shiftCreator
   const isManagerLike = role === "manager" || role === "shiftCreator";
 
   if (isManagerLike) {
@@ -290,8 +298,24 @@ function initialiseDashboard() {
   const role = sessionUser.role;
   const isCrew = role === "crew";
   const isManagerLike = role === "manager" || role === "shiftCreator";
-
   const profile = isCrew ? crewData : managerData;
+
+  // Show Shift creator nav only for that role
+  if (navShiftCreator) {
+    navShiftCreator.style.display =
+      role === "shiftCreator" ? "" : "none";
+  }
+
+  // Show "My profile" for crew
+  if (myProfileBtn) {
+    if (isCrew) {
+      myProfileBtn.style.display = "inline-flex";
+      myProfileBtn.onclick = () => openCrewSelfProfile();
+    } else {
+      myProfileBtn.style.display = "none";
+      myProfileBtn.onclick = null;
+    }
+  }
 
   // Sidebar user info
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
@@ -538,7 +562,7 @@ function attachCrewEditHandlers() {
     });
   });
 
-  // Open profile overlay
+  // Manager: open crew profile overlay
   bottomSection.querySelectorAll(".crew-profile-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.id;
@@ -547,6 +571,7 @@ function attachCrewEditHandlers() {
   });
 }
 
+// Manager-only: view crew member profile
 function openCrewProfile(id) {
   if (!crewProfileOverlay) return;
   const crew = managerData.crewTrainingSummary.find((c) => c.id === id);
@@ -579,6 +604,71 @@ function openCrewProfile(id) {
   if (crewProfileNotes) {
     crewProfileNotes.textContent =
       `${firstName} handles peak times well. Recommended for drive-thru training next.`;
+  }
+
+  crewProfileOverlay.classList.add("show");
+}
+
+// Crew self-service: view own profile
+function openCrewSelfProfile() {
+  if (!crewProfileOverlay || !sessionUser) return;
+
+  const d = crewData;
+  const fullName = sessionUser.name || "Crew Member";
+  const firstName = fullName.split(" ")[0] || fullName;
+  const storeLabel =
+    managerData.storeName || sessionUser.storeId || "Your restaurant";
+
+  if (crewProfileName) crewProfileName.textContent = fullName;
+  if (crewProfileRole) crewProfileRole.textContent = "Crew Member";
+  if (crewProfileStore) crewProfileStore.textContent = storeLabel;
+
+  if (crewProfileStatus) {
+    crewProfileStatus.textContent =
+      d.trainingStatus || "Training in progress";
+  }
+
+  if (crewProfileBadge) {
+    const badge =
+      d.badge ||
+      (Array.isArray(d.trainingTodo) && d.trainingTodo.length === 0
+        ? "all training completed"
+        : "training required");
+    crewProfileBadge.textContent = badge;
+  }
+
+  if (crewProfileAvatar) {
+    crewProfileAvatar.textContent = fullName.charAt(0).toUpperCase();
+  }
+
+  if (crewProfileStars) {
+    crewProfileStars.textContent = describeStars(d.mcStars || 0);
+  }
+
+  if (crewProfileNextShift) {
+    if (d.nextShift && d.nextShift.start && d.nextShift.end) {
+      const dayLabel =
+        d.nextShift.day || (d.nextShift.date ? d.nextShift.date : "Next shift");
+      crewProfileNextShift.textContent = `${dayLabel} ${d.nextShift.start}–${d.nextShift.end} — ${
+        d.position || "Your station"
+      }`;
+    } else {
+      crewProfileNextShift.textContent = "No future shifts saved.";
+    }
+  }
+
+  if (crewProfileStations) {
+    if (Array.isArray(d.certifications) && d.certifications.length) {
+      crewProfileStations.textContent = d.certifications.join(" · ");
+    } else {
+      crewProfileStations.textContent = "Stations not set yet.";
+    }
+  }
+
+  if (crewProfileNotes) {
+    crewProfileNotes.textContent =
+      d.managerNotes ||
+      `${firstName} handles peak times well. Recommended for more station training next.`;
   }
 
   crewProfileOverlay.classList.add("show");
@@ -918,6 +1008,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
       }
 
       if (e.error === "no-speech") {
+        // just ignore
         return;
       }
 
@@ -991,6 +1082,10 @@ if (micBtn && overlay && hasSpeechSupport()) {
         beep(900, 80, 0.1);
         console.log("[Wake] Enabled");
         startWakeListener();
+      } else {
+        wakeEnabled = false;
+        console.log("[Wake] Disabled");
+        stopWakeListener();
       }
     });
   }

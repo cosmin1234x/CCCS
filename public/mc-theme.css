@@ -1678,3 +1678,21 @@ select:focus {
     justify-content: flex-start;
   }
 }
+
+/* Top bar "My profile" button */
+.crew-profile-top-btn {
+  border-radius: 999px;
+  border: none;
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  background: #fef9c3;
+  color: #92400e;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.crew-profile-top-btn:hover {
+  background: #fde68a;
+}
