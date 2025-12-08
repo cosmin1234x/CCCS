@@ -1,6 +1,6 @@
 // training.js – Training Progress Dashboard (with Firestore stats)
 
-import { auth, db } from "../../firebase-init.js";
+import { auth, db } from "./firebase-init.js";
 import {
   signOut,
   onAuthStateChanged

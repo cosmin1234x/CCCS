@@ -1,6 +1,6 @@
 // shifts-admin.js – Shift Creator Console
 
-import { auth, db } from "../../firebase-init.js";
+import { auth, db } from "./firebase-init.js";
 import {
   signOut,
   onAuthStateChanged
