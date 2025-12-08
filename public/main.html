@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 </head>
+
 <body class="app-page">
 
   <!-- ========= SIDEBAR ========= -->
@@ -27,17 +28,20 @@
           <span class="nav-icon">🏠</span>
           <span class="nav-label">Dashboard</span>
         </li>
+
         <li class="nav-item" onclick="window.location.href='training.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">🎓</span>
           <span class="nav-label">Training</span>
         </li>
+
         <li class="nav-item" onclick="window.location.href='schedule.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">📅</span>
           <span class="nav-label">Shifts</span>
         </li>
-        <!-- Only visible for shiftCreator (handled in main.js) -->
+
+        <!-- Only shown for shiftCreator (main.js controls visibility) -->
         <li class="nav-item" id="navShiftCreator" onclick="window.location.href='shifts-admin.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">🛠️</span>
@@ -51,9 +55,8 @@
         <strong id="sidebarUserName">User Name</strong><br />
         <span id="sidebarUserRole">Crew Member</span>
       </div>
-      <button id="logoutBtn">
-        Log out
-      </button>
+
+      <button id="logoutBtn">Log out</button>
     </div>
   </aside>
 
@@ -66,12 +69,12 @@
       <!-- Top bar -->
       <div class="top-bar">
         <div class="top-bar-left">
-          <h2 id="welcomeTitle">Welcome back</h2>
-          <p id="welcomeSubtitle">Here’s your week at a glance.</p>
+          <h2 id="welcomeTitle">Welcome</h2>
+          <p id="welcomeSubtitle">Loading your dashboard…</p>
         </div>
+
         <div class="top-bar-right">
-          <span id="roleBadge" class="badge-role">Crew</span>
-          <!-- Shown only for crew (wired in main.js) -->
+          <span id="roleBadge" class="badge-role">CREW</span>
           <button id="myProfileBtn" class="crew-profile-top-btn" style="display:none;">
             My profile
           </button>
@@ -79,44 +82,45 @@
         </div>
       </div>
 
-      <!-- Top metrics cards -->
+      <!-- ============================================================== -->
+      <!--   TOP METRICS CARDS (NOW EMPTY — JS FILLS EVERYTHING)         -->
+      <!-- ============================================================== -->
       <section id="topCards" class="cards-grid">
-        <!-- Filled by main.js -->
+        <!-- Populated by main.js -->
       </section>
 
-      <!-- Bottom section (schedule or crew training & McStars) -->
+      <!-- Bottom dynamic content -->
       <section id="bottomSection" class="card section-card">
-        <!-- Filled by main.js -->
+        <!-- Populated by main.js -->
       </section>
+
     </div>
 
-    <!-- ====== RIGHT SIDE – McAssist AI PANEL ====== -->
+    <!-- ====== RIGHT – McAssist AI PANEL ====== -->
     <aside class="ai-panel">
+
       <div class="ai-header">
         <div class="ai-header-left">
           <div class="ai-avatar">A</div>
           <div class="ai-header-text">
             <h3>McAssist</h3>
-            <p id="aiSubtitle">Ask about your hours, pay or training.</p>
+            <p id="aiSubtitle">Ask about your hours, shifts or training.</p>
           </div>
         </div>
+
         <div class="ai-status">
           <span class="ai-status-dot"></span>
           <span>Online</span>
         </div>
       </div>
 
-      <!-- Suggestion chips -->
-      <div id="aiSuggestions" class="ai-suggestions">
-        <!-- Filled by main.js -->
-      </div>
+      <!-- Suggestion chips (JS fills) -->
+      <div id="aiSuggestions" class="ai-suggestions"></div>
 
-      <!-- Chat area -->
-      <div id="aiChat" class="ai-chat">
-        <!-- Messages injected by main.js -->
-      </div>
+      <!-- Chat window -->
+      <div id="aiChat" class="ai-chat"></div>
 
-      <!-- Input row (text + send + mic) -->
+      <!-- Input row -->
       <form id="aiForm" class="ai-input-row">
         <input
           id="aiInput"
@@ -127,26 +131,28 @@
         <button id="aiSendBtn" type="submit" class="ai-send-btn">
           <span>Send</span> ➤
         </button>
+
         <button type="button" id="aiMicBtn" class="voice-btn">🎤</button>
       </form>
 
-      <!-- Wake word toggle -->
       <label class="wake-toggle">
         <input type="checkbox" id="wakeToggle" />
         <span>Enable “Hey Amy”</span>
       </label>
+
     </aside>
   </div>
 
   <!-- ========= VOICE OVERLAY ========= -->
   <div id="voiceOverlay" class="voice-overlay">
-    <div id="overlayText" class="overlay-text">Ask me anything</div>
+    <div id="overlayText" class="overlay-text">Listening…</div>
     <button id="overlayMic" class="overlay-mic-btn">🎤</button>
   </div>
 
-  <!-- ========= CREW PROFILE OVERLAY (MANAGER + SELF PROFILE) ========= -->
+  <!-- ========= CREW PROFILE OVERLAY ========= -->
   <div id="crewProfileOverlay" class="crew-profile-overlay">
     <div class="crew-profile-card">
+
       <div class="crew-profile-header">
         <div class="crew-profile-main">
           <div id="crewProfileAvatar" class="crew-profile-avatar">C</div>
@@ -156,56 +162,48 @@
             <p id="crewProfileStore" class="crew-profile-store">Your restaurant</p>
           </div>
         </div>
+
         <button id="crewProfileClose" class="crew-profile-close">✕</button>
       </div>
 
       <div class="crew-profile-body">
+
         <div class="crew-profile-row">
           <span class="crew-profile-label">Training status</span>
-          <span id="crewProfileStatus" class="crew-profile-value">
-            Training in progress
-          </span>
+          <span id="crewProfileStatus">...</span>
         </div>
 
         <div class="crew-profile-row">
           <span class="crew-profile-label">Badge</span>
-          <span id="crewProfileBadge" class="crew-profile-badge">
-            all training completed
-          </span>
+          <span id="crewProfileBadge" class="crew-profile-badge">...</span>
         </div>
 
         <div class="crew-profile-row">
           <span class="crew-profile-label">McStars</span>
-          <span id="crewProfileStars" class="crew-profile-stars">
-            ⭐⭐ Silver McStar
-          </span>
+          <span id="crewProfileStars">...</span>
         </div>
 
         <div class="crew-profile-row">
           <span class="crew-profile-label">Next shift</span>
-          <span id="crewProfileNextShift" class="crew-profile-value">
-            Tomorrow 17:00–23:00 — Front counter
-          </span>
+          <span id="crewProfileNextShift">Loading…</span>
         </div>
 
         <div class="crew-profile-row">
           <span class="crew-profile-label">Stations</span>
-          <span id="crewProfileStations" class="crew-profile-value">
-            Front counter · Fries · Drinks
-          </span>
+          <span id="crewProfileStations">...</span>
         </div>
 
         <div class="crew-profile-notes">
           <div class="crew-profile-label">Notes</div>
-          <p id="crewProfileNotes">
-            Handles peak times well. Recommended for drive-thru training next.
-          </p>
+          <p id="crewProfileNotes">...</p>
         </div>
+
       </div>
     </div>
   </div>
 
   <!-- ========= SCRIPTS ========= -->
   <script type="module" src="main.js"></script>
+
 </body>
 </html>
