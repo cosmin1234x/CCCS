@@ -11,7 +11,7 @@
 // - McAssist integration + voice + wake word
 // ================================
 
-import { auth, db } from "./firebase-init.js";
+import { auth, db } from "../../firebase-init.js";
 import {
   signOut,
   onAuthStateChanged
@@ -940,34 +940,41 @@ async function sendUserMessage(text) {
   addMessage(text.trim(), "user");
   if (aiInput) aiInput.value = "";
   if (aiSendBtn) aiSendBtn.disabled = true;
+
   showThinking();
 
   try {
     const isCrew = sessionUser.role === "crew";
+    const profile = isCrew ? crewData : managerData;
+
+    const realShiftsForUser = Array.isArray(window.loadedShiftsForCrew)
+      ? window.loadedShiftsForCrew
+      : [];
+
+    // ✅ this is the ONLY context object – no 'ctx' anywhere
     const context = {
       role: sessionUser.role,
       userName: sessionUser.name,
       storeId: sessionUser.storeId,
       crewData: isCrew
         ? {
-            ...crewData,
-            realShifts: Array.isArray(window.loadedShiftsForCrew)
-              ? window.loadedShiftsForCrew
-              : []
+            ...profile,
+            realShifts: realShiftsForUser
           }
         : undefined,
-      managerData: !isCrew ? managerData : undefined
+      managerData: !isCrew ? profile : undefined
     };
 
     const res = await fetch("/api/mcassist", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    message: text,
-    user: sessionUser,
-    contextData: ctx
-  })
-});
+      // 🔁 Vercel API route instead of Netlify
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: text,
+        user: sessionUser,
+        contextData: context  // ✅ use 'context' here
+      })
+    });
 
     let data = {};
     try {
@@ -977,9 +984,9 @@ async function sendUserMessage(text) {
     }
 
     hideThinking();
-    addMessage(data.reply || "I’m not sure about that.", "bot");
-  } catch (err) {
-    console.error("McAssist error:", err);
+    addMessage(data.reply || "I couldn't answer that.", "bot");
+  } catch (e) {
+    console.error("McAssist error:", e);
     hideThinking();
     addMessage("Something went wrong contacting McAssist.", "bot");
   }
