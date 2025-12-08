@@ -1,6 +1,7 @@
 {
+  "name": "mc-training",
+  "version": "1.0.0",
   "dependencies": {
-    "firebase": "^12.6.0",
-    "openai": "^6.10.0"
+    "openai": "^4.0.0"
   }
 }
