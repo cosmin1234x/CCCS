@@ -959,15 +959,15 @@ async function sendUserMessage(text) {
       managerData: !isCrew ? managerData : undefined
     };
 
-    const res = await fetch("/.netlify/functions/mcassist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: text,
-        user: sessionUser,
-        contextData: context
-      })
-    });
+    const res = await fetch("/api/mcassist", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    message: text,
+    user: sessionUser,
+    contextData: ctx
+  })
+});
 
     let data = {};
     try {
