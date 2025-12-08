@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "firebase": "^12.6.0"
+    "firebase": "^12.6.0",
+    "openai": "^6.10.0"
   }
 }
