@@ -965,16 +965,16 @@ async function sendUserMessage(text) {
       managerData: !isCrew ? profile : undefined
     };
 
-    const res = await fetch("/api/mcassist", {
-      // 🔁 Vercel API route instead of Netlify
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: text,
-        user: sessionUser,
-        contextData: context  // ✅ use 'context' here
-      })
-    });
+const res = await fetch("/api/mcassist", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    message: text,
+    user: sessionUser,
+    contextData: context
+  })
+});
+
 
     let data = {};
     try {
