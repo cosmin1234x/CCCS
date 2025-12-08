@@ -1,6 +1,5 @@
 // ================================
 // main.js – McTraining Dashboard
-// Fully Firestore-driven
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -17,8 +16,45 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ============================================================
-   BASIC HELPERS
+   DEFAULT DATA (fallbacks, will be overridden by Firestore)
 ============================================================ */
+
+const crewDataDefault = {
+  position: "Crew Member",
+  hourlyRate: 10.5,
+  hoursThisWeek: 0,
+  estimatedPayThisWeek: 0,
+  nextShift: { day: "-", date: "", start: "", end: "" },
+  certifications: ["Front Counter"],
+  trainingTodo: ["Drive-Thru Module 2", "Food Safety Level 2"],
+  achievements: [],
+  schedule: []
+};
+
+let crewData = JSON.parse(JSON.stringify(crewDataDefault));
+
+const managerDataDefault = {
+  storeName: "Your restaurant",
+  todaySales: 0,
+  weekSales: 0,
+  todayWasteValue: 0,
+  todayWastePct: 0,
+  staffOnShift: 0,
+  staffNeeded: 10,
+  trainingGaps: 0,
+  potentialOvertime: 0,
+  foodWasteByDay: [],
+  crewTrainingSummary: []
+};
+
+let managerData = JSON.parse(JSON.stringify(managerDataDefault));
+
+/* ============================================================
+   SESSION + DOM ELEMENTS
+============================================================ */
+
+let sessionUser = null;
+let allShifts = []; // all store shifts for today/week, used in multiple places
 
 function loadSessionUser() {
   try {
@@ -28,51 +64,50 @@ function loadSessionUser() {
   }
 }
 
-function saveSessionUser(u) {
-  localStorage.setItem("mc_session_user", JSON.stringify(u));
-}
+const sidebarUserName = document.getElementById("sidebarUserName");
+const sidebarUserRole = document.getElementById("sidebarUserRole");
+const welcomeTitle = document.getElementById("welcomeTitle");
+const welcomeSubtitle = document.getElementById("welcomeSubtitle");
+const roleBadge = document.getElementById("roleBadge");
+const avatarCircle = document.getElementById("avatarCircle");
+const topCards = document.getElementById("topCards");
+const bottomSection = document.getElementById("bottomSection");
+const aiSubtitle = document.getElementById("aiSubtitle");
+const aiSuggestions = document.getElementById("aiSuggestions");
+const aiChat = document.getElementById("aiChat");
+const aiForm = document.getElementById("aiForm");
+const aiInput = document.getElementById("aiInput");
+const aiSendBtn = document.getElementById("aiSendBtn");
+const logoutBtn = document.getElementById("logoutBtn");
 
-function toISODateString(d) {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+// Voice + overlay
+const micBtn = document.getElementById("aiMicBtn");
+const overlay = document.getElementById("voiceOverlay");
+const overlayText = document.getElementById("overlayText");
+const overlayMic = document.getElementById("overlayMic");
+const wakeToggle = document.getElementById("wakeToggle");
 
-function getMonday(date) {
-  const d = new Date(date);
-  const day = d.getDay(); // 0 = Sun
-  const diff = (day === 0 ? -6 : 1) - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+// Crew profile overlay
+const crewProfileOverlay = document.getElementById("crewProfileOverlay");
+const crewProfileClose = document.getElementById("crewProfileClose");
+const crewProfileName = document.getElementById("crewProfileName");
+const crewProfileRole = document.getElementById("crewProfileRole");
+const crewProfileStore = document.getElementById("crewProfileStore");
+const crewProfileStatus = document.getElementById("crewProfileStatus");
+const crewProfileBadge = document.getElementById("crewProfileBadge");
+const crewProfileNextShift = document.getElementById("crewProfileNextShift");
+const crewProfileStations = document.getElementById("crewProfileStations");
+const crewProfileNotes = document.getElementById("crewProfileNotes");
+const crewProfileAvatar = document.getElementById("crewProfileAvatar");
+const crewProfileStars = document.getElementById("crewProfileStars");
 
-function getWeekRange(offsetWeeks = 0, baseDate = new Date()) {
-  const monday = getMonday(baseDate);
-  const start = new Date(monday);
-  start.setDate(start.getDate() + offsetWeeks * 7);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return { start, end };
-}
+/* Sidebar toggle (mobile) */
+const sidebar = document.querySelector(".sidebar");
+const sidebarToggle = document.getElementById("sidebarToggle");
 
-function parseTimeToMinutes(t) {
-  if (!t || typeof t !== "string") return 0;
-  const [h, m] = t.split(":").map((x) => parseInt(x, 10));
-  if (isNaN(h) || isNaN(m)) return 0;
-  return h * 60 + m;
-}
-
-function hoursBetween(start, end) {
-  const diff = parseTimeToMinutes(end) - parseTimeToMinutes(start);
-  return diff > 0 ? diff / 60 : 0;
-}
-
-function formatDayLabelShort(d) {
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  return `${days[d.getDay()]}`;
-}
+/* ============================================================
+   GENERIC HELPERS
+============================================================ */
 
 function hasSpeechSupport() {
   return "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
@@ -94,85 +129,161 @@ function beep(f = 880, ms = 90, v = 0.08) {
       ctx.close();
     }, ms);
   } catch {
-    // ignore
+    // ignore if AudioContext is blocked
   }
 }
 
 function describeStars(stars) {
   const n = typeof stars === "number" ? stars : 0;
-  if (n <= 0) return "☆ New McStar";
+  if (n <= 0) return "☆ New";
   if (n === 1) return "⭐ Bronze McStar";
   if (n === 2) return "⭐⭐ Silver McStar";
   return "⭐⭐⭐ Gold McStar";
 }
 
-/* ============================================================
-   GLOBAL STATE
-============================================================ */
+/* ===== Date helpers (for shifts & weeks) ===== */
 
-let sessionUser = null;          // { id, role, name, storeId, hourlyRate }
-let crewData = {};               // computed for crew dashboard
-let managerData = {};            // computed for manager/shiftCreator dashboard
-let allShifts = [];              // all shifts for this store (for staffing + AI)
-window.loadedShiftsForCrew = []; // used by McAssist
+function toISODateString(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
-/* ============================================================
-   DOM ELEMENTS
-============================================================ */
+function getMonday(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 (Sun) - 6 (Sat)
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-const sidebarUserName = document.getElementById("sidebarUserName");
-const sidebarUserRole = document.getElementById("sidebarUserRole");
-const welcomeTitle = document.getElementById("welcomeTitle");
-const welcomeSubtitle = document.getElementById("welcomeSubtitle");
-const roleBadge = document.getElementById("roleBadge");
-const avatarCircle = document.getElementById("avatarCircle");
-const topCards = document.getElementById("topCards");
-const bottomSection = document.getElementById("bottomSection");
+function getWeekRange(offsetWeeks = 0, baseDate = new Date()) {
+  const monday = getMonday(baseDate);
+  const start = new Date(monday);
+  start.setDate(start.getDate() + offsetWeeks * 7);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start, end };
+}
 
-const aiSubtitle = document.getElementById("aiSubtitle");
-const aiSuggestions = document.getElementById("aiSuggestions");
-const aiChat = document.getElementById("aiChat");
-const aiForm = document.getElementById("aiForm");
-const aiInput = document.getElementById("aiInput");
-const aiSendBtn = document.getElementById("aiSendBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-
-// voice / overlay
-const micBtn = document.getElementById("aiMicBtn");
-const overlay = document.getElementById("voiceOverlay");
-const overlayText = document.getElementById("overlayText");
-const overlayMic = document.getElementById("overlayMic");
-const wakeToggle = document.getElementById("wakeToggle");
-
-// crew profile overlay (manager side)
-const crewProfileOverlay = document.getElementById("crewProfileOverlay");
-const crewProfileClose = document.getElementById("crewProfileClose");
-const crewProfileName = document.getElementById("crewProfileName");
-const crewProfileRole = document.getElementById("crewProfileRole");
-const crewProfileStore = document.getElementById("crewProfileStore");
-const crewProfileStatus = document.getElementById("crewProfileStatus");
-const crewProfileBadge = document.getElementById("crewProfileBadge");
-const crewProfileNextShift = document.getElementById("crewProfileNextShift");
-const crewProfileStations = document.getElementById("crewProfileStations");
-const crewProfileNotes = document.getElementById("crewProfileNotes");
-const crewProfileAvatar = document.getElementById("crewProfileAvatar");
-const crewProfileStars = document.getElementById("crewProfileStars");
-
-// sidebar toggle
-const sidebar = document.querySelector(".sidebar");
-const sidebarToggle = document.getElementById("sidebarToggle");
+function parseShiftDurationHours(startHHMM, endHHMM) {
+  if (!startHHMM || !endHHMM) return 0;
+  const [sh, sm] = startHHMM.split(":").map((x) => parseInt(x, 10) || 0);
+  const [eh, em] = endHHMM.split(":").map((x) => parseInt(x, 10) || 0);
+  let start = sh + sm / 60;
+  let end = eh + em / 60;
+  // naive – if end is after midnight and smaller, push it forward 24h
+  if (end < start) end += 24;
+  return Math.max(0, end - start);
+}
 
 /* ============================================================
-   FIRESTORE LOADERS
+   AUTH + FIRESTORE LOAD
 ============================================================ */
 
-// Load all shifts for the store (used for both crew + manager)
-async function loadShiftsForStore(storeId) {
-  allShifts = [];
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    localStorage.removeItem("mc_session_user");
+    window.location.href = "index.html";
+    return;
+  }
+
+  sessionUser = loadSessionUser();
+
+  if (!sessionUser) {
+    sessionUser = {
+      id: user.uid,
+      role: "crew", // default
+      name: user.displayName || user.email || "User",
+      storeId: "store001"
+    };
+    localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
+  }
+
   try {
-    const colRef = collection(db, "stores", storeId, "shifts");
-    const snap = await getDocs(colRef);
-    snap.forEach((docSnap) => {
+    const isCrew = sessionUser.role === "crew";
+
+    if (isCrew) {
+      await Promise.all([
+        loadCrewUserFromFirestore(),
+        loadStoreAndShiftsFromFirestore()
+      ]);
+      // crew metrics are computed from shifts in loadStoreAndShiftsFromFirestore()
+    } else {
+      await loadStoreAndShiftsFromFirestore();
+      // managerData will be filled from store doc & shifts
+    }
+  } catch (err) {
+    console.error("[Main] Error during data load:", err);
+  }
+
+  initialiseDashboard();
+});
+
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    await signOut(auth);
+    localStorage.removeItem("mc_session_user");
+    window.location.href = "index.html";
+  });
+}
+
+/* ============================================================
+   FIRESTORE HELPERS
+============================================================ */
+
+async function loadCrewUserFromFirestore() {
+  if (!sessionUser) return;
+  try {
+    const uRef = doc(db, "users", sessionUser.id);
+    const snap = await getDoc(uRef);
+    if (snap.exists()) {
+      const d = snap.data();
+      crewData.position = d.position || crewData.position;
+      if (typeof d.hourlyRate === "number") {
+        crewData.hourlyRate = d.hourlyRate;
+      }
+      if (Array.isArray(d.certifications)) {
+        crewData.certifications = d.certifications;
+      }
+      if (Array.isArray(d.trainingTodo)) {
+        crewData.trainingTodo = d.trainingTodo;
+      }
+      if (Array.isArray(d.achievements)) {
+        crewData.achievements = d.achievements;
+      }
+    }
+  } catch (e) {
+    console.error("[Crew] load user error:", e);
+  }
+}
+
+async function loadStoreAndShiftsFromFirestore() {
+  if (!sessionUser) return;
+  const storeId = sessionUser.storeId || "store001";
+
+  try {
+    const storeRef = doc(db, "stores", storeId);
+
+    const [storeSnap, shiftsSnap, crewSnap] = await Promise.all([
+      getDoc(storeRef),
+      getDocs(collection(db, "stores", storeId, "shifts")),
+      getDocs(collection(db, "stores", storeId, "crewSummary"))
+    ]);
+
+    // ----- Store (manager) data -----
+    if (storeSnap.exists()) {
+      Object.assign(managerData, managerDataDefault, storeSnap.data());
+      if (typeof managerData.staffNeeded !== "number") {
+        managerData.staffNeeded = 10;
+      }
+    }
+
+    // ----- Shifts -----
+    allShifts = [];
+    shiftsSnap.forEach((docSnap) => {
       const d = docSnap.data();
       if (!d.date || !d.start || !d.end || !d.userId) return;
       allShifts.push({
@@ -187,103 +298,28 @@ async function loadShiftsForStore(storeId) {
         isShiftManager: !!d.isShiftManager
       });
     });
-  } catch (err) {
-    console.error("[Dashboard] loadShiftsForStore error:", err);
-  }
-}
 
-// Load crew user profile (users collection)
-async function loadCrewUserData(userId) {
-  crewData = {
-    hourlyRate: 10.5,
-    trainingTodo: [],
-    achievements: []
-  };
+    // Expose per-user shifts for McAssist + crew dashboard
+    const myShifts = allShifts.filter((s) => s.userId === sessionUser.id);
+    window.loadedShiftsForCrew = myShifts;
 
-  try {
-    const uRef = doc(db, "users", userId);
-    const snap = await getDoc(uRef);
-    if (snap.exists()) {
-      const d = snap.data();
-      crewData.hourlyRate =
-        typeof d.hourlyRate === "number" ? d.hourlyRate : crewData.hourlyRate;
-      crewData.trainingTodo = Array.isArray(d.trainingTodo)
-        ? d.trainingTodo
-        : crewData.trainingTodo;
-      crewData.achievements = Array.isArray(d.achievements)
-        ? d.achievements
-        : crewData.achievements;
-      crewData.certifications = Array.isArray(d.certifications)
-        ? d.certifications
-        : ["Front Counter"]; // fallback
-    }
-  } catch (err) {
-    console.error("[Dashboard] loadCrewUserData error:", err);
-  }
+    // Compute staffing for manager today
+    computeManagerMetricsFromShifts();
 
-  // derive schedule + hours from shifts
-  computeCrewDerivedFromShifts();
-}
-
-// Load store-level data for manager/shiftCreator
-async function loadManagerStoreData(storeId) {
-  managerData = {
-    storeName: "Your restaurant",
-    todaySales: 0,
-    weekSales: 0,
-    todayWasteValue: 0,
-    todayWastePct: 0,
-    staffOnShift: 0,
-    staffNeeded: 0,
-    trainingGaps: 0,
-    potentialOvertime: 0,
-    foodWasteByDay: [],
-    crewTrainingSummary: []
-  };
-
-  try {
-    const storeRef = doc(db, "stores", storeId);
-    const storeSnap = await getDoc(storeRef);
-    if (storeSnap.exists()) {
-      const d = storeSnap.data();
-      managerData.storeName = d.name || managerData.storeName;
-      managerData.todaySales = d.todaySales ?? managerData.todaySales;
-      managerData.weekSales = d.weekSales ?? managerData.weekSales;
-      managerData.todayWasteValue =
-        d.foodwaste ?? d.todayWasteValue ?? managerData.todayWasteValue;
-      managerData.todayWastePct =
-        d.todayWastePct ?? managerData.todayWastePct;
-      managerData.trainingGaps =
-        d.trainingCompletionPercent != null
-          ? d.trainingCompletionPercent
-          : managerData.trainingGaps;
-      managerData.potentialOvertime =
-        d.trainingOverdueCount ?? managerData.potentialOvertime;
-      // demo food waste by day if not present
-      if (Array.isArray(d.foodWasteByDay)) {
-        managerData.foodWasteByDay = d.foodWasteByDay;
-      } else {
-        managerData.foodWasteByDay = [
-          { day: "Mon", value: 52 },
-          { day: "Tue", value: 39 },
-          { day: "Wed", value: 47 },
-          { day: "Thu", value: 41 },
-          { day: "Fri", value: 65 }
-        ];
-      }
+    // Compute crew metrics from shifts (if logged in as crew)
+    if (sessionUser.role === "crew") {
+      computeCrewMetricsFromShifts(myShifts);
     }
 
-    // crew training summary
-    const crewCol = collection(db, "stores", storeId, "crewSummary");
-    const crewSnap = await getDocs(crewCol);
+    // ----- Crew training summary for manager card -----
     const list = [];
     crewSnap.forEach((snap) => {
       const d = snap.data();
       list.push({
         id: snap.id,
-        name: d.name || "Crew",
-        status: d.status || "",
-        badge: d.badge || "OK",
+        name: d.name,
+        status: d.status,
+        badge: d.badge,
         stars: typeof d.stars === "number" ? d.stars : 0
       });
     });
@@ -291,162 +327,92 @@ async function loadManagerStoreData(storeId) {
       managerData.crewTrainingSummary = list;
     }
   } catch (err) {
-    console.error("[Dashboard] loadManagerStoreData error:", err);
+    console.error("[Store] load store/shifts error:", err);
   }
-
-  // derive staffing from shifts
-  computeManagerStaffingFromShifts();
 }
 
-// Update crew summary fields in Firestore
 async function updateCrewFieldsInFirestore(crewId, fields) {
   const storeId = sessionUser.storeId || "store001";
   const ref = doc(db, "stores", storeId, "crewSummary", crewId);
   try {
     await updateDoc(ref, fields);
   } catch (e) {
-    console.error("[Dashboard] updateCrewFields error:", e);
+    console.error("Update crew fields error:", e);
   }
 }
 
-/* ============================================================
-   DERIVED DATA FROM SHIFTS
-============================================================ */
+/* ----- Metrics from shifts ----- */
 
-function computeCrewDerivedFromShifts() {
-  const storeId = sessionUser.storeId || "store001";
-  const userId = sessionUser.id;
-
-  const { start, end } = getWeekRange(0, new Date());
-  const weekStart = toISODateString(start);
-  const weekEnd = toISODateString(end);
-
-  const userShifts = allShifts.filter(
-    (s) => s.userId === userId && s.date >= weekStart && s.date <= weekEnd
-  );
-
-  // expose for McAssist
-  window.loadedShiftsForCrew = allShifts.filter((s) => s.userId === userId);
-
-  // weekly hours + schedule list
-  let hours = 0;
-  const scheduleLines = [];
-
-  userShifts.forEach((s) => {
-    hours += hoursBetween(s.start, s.end);
-    scheduleLines.push({
-      day: s.date,
-      label: s.date, // can prettify later
-      time: `${s.start}–${s.end}`
-    });
-  });
-
-  // sort schedule by date/time
-  scheduleLines.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
-
-  // next shift = first future shift (>= today)
-  const todayISO = toISODateString(new Date());
-  const upcoming = window.loadedShiftsForCrew
-    .filter((s) => s.date >= todayISO)
-    .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-
-  crewData.hoursThisWeek = Number(hours.toFixed(1));
-  crewData.estimatedPayThisWeek = crewData.hourlyRate * hours;
-  crewData.weeklySchedule = scheduleLines; // used in bottom section
-
-  if (upcoming.length) {
-    const n = upcoming[0];
-    crewData.nextShift = {
-      date: n.date,
-      start: n.start,
-      end: n.end,
-      station: n.station || ""
-    };
-  } else {
-    crewData.nextShift = null;
-  }
-}
-
-function computeManagerStaffingFromShifts() {
-  const todayISO = toISODateString(new Date());
+function computeManagerMetricsFromShifts() {
+  const today = new Date();
+  const todayISO = toISODateString(today);
   const todaysShifts = allShifts.filter((s) => s.date === todayISO);
-
-  // count unique people on shift today
-  const uniqueIds = new Set(todaysShifts.map((s) => s.userId));
-  const staffOnShift = uniqueIds.size;
-
-  managerData.staffOnShift = staffOnShift;
-  // if we have no explicit "staffNeeded", assume 1 more than we have
-  if (!managerData.staffNeeded || managerData.staffNeeded < staffOnShift) {
-    managerData.staffNeeded = staffOnShift > 0 ? staffOnShift + 1 : 0;
-  }
+  managerData.staffOnShift = todaysShifts.length;
 }
 
-/* ============================================================
-   AUTH INIT
-============================================================ */
+function computeCrewMetricsFromShifts(myShifts) {
+  const shifts = Array.isArray(myShifts) ? myShifts : [];
+  const today = new Date();
+  const { start, end } = getWeekRange(0, today);
+  const weekStartISO = toISODateString(start);
+  const weekEndISO = toISODateString(end);
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    localStorage.removeItem("mc_session_user");
-    window.location.href = "index.html";
-    return;
-  }
+  let totalHours = 0;
+  const scheduleMap = {}; // date -> [time strings]
+  let nextShiftObj = null;
 
-  sessionUser = loadSessionUser();
-  if (!sessionUser) {
-    sessionUser = {
-      id: user.uid,
-      role: "crew",
-      name: user.displayName || user.email || "User",
-      storeId: "store001",
-      hourlyRate: 10.5
-    };
-    saveSessionUser(sessionUser);
-  }
+  shifts.forEach((s) => {
+    // Weekly hours & schedule
+    if (s.date >= weekStartISO && s.date <= weekEndISO) {
+      const hrs = parseShiftDurationHours(s.start, s.end);
+      totalHours += hrs;
 
-  // refresh basic values from Firestore users doc
-  try {
-    const uRef = doc(db, "users", sessionUser.id);
-    const snap = await getDoc(uRef);
-    if (snap.exists()) {
-      const d = snap.data();
-      sessionUser.name = d.name || sessionUser.name;
-      sessionUser.role = d.role || sessionUser.role;
-      sessionUser.storeId = d.storeId || sessionUser.storeId || "store001";
-      if (typeof d.hourlyRate === "number") {
-        sessionUser.hourlyRate = d.hourlyRate;
-      }
-      saveSessionUser(sessionUser);
+      if (!scheduleMap[s.date]) scheduleMap[s.date] = [];
+      scheduleMap[s.date].push(`${s.start}–${s.end}`);
     }
-  } catch (err) {
-    console.error("[Dashboard] refresh sessionUser error:", err);
-  }
 
-  const storeId = sessionUser.storeId || "store001";
-
-  // 1) load all shifts for the store
-  await loadShiftsForStore(storeId);
-
-  // 2) load role-specific data
-  const isCrew = sessionUser.role === "crew";
-  if (isCrew) {
-    crewData.hourlyRate = sessionUser.hourlyRate || 10.5;
-    await loadCrewUserData(sessionUser.id);
-  } else {
-    await loadManagerStoreData(storeId);
-  }
-
-  // 3) render dashboard
-  initialiseDashboard();
-});
-
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", async () => {
-    await signOut(auth);
-    localStorage.removeItem("mc_session_user");
-    window.location.href = "index.html";
+    // Next upcoming shift
+    const shiftDateTime = new Date(`${s.date}T${s.start}:00`);
+    if (!nextShiftObj || shiftDateTime < nextShiftObj._dt) {
+      nextShiftObj = {
+        _dt: shiftDateTime,
+        date: s.date,
+        start: s.start,
+        end: s.end
+      };
+    }
   });
+
+  // Build weekly schedule array sorted by date
+  const schedule = Object.keys(scheduleMap)
+    .sort()
+    .map((dateISO) => {
+      const d = new Date(`${dateISO}T00:00:00`);
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dayLabel = days[d.getDay()];
+      return {
+        day: dayLabel,
+        time: scheduleMap[dateISO].join(", ")
+      };
+    });
+
+  crewData.hoursThisWeek = Number(totalHours.toFixed(1));
+  const rate = typeof crewData.hourlyRate === "number" ? crewData.hourlyRate : 0;
+  crewData.estimatedPayThisWeek = Number((totalHours * rate).toFixed(2));
+  crewData.schedule = schedule;
+
+  if (nextShiftObj) {
+    const d = nextShiftObj._dt;
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    crewData.nextShift = {
+      day: days[d.getDay()],
+      date: nextShiftObj.date,
+      start: nextShiftObj.start,
+      end: nextShiftObj.end
+    };
+  } else {
+    crewData.nextShift = { day: "-", date: "", start: "", end: "" };
+  }
 }
 
 /* ============================================================
@@ -457,23 +423,24 @@ function initialiseDashboard() {
   if (!sessionUser) return;
 
   const isCrew = sessionUser.role === "crew";
+  const isManagerLike =
+    sessionUser.role === "manager" || sessionUser.role === "shiftCreator";
   const profile = isCrew ? crewData : managerData;
 
-  // sidebar user info
+  // Sidebar user info
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
   if (sidebarUserRole) {
-    sidebarUserRole.textContent = isCrew
-      ? "Crew Member"
-      : sessionUser.role === "shiftCreator"
-      ? "Shift Creator"
-      : "Restaurant Manager";
+    if (isCrew) {
+      sidebarUserRole.textContent = "Crew Member";
+    } else if (sessionUser.role === "shiftCreator") {
+      sidebarUserRole.textContent = "Shift Creator";
+    } else {
+      sidebarUserRole.textContent = "Restaurant Manager";
+    }
   }
+
   if (roleBadge) {
-    roleBadge.textContent = isCrew
-      ? "Crew"
-      : sessionUser.role === "shiftCreator"
-      ? "Shift creator"
-      : "Manager";
+    roleBadge.textContent = isCrew ? "CREW" : isManagerLike ? "MANAGER" : "";
   }
   if (avatarCircle) {
     avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
@@ -507,140 +474,149 @@ function renderTopCards(isCrew, profile) {
   if (!topCards) return;
   topCards.innerHTML = "";
 
-  const cards = isCrew
-    ? [
-        {
-          title: "This week’s hours",
-          icon: "⏱️",
-          main: `${(profile.hoursThisWeek || 0).toFixed(1)} hrs`,
-          sub: profile.nextShift
-            ? `Next shift: ${profile.nextShift.date} ${profile.nextShift.start}-${profile.nextShift.end}`
-            : "No upcoming shifts posted."
-        },
-        {
-          title: "Estimated pay",
-          icon: "💷",
-          main: `£${(profile.estimatedPayThisWeek || 0).toFixed(2)}`,
-          sub: `£${(profile.hourlyRate || sessionUser.hourlyRate || 0).toFixed(
-            2
-          )}/hr`
-        },
-        {
-          title: "Stations",
-          icon: "🍔",
-          main: Array.isArray(profile.certifications)
-            ? profile.certifications.join(", ")
-            : "Not set",
-          sub: profile.trainingTodo && profile.trainingTodo.length
-            ? `Next: ${profile.trainingTodo[0]}`
-            : "No training assigned."
-        },
-        {
-          title: "Achievements",
-          icon: "🏅",
-          main: `${(profile.achievements || []).length} badges`,
-          sub:
-            profile.achievements && profile.achievements[0]
-              ? profile.achievements[0].title
-              : "Earn your next badge!"
-        }
-      ]
-    : [
-        {
-          title: "Today's sales",
-          icon: "💰",
-          main: `£${profile.todaySales || 0}`,
-          sub: `Week: £${profile.weekSales || 0}`
-        },
-        {
-          title: "Food waste",
-          icon: "♻️",
-          main: `£${profile.todayWasteValue || 0}`,
-          sub: `${(profile.todayWastePct || 0).toFixed(1)}%`
-        },
-        {
-          title: "Staffing",
-          icon: "👥",
-          main: `${profile.staffOnShift || 0}/${profile.staffNeeded || 0}`,
-          sub:
-            (profile.staffNeeded || 0) - (profile.staffOnShift || 0) > 0
-              ? "Short on shift"
-              : "Good coverage"
-        },
-        {
-          title: "Training health",
-          icon: "🎓",
-          main: `${profile.trainingGaps || 0}%`,
-          sub: `${profile.potentialOvertime || 0} overdue modules`
-        }
-      ];
+  if (isCrew) {
+    const nextShiftLabel =
+      profile.nextShift && profile.nextShift.start
+        ? `${profile.nextShift.day} ${profile.nextShift.start}-${profile.nextShift.end}`
+        : "No shifts scheduled";
 
-  cards.forEach((c) => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `
-      <div class="card-header">
-        <div class="card-title">${c.title}</div>
-        <div class="card-icon">${c.icon}</div>
-      </div>
-      <div class="card-main-value">${c.main}</div>
-      <div class="card-subtext">${c.sub}</div>
-    `;
-    topCards.appendChild(card);
-  });
+    const cards = [
+      {
+        title: "This Week’s Hours",
+        icon: "⏱️",
+        main: `${profile.hoursThisWeek.toFixed(1)} hrs`,
+        sub: `Next shift: ${nextShiftLabel}`
+      },
+      {
+        title: "Estimated Pay",
+        icon: "💷",
+        main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
+        sub: `£${profile.hourlyRate.toFixed(2)}/hr`
+      },
+      {
+        title: "Stations",
+        icon: "🍔",
+        main: profile.certifications.join(", "),
+        sub: profile.trainingTodo[0] ? `Next: ${profile.trainingTodo[0]}` : ""
+      },
+      {
+        title: "Achievements",
+        icon: "🏅",
+        main: `${profile.achievements.length} badges`,
+        sub:
+          profile.achievements[0]?.title ||
+          "Do something great to earn a badge!"
+      }
+    ];
+
+    cards.forEach((c) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="card-header">
+          <div class="card-title">${c.title}</div>
+          <div class="card-icon">${c.icon}</div>
+        </div>
+        <div class="card-main-value">${c.main}</div>
+        <div class="card-subtext">${c.sub}</div>
+      `;
+      topCards.appendChild(card);
+    });
+  } else {
+    const cards = [
+      {
+        title: "Today's Sales",
+        icon: "💰",
+        main: `£${managerData.todaySales}`,
+        sub: `Week: £${managerData.weekSales}`
+      },
+      {
+        title: "Food Waste",
+        icon: "♻️",
+        main: `£${managerData.todayWasteValue}`,
+        sub: `${Number(managerData.todayWastePct || 0).toFixed(1)}%`
+      },
+      {
+        title: "Staffing",
+        icon: "👥",
+        main: `${managerData.staffOnShift}/${managerData.staffNeeded}`,
+        sub:
+          managerData.staffNeeded - managerData.staffOnShift > 0
+            ? "Short on shift"
+            : "Good coverage"
+      },
+      {
+        title: "Training Gaps",
+        icon: "📚",
+        main: `${managerData.trainingGaps}`,
+        sub: `${managerData.potentialOvertime} near overtime`
+      }
+    ];
+
+    cards.forEach((c) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="card-header">
+          <div class="card-title">${c.title}</div>
+          <div class="card-icon">${c.icon}</div>
+        </div>
+        <div class="card-main-value">${c.main}</div>
+        <div class="card-subtext">${c.sub}</div>
+      `;
+      topCards.appendChild(card);
+    });
+  }
 }
 
 function renderBottomSection(isCrew, profile) {
   if (!bottomSection) return;
 
   if (isCrew) {
-    const schedule = Array.isArray(profile.weeklySchedule)
-      ? profile.weeklySchedule
-      : [];
+    const scheduleHtml =
+      profile.schedule && profile.schedule.length
+        ? profile.schedule
+            .map(
+              (s) => `
+          <li>
+            <span>${s.day}</span>
+            <span class="badge-soft">${s.time}</span>
+          </li>`
+            )
+            .join("")
+        : `<li><span>No shifts posted for the next 7 days.</span></li>`;
+
+    const trainingHtml =
+      profile.trainingTodo && profile.trainingTodo.length
+        ? profile.trainingTodo
+            .map(
+              (t) => `
+          <li>
+            <span>${t}</span>
+            <span class="badge-soft-warn">To do</span>
+          </li>`
+            )
+            .join("")
+        : `<li><span>No training tasks right now.</span></li>`;
 
     bottomSection.innerHTML = `
       <div class="subsection-title">Weekly Schedule</div>
       <ul class="list">
-        ${
-          schedule.length
-            ? schedule
-                .map(
-                  (s) => `
-              <li>
-                <span>${s.date}</span>
-                <span class="badge-soft">${s.time}</span>
-              </li>
-            `
-                )
-                .join("")
-            : `<li><span>No shifts posted for the next 7 days.</span></li>`
-        }
+        ${scheduleHtml}
       </ul>
       <div class="subsection-title" style="margin-top:15px;">Training Focus</div>
       <ul class="list">
-        ${
-          profile.trainingTodo && profile.trainingTodo.length
-            ? profile.trainingTodo
-                .map(
-                  (t) => `
-              <li>
-                <span>${t}</span>
-                <span class="badge-soft-warn">To do</span>
-              </li>
-            `
-                )
-                .join("")
-            : `<li><span>No training items assigned.</span></li>`
-        }
+        ${trainingHtml}
       </ul>
     `;
   } else {
+    // Manager / shiftCreator view
     bottomSection.innerHTML = `
       <div class="subsection-title">Food Waste (Week)</div>
       <ul class="list">
         ${
-          profile.foodWasteByDay && profile.foodWasteByDay.length
-            ? profile.foodWasteByDay
+          managerData.foodWasteByDay && managerData.foodWasteByDay.length
+            ? managerData.foodWasteByDay
                 .map(
                   (d) => `
             <li>
@@ -649,20 +625,20 @@ function renderBottomSection(isCrew, profile) {
             </li>`
                 )
                 .join("")
-            : `<li><span>No data.</span></li>`
+            : `<li><span>No waste data yet.</span></li>`
         }
       </ul>
       <div class="subsection-title" style="margin-top:15px;">Crew Training & McStars</div>
       <ul class="list">
         ${
-          profile.crewTrainingSummary && profile.crewTrainingSummary.length
-            ? profile.crewTrainingSummary
+          managerData.crewTrainingSummary && managerData.crewTrainingSummary.length
+            ? managerData.crewTrainingSummary
                 .map(
                   (c) => `
             <li data-id="${c.id}">
               <span>
                 <strong>${c.name}</strong><br>
-                <small>${c.status || ""}</small>
+                <small>${c.status}</small>
               </span>
               <span class="crew-actions">
                 <span class="mcstar-pill">${describeStars(c.stars)}</span>
@@ -673,21 +649,23 @@ function renderBottomSection(isCrew, profile) {
             </li>`
                 )
                 .join("")
-            : `<li><span>No crew data.</span></li>`
+            : `<li><span>No crew summary yet.</span></li>`
         }
       </ul>
     `;
+
     attachCrewEditHandlers();
   }
 }
 
 /* ============================================================
-   CREW EDIT + PROFILE (MANAGER SIDE)
+   CREW EDIT + PROFILE HANDLERS
 ============================================================ */
 
 function attachCrewEditHandlers() {
   if (!bottomSection) return;
 
+  // Edit training status + badge + stars
   bottomSection.querySelectorAll(".crew-edit-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
@@ -696,7 +674,7 @@ function attachCrewEditHandlers() {
 
       const newStatus = prompt(
         `Update training status for ${crew.name}:`,
-        crew.status || ""
+        crew.status
       );
       if (newStatus === null) return;
 
@@ -713,12 +691,14 @@ function attachCrewEditHandlers() {
       if (isNaN(newStars) || newStars < 0) newStars = 0;
       if (newStars > 3) newStars = 3;
 
+      // Save to Firestore
       await updateCrewFieldsInFirestore(id, {
         status: newStatus,
         badge: newBadge,
         stars: newStars
       });
 
+      // Update local data so UI refreshes
       crew.status = newStatus;
       crew.badge = newBadge;
       crew.stars = newStars;
@@ -727,6 +707,7 @@ function attachCrewEditHandlers() {
     });
   });
 
+  // Open profile overlay
   bottomSection.querySelectorAll(".crew-profile-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.id;
@@ -748,20 +729,21 @@ function openCrewProfile(id) {
     crewProfileStore.textContent =
       managerData.storeName || sessionUser.storeId || "Restaurant";
   }
-  if (crewProfileStatus) crewProfileStatus.textContent = crew.status || "";
-  if (crewProfileBadge) crewProfileBadge.textContent = crew.badge || "";
+  if (crewProfileStatus) crewProfileStatus.textContent = crew.status;
+  if (crewProfileBadge) crewProfileBadge.textContent = crew.badge;
   if (crewProfileAvatar) {
     crewProfileAvatar.textContent = crew.name.charAt(0).toUpperCase();
   }
   if (crewProfileStars) {
     crewProfileStars.textContent = describeStars(crew.stars);
   }
+
+  // Demo data for now (could be wired to real shifts later)
   if (crewProfileNextShift) {
-    crewProfileNextShift.textContent =
-      "Tomorrow 17:00–23:00 — Front counter (demo)";
+    crewProfileNextShift.textContent = "Tomorrow 17:00–23:00 — Front counter";
   }
   if (crewProfileStations) {
-    crewProfileStations.textContent = "Front counter · Fries · Drinks (demo)";
+    crewProfileStations.textContent = "Front counter · Fries · Drinks";
   }
   if (crewProfileNotes) {
     crewProfileNotes.textContent =
@@ -771,10 +753,12 @@ function openCrewProfile(id) {
   crewProfileOverlay.classList.add("show");
 }
 
+// Close profile overlay
 if (crewProfileOverlay && crewProfileClose) {
   crewProfileClose.addEventListener("click", () => {
     crewProfileOverlay.classList.remove("show");
   });
+
   crewProfileOverlay.addEventListener("click", (e) => {
     if (e.target === crewProfileOverlay) {
       crewProfileOverlay.classList.remove("show");
@@ -783,7 +767,7 @@ if (crewProfileOverlay && crewProfileClose) {
 }
 
 /* ============================================================
-   AI CHAT (McAssist)
+   AI SUGGESTIONS & CHAT
 ============================================================ */
 
 function renderSuggestions(isCrew) {
@@ -794,14 +778,14 @@ function renderSuggestions(isCrew) {
     ? [
         "How many hours do I work this week?",
         "How much will I earn?",
-        "When is my next shift?",
-        "What training do I need?"
+        "What training do I need?",
+        "When is my next shift?"
       ]
     : [
         "Show me today’s waste.",
-        "How are our sales this week?",
-        "Which crew need training?",
-        "Who is near overtime?"
+        "How are sales?",
+        "Crew needing training?",
+        "Who’s near overtime?"
       ];
 
   list.forEach((text) => {
@@ -832,7 +816,8 @@ function addMessage(text, from) {
   aiChat.scrollTop = aiChat.scrollHeight;
 }
 
-// thinking animation
+/* THINKING INDICATOR */
+
 let thinkingMessageEl = null;
 
 function showThinking() {
@@ -860,6 +845,8 @@ function hideThinking() {
   thinkingMessageEl = null;
 }
 
+/* INTRO MESSAGE */
+
 function seedIntroMessages(isCrew) {
   if (!aiChat) return;
   aiChat.innerHTML = "";
@@ -868,6 +855,10 @@ function seedIntroMessages(isCrew) {
     : `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with waste, sales and crew info.`;
   addMessage(first, "bot");
 }
+
+/* ============================================================
+   SEND TO AI BACKEND (McAssist)
+============================================================ */
 
 async function sendUserMessage(text) {
   if (!text || !text.trim()) return;
@@ -897,12 +888,7 @@ async function sendUserMessage(text) {
             realShifts: realShiftsForUser
           }
         : undefined,
-      managerData: !isCrew
-        ? {
-            ...profile,
-            allShiftsForStore: allShifts
-          }
-        : undefined
+      managerData: !isCrew ? profile : undefined
     };
 
     const res = await fetch("/.netlify/functions/mcassist", {
@@ -975,6 +961,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
       if (voiceTimeout) clearTimeout(voiceTimeout);
       voiceTimeout = setTimeout(() => {
+        console.log("[Voice] Timeout — forcing stop");
         try {
           recognition.stop();
         } catch {}
@@ -988,38 +975,47 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   }
 
+  // Small mic button next to input
   micBtn.onclick = () => {
     if (listening) {
       try {
         recognition.stop();
       } catch {}
     } else {
+      if (!overlay) return;
       overlay.classList.add("active");
       if (overlayText) overlayText.textContent = "Ask me anything";
       setTimeout(startFullListening, 600);
     }
   };
 
+  // Big mic button inside overlay (STOP)
   if (overlayMic) {
     overlayMic.onclick = () => {
+      console.log("[Voice] STOP pressed");
       listening = false;
       try {
         recognition.stop();
       } catch {}
-      overlay.classList.remove("active");
+      if (overlay) overlay.classList.remove("active");
       if (overlayText) overlayText.textContent = "";
     };
   }
 
   recognition.onresult = (e) => {
     const transcript = e.results[0][0].transcript;
+    console.log("[Voice] Transcript:", transcript);
+
     try {
       recognition.stop();
     } catch {}
-    overlay.classList.remove("active");
+
+    if (overlay) overlay.classList.remove("active");
     if (overlayText) overlayText.textContent = "";
     listening = false;
+
     if (voiceTimeout) clearTimeout(voiceTimeout);
+
     if (aiInput) aiInput.value = transcript;
     sendUserMessage(transcript);
   };
@@ -1027,25 +1023,31 @@ if (micBtn && overlay && hasSpeechSupport()) {
   recognition.onerror = (e) => {
     console.warn("[Voice] Error:", e.error);
     listening = false;
-    overlay.classList.remove("active");
+
+    if (overlay) overlay.classList.remove("active");
     if (overlayText) overlayText.textContent = "";
+
     if (voiceTimeout) clearTimeout(voiceTimeout);
+
     if (e.error === "not-allowed" || e.error === "denied") {
       alert("Microphone permission blocked.");
     }
   };
 
   recognition.onend = () => {
+    console.log("[Voice] onend fired");
     listening = false;
     if (voiceTimeout) clearTimeout(voiceTimeout);
-    overlay.classList.remove("active");
+    if (overlay) overlay.classList.remove("active");
     if (overlayText) overlayText.textContent = "";
+
     if (wakeEnabled && !document.hidden && !wakeRunning) {
       setTimeout(startWakeListener, 400);
     }
   };
 
-  // ---- Wake word "Hey Amy" ----
+  /* --------- WAKE WORD: "HEY AMY" ---------- */
+
   let wakeRecognition = null;
   let wakeEnabled = false;
   let wakeRunning = false;
@@ -1063,6 +1065,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
   function startWakeListener() {
     if (!hasSpeechSupport()) return;
     if (!wakeEnabled || wakeRunning) return;
+    if (!recognition) return;
 
     const SR2 = window.SpeechRecognition || window.webkitSpeechRecognition;
     wakeRecognition = new SR2();
@@ -1084,15 +1087,19 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
     wakeRecognition.onerror = (e) => {
       console.warn("[Wake] Error:", e.error);
+
       if (e.error === "not-allowed") {
         alert("Mic blocked. Wake word disabled.");
         wakeEnabled = false;
         if (wakeToggle) wakeToggle.checked = false;
         return;
       }
+
       if (e.error === "no-speech") {
+        // ignore; continuous mode, will keep running / restart
         return;
       }
+
       wakeRunning = false;
       if (wakeEnabled && !document.hidden) {
         setTimeout(startWakeListener, 700);
@@ -1104,14 +1111,22 @@ if (micBtn && overlay && hasSpeechSupport()) {
         const res = event.results[i];
         const transcript = res[0].transcript.toLowerCase().trim();
         const hit = HEY_AMY_VARIANTS.some((kw) => transcript.includes(kw));
+
+        console.log("[Wake] Heard:", transcript, "conf:", res[0].confidence);
+
         if (hit && res[0].confidence >= 0.25) {
+          console.log("[Wake] TRIGGER DETECTED!");
+
           try {
             wakeRecognition.stop();
           } catch {}
           wakeRunning = false;
-          overlay.classList.add("active");
+
+          if (overlay) overlay.classList.add("active");
           if (overlayText) overlayText.textContent = "Ask me anything";
+
           beep(1200, 90, 0.12);
+
           setTimeout(startFullListening, 650);
           break;
         }
@@ -1121,7 +1136,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
     try {
       wakeRecognition.start();
     } catch (err) {
-      console.warn("[Wake] start error:", err);
+      console.warn("[Wake] Start error:", err);
     }
   }
 
@@ -1148,6 +1163,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
       wakeToggle.disabled = true;
       wakeToggle.title = "Wake word not supported in this browser.";
     }
+
     wakeToggle.addEventListener("change", () => {
       if (wakeToggle.checked) {
         wakeEnabled = true;
