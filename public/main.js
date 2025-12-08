@@ -1,7 +1,12 @@
 // ================================
-// main.js – McTraining Dashboard
-// FULLY FIRESTORE SYNCED
-// Includes UK legal break rules
+// main.js – FULL VERSION
+// Includes:
+// - Full Firestore sync
+// - UK Break Rules
+// - ShiftCreator Permissions
+// - Crew & Manager Metrics
+// - McAssist Integration
+// - Voice Mode + Wake Word
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -22,7 +27,7 @@ import {
 ============================================================ */
 
 let sessionUser = null;
-let allShifts = []; // all store shifts, used everywhere
+let allShifts = []; // store-wide shifts
 
 function loadSessionUser() {
   try {
@@ -33,12 +38,12 @@ function loadSessionUser() {
 }
 
 /* ============================================================
-   DEFAULT DATA (will be overwritten by Firestore)
+   DEFAULT DATA MODELS (always overwritten by Firestore)
 ============================================================ */
 
 const crewDataDefault = {
   position: "Crew Member",
-  hourlyRate: 12.22, // UK Crew National Rate
+  hourlyRate: 12.22,
   hoursThisWeek: 0,
   estimatedPayThisWeek: 0,
   nextShift: { day: "-", date: "", start: "", end: "" },
@@ -86,14 +91,14 @@ const aiInput = document.getElementById("aiInput");
 const aiSendBtn = document.getElementById("aiSendBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 
-// Voice overlay
+// Voice
 const micBtn = document.getElementById("aiMicBtn");
 const overlay = document.getElementById("voiceOverlay");
 const overlayText = document.getElementById("overlayText");
 const overlayMic = document.getElementById("overlayMic");
 const wakeToggle = document.getElementById("wakeToggle");
 
-// Crew Profile Modal
+// Crew Profile
 const crewProfileOverlay = document.getElementById("crewProfileOverlay");
 const crewProfileClose = document.getElementById("crewProfileClose");
 const crewProfileName = document.getElementById("crewProfileName");
@@ -116,23 +121,18 @@ const sidebarToggle = document.getElementById("sidebarToggle");
 ============================================================ */
 
 function toISODateString(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+  return d.toISOString().split("T")[0];
 }
 
 function getMonday(date) {
   const d = new Date(date);
-  const day = d.getDay(); // 0–6
-  const diff = (day === 0 ? -6 : 1) - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  let day = d.getDay();
+  let diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(d.setDate(diff));
 }
 
-function getWeekRange(offset = 0, base = new Date()) {
-  const monday = getMonday(base);
+function getWeekRange(offset = 0) {
+  const monday = getMonday(new Date());
   const start = new Date(monday);
   start.setDate(start.getDate() + offset * 7);
   const end = new Date(start);
@@ -147,15 +147,17 @@ function parseShiftHours(startHHMM, endHHMM) {
 
   let start = sh + sm / 60;
   let end = eh + em / 60;
-  if (end < start) end += 24; // crossing midnight
+
+  if (end < start) end += 24; // midnight crossing
+
   return end - start;
 }
 
 /* ============================================================
    UK BREAK RULES (Option A)
-   — Under 5h → 15 mins
-   — 5h–8h → 30 mins
-   — Over 8h → 45 mins
+   - Under 5h → 15min
+   - 5h–8h → 30min
+   - Over 8h → 45min
 ============================================================ */
 
 function calculateBreakMinutes(hours) {
@@ -175,25 +177,22 @@ async function loadCrewUserFromFirestore() {
   try {
     const ref = doc(db, "users", sessionUser.id);
     const snap = await getDoc(ref);
-
     if (!snap.exists()) return;
 
     const d = snap.data();
 
-    if (typeof d.hourlyRate === "number") crewData.hourlyRate = d.hourlyRate;
+    if (d.position) crewData.position = d.position;
+    if (d.hourlyRate) crewData.hourlyRate = d.hourlyRate;
     if (Array.isArray(d.certifications)) crewData.certifications = d.certifications;
     if (Array.isArray(d.trainingTodo)) crewData.trainingTodo = d.trainingTodo;
     if (Array.isArray(d.achievements)) crewData.achievements = d.achievements;
-    if (typeof d.position === "string") crewData.position = d.position;
 
   } catch (err) {
-    console.error("[Crew] load error:", err);
+    console.error("[Crew] Firestore load error:", err);
   }
 }
 
 async function loadStoreAndShiftsFromFirestore() {
-  if (!sessionUser) return;
-
   const storeId = sessionUser.storeId || "store001";
 
   try {
@@ -205,16 +204,12 @@ async function loadStoreAndShiftsFromFirestore() {
       getDocs(collection(db, "stores", storeId, "crewSummary"))
     ]);
 
-    /* ----------------------
-       STORE DATA (MANAGER)
-    ---------------------- */
+    /* ---------- Store Data ---------- */
     if (storeSnap.exists()) {
       Object.assign(managerData, managerDataDefault, storeSnap.data());
     }
 
-    /* ----------------------
-       SHIFTS
-    ---------------------- */
+    /* ---------- Shifts ---------- */
     allShifts = [];
     shiftsSnap.forEach((docSnap) => {
       const d = docSnap.data();
@@ -228,29 +223,23 @@ async function loadStoreAndShiftsFromFirestore() {
         userId: d.userId,
         userName: d.userName || "Unknown",
         station: d.station || "",
-        role: d.role || "crew",
-        breakMinutes: d.breakMinutes || 0
+        role: d.role || "crew"
       });
     });
 
-    // Make available for McAssist
+    // Expose your own shifts for AI
     window.loadedShiftsForCrew = allShifts.filter(
       (s) => s.userId === sessionUser.id
     );
 
-    // Compute dashboard metrics
     computeManagerMetrics();
-    if (sessionUser.role === "crew") {
-      computeCrewMetrics(window.loadedShiftsForCrew);
-    }
+    if (sessionUser.role === "crew") computeCrewMetrics(window.loadedShiftsForCrew);
 
-    /* ----------------------
-       CREW SUMMARY
-    ---------------------- */
-    const list = [];
+    /* ---------- Crew Summary ---------- */
+    managerData.crewTrainingSummary = [];
     crewSnap.forEach((snap) => {
       const d = snap.data();
-      list.push({
+      managerData.crewTrainingSummary.push({
         id: snap.id,
         name: d.name,
         status: d.status,
@@ -259,13 +248,10 @@ async function loadStoreAndShiftsFromFirestore() {
       });
     });
 
-    managerData.crewTrainingSummary = list;
-
   } catch (err) {
-    console.error("[Store] load error:", err);
+    console.error("[Store] Firestore load error:", err);
   }
 }
-
 /* ============================================================
    METRIC CALCULATIONS
 ============================================================ */
@@ -279,13 +265,12 @@ function computeManagerMetrics() {
 function computeCrewMetrics(myShifts) {
   if (!myShifts) return;
 
-  const today = new Date();
-  const { start, end } = getWeekRange(0, today);
+  const { start, end } = getWeekRange(0);
   const weekStart = toISODateString(start);
   const weekEnd = toISODateString(end);
 
-  let totalPaidHours = 0;
-  let schedule = {};
+  let totalPaid = 0;
+  let scheduleMap = {};
   let nextShiftObj = null;
 
   myShifts.forEach((s) => {
@@ -293,15 +278,14 @@ function computeCrewMetrics(myShifts) {
     const breakMin = calculateBreakMinutes(rawHours);
     const paid = rawHours - breakMin / 60;
 
-    // Save break into local shift (not Firestore)
     s.breakMinutes = breakMin;
 
-    // Convert into weekly metrics
+    // Weekly schedule
     if (s.date >= weekStart && s.date <= weekEnd) {
-      totalPaidHours += paid;
+      totalPaid += paid;
 
-      if (!schedule[s.date]) schedule[s.date] = [];
-      schedule[s.date].push(`${s.start}–${s.end} (Break ${breakMin}m)`);
+      if (!scheduleMap[s.date]) scheduleMap[s.date] = [];
+      scheduleMap[s.date].push(`${s.start}–${s.end} (Break ${breakMin}m)`);
     }
 
     // Next shift
@@ -311,25 +295,25 @@ function computeCrewMetrics(myShifts) {
     }
   });
 
-  // Convert schedule map → array
-  crewData.schedule = Object.entries(schedule)
+  // Convert schedule map → list
+  crewData.schedule = Object.entries(scheduleMap)
     .sort(([a], [b]) => (a > b ? 1 : -1))
-    .map(([date, items]) => {
+    .map(([date, times]) => {
       const d = new Date(`${date}T00:00:00`);
-      const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
-      return { day: dayName, time: items.join(", ") };
+      const dayName = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+      return { day: dayName, time: times.join(", ") };
     });
 
-  crewData.hoursThisWeek = Number(totalPaidHours.toFixed(2));
+  crewData.hoursThisWeek = Number(totalPaid.toFixed(2));
   crewData.estimatedPayThisWeek = Number(
-    (totalPaidHours * crewData.hourlyRate).toFixed(2)
+    (crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2)
   );
 
   if (nextShiftObj) {
     const dt = nextShiftObj._dt;
-    const dayName = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getDay()];
+    const dn = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getDay()];
     crewData.nextShift = {
-      day: dayName,
+      day: dn,
       date: nextShiftObj.date,
       start: nextShiftObj.start,
       end: nextShiftObj.end
@@ -340,96 +324,36 @@ function computeCrewMetrics(myShifts) {
 }
 
 /* ============================================================
-   AUTH INIT
-============================================================ */
-
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    localStorage.removeItem("mc_session_user");
-    window.location.href = "index.html";
-    return;
-  }
-
-  sessionUser = loadSessionUser();
-
-  if (!sessionUser) {
-    sessionUser = {
-      id: user.uid,
-      role: "crew",
-      name: user.displayName || user.email || "User",
-      storeId: "store001"
-    };
-    localStorage.setItem("mc_session_user", JSON.stringify(sessionUser));
-  }
-
-  try {
-    if (sessionUser.role === "crew") {
-      await Promise.all([
-        loadCrewUserFromFirestore(),
-        loadStoreAndShiftsFromFirestore()
-      ]);
-    } else {
-      await loadStoreAndShiftsFromFirestore();
-    }
-  } catch (err) {
-    console.error("[Main] init load error:", err);
-  }
-
-  initialiseDashboard();
-});
-
-/* ============================================================
-   DASHBOARD RENDERING
+   DASHBOARD INITIALISATION
 ============================================================ */
 
 function initialiseDashboard() {
-  if (!sessionUser) return;
-
   const isCrew = sessionUser.role === "crew";
-  const isManagerLike =
-    sessionUser.role === "manager" || sessionUser.role === "shiftCreator";
+  const isManager = sessionUser.role === "manager" || sessionUser.role === "shiftCreator";
 
   const profile = isCrew ? crewData : managerData;
 
-  // Sidebar user info
-  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
-  if (sidebarUserRole) {
-    sidebarUserRole.textContent = isCrew
-      ? "Crew Member"
-      : sessionUser.role === "shiftCreator"
+  // Sidebar info
+  sidebarUserName.textContent = sessionUser.name;
+  sidebarUserRole.textContent = isCrew
+    ? "Crew Member"
+    : sessionUser.role === "shiftCreator"
       ? "Shift Creator"
       : "Restaurant Manager";
-  }
 
-  if (roleBadge) {
-    roleBadge.textContent = isCrew
-      ? "CREW"
-      : sessionUser.role === "shiftCreator"
-      ? "SHIFT CREATOR"
-      : "MANAGER";
-  }
+  roleBadge.textContent = isCrew ? "CREW" : sessionUser.role === "shiftCreator" ? "SHIFT CREATOR" : "MANAGER";
+  avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
 
-  if (avatarCircle) {
-    avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
-  }
+  welcomeTitle.textContent = isCrew
+    ? `Welcome back, ${sessionUser.name.split(" ")[0]}`
+    : `Good shift, ${sessionUser.name.split(" ")[0]}`;
+  welcomeSubtitle.textContent = isCrew
+    ? "Here’s your week at a glance."
+    : `Live store view for ${managerData.storeName}.`;
 
-  if (welcomeTitle) {
-    welcomeTitle.textContent = isCrew
-      ? `Welcome back, ${sessionUser.name.split(" ")[0]}`
-      : `Good shift, ${sessionUser.name.split(" ")[0]}`;
-  }
-
-  if (welcomeSubtitle) {
-    welcomeSubtitle.textContent = isCrew
-      ? "Here’s your week at a glance."
-      : `Live snapshot for ${profile.storeName || "your restaurant"}.`;
-  }
-
-  if (aiSubtitle) {
-    aiSubtitle.textContent = isCrew
-      ? "Ask about your hours, pay, shifts or training."
-      : "Ask about waste, staff, sales or crew.";
-  }
+  aiSubtitle.textContent = isCrew
+    ? "Ask about hours, pay, shifts and training."
+    : "Ask about waste, sales and crew levels.";
 
   renderTopCards(isCrew, profile);
   renderBottomSection(isCrew, profile);
@@ -442,42 +366,40 @@ function initialiseDashboard() {
 ============================================================ */
 
 function renderTopCards(isCrew, profile) {
-  if (!topCards) return;
   topCards.innerHTML = "";
 
   if (isCrew) {
-    const nextShiftLabel =
+    const nextLabel =
       profile.nextShift && profile.nextShift.start
         ? `${profile.nextShift.day} ${profile.nextShift.start}-${profile.nextShift.end}`
-        : "No shifts scheduled";
+        : "No shifts";
 
     const cards = [
       {
         title: "This Week’s Hours",
         icon: "⏱️",
         main: `${profile.hoursThisWeek.toFixed(2)} hrs`,
-        sub: `Next shift: ${nextShiftLabel}`
+        sub: `Next shift: ${nextLabel}`
       },
       {
         title: "Estimated Pay",
         icon: "💷",
         main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
-        sub: `£${profile.hourlyRate.toFixed(2)}/hr`
+        sub: `£${profile.hourlyRate}/hr`
       },
       {
         title: "Stations",
         icon: "🍔",
-        main: profile.certifications.join(", ") || "None",
-        sub: profile.trainingTodo[0]
-          ? `Next: ${profile.trainingTodo[0]}`
-          : "No active training"
+        main: profile.certifications.length
+          ? profile.certifications.join(", ")
+          : "No certifications",
+        sub: profile.trainingTodo[0] || ""
       },
       {
         title: "Achievements",
         icon: "🏅",
         main: `${profile.achievements.length} badges`,
-        sub:
-          profile.achievements[0]?.title || "Do something great to earn one!"
+        sub: profile.achievements[0]?.title || "Earn more achievements!"
       }
     ];
 
@@ -494,7 +416,9 @@ function renderTopCards(isCrew, profile) {
       `;
       topCards.appendChild(card);
     });
-  } else {
+  }
+
+  else {
     const cards = [
       {
         title: "Today's Sales",
@@ -506,7 +430,7 @@ function renderTopCards(isCrew, profile) {
         title: "Food Waste",
         icon: "♻️",
         main: `£${managerData.todayWasteValue}`,
-        sub: `${managerData.todayWastePct.toFixed(1)}%`
+        sub: `${managerData.todayWastePct}%`
       },
       {
         title: "Staffing",
@@ -514,8 +438,8 @@ function renderTopCards(isCrew, profile) {
         main: `${managerData.staffOnShift}/${managerData.staffNeeded}`,
         sub:
           managerData.staffNeeded - managerData.staffOnShift > 0
-            ? "Short on shift"
-            : "Fully staffed"
+            ? "Understaffed"
+            : "Fully covered"
       },
       {
         title: "Training Gaps",
@@ -542,197 +466,159 @@ function renderTopCards(isCrew, profile) {
 }
 
 /* ============================================================
-   BOTTOM SECTION (Schedule / Waste / Crew Summary)
+   BOTTOM SECTION (Schedule or Crew List)
 ============================================================ */
 
 function renderBottomSection(isCrew, profile) {
-  if (!bottomSection) return;
-
   if (isCrew) {
-    const scheduleHTML =
-      profile.schedule.length > 0
-        ? profile.schedule
-            .map(
-              (s) => `
-        <li>
-          <span>${s.day}</span>
-          <span class="badge-soft">${s.time}</span>
-        </li>`
-            )
-            .join("")
-        : `<li><span>No shifts posted this week.</span></li>`;
+    const scheduleHTML = profile.schedule.length
+      ? profile.schedule
+          .map(
+            (s) => `
+          <li>
+            <span>${s.day}</span>
+            <span class="badge-soft">${s.time}</span>
+          </li>`
+          )
+          .join("")
+      : `<li><span>No shifts scheduled this week.</span></li>`;
 
-    const trainingHTML =
-      profile.trainingTodo.length > 0
-        ? profile.trainingTodo
-            .map(
-              (t) => `
-        <li>
-          <span>${t}</span>
-          <span class="badge-soft-warn">To do</span>
-        </li>`
-            )
-            .join("")
-        : `<li><span>No training tasks right now.</span></li>`;
+    const trainingHTML = profile.trainingTodo.length
+      ? profile.trainingTodo
+          .map(
+            (t) => `
+          <li>
+            <span>${t}</span>
+            <span class="badge-soft-warn">To do</span>
+          </li>`
+          )
+          .join("")
+      : `<li><span>No training tasks right now.</span></li>`;
 
     bottomSection.innerHTML = `
       <div class="subsection-title">Weekly Schedule</div>
       <ul class="list">${scheduleHTML}</ul>
 
-      <div class="subsection-title" style="margin-top:15px;">Training Focus</div>
+      <div class="subsection-title" style="margin-top: 20px;">Training Focus</div>
       <ul class="list">${trainingHTML}</ul>
     `;
-  } else {
-    bottomSection.innerHTML = `
-      <div class="subsection-title">Food Waste (Week)</div>
-      <ul class="list">
-        ${
-          managerData.foodWasteByDay.length
-            ? managerData.foodWasteByDay
-                .map(
-                  (d) => `
-          <li>
-            <span>${d.day}</span>
-            <span class="badge-soft-danger">£${d.value}</span>
-          </li>`
-                )
-                .join("")
-            : `<li><span>No waste data.</span></li>`
-        }
-      </ul>
-
-      <div class="subsection-title" style="margin-top:15px;">
-        Crew Training & McStars
-      </div>
-      <ul class="list">
-        ${
-          managerData.crewTrainingSummary.length
-            ? managerData.crewTrainingSummary
-                .map(
-                  (c) => `
-        <li data-id="${c.id}">
-          <span>
-            <strong>${c.name}</strong><br>
-            <small>${c.status}</small>
-          </span>
-          <span class="crew-actions">
-            <span class="mcstar-pill">${describeStars(c.stars)}</span>
-            <span class="badge-soft">${c.badge}</span>
-            <button class="crew-profile-btn" data-id="${c.id}">Profile</button>
-            <button class="crew-edit-btn" data-id="${c.id}">Edit</button>
-          </span>
-        </li>`
-                )
-                .join("")
-            : `<li><span>No crew summary data.</span></li>`
-        }
-      </ul>
-    `;
-
-    attachCrewEditHandlers();
+    return;
   }
+
+  // Manager / ShiftCreator
+  bottomSection.innerHTML = `
+    <div class="subsection-title">Crew Training & McStars</div>
+    <ul class="list">
+      ${
+        managerData.crewTrainingSummary.length
+          ? managerData.crewTrainingSummary
+              .map(
+                (c) => `
+            <li data-id="${c.id}">
+              <span>
+                <strong>${c.name}</strong><br>
+                <small>${c.status}</small>
+              </span>
+
+              <span class="crew-actions">
+                <span class="mcstar-pill">${describeStars(c.stars)}</span>
+                <span class="badge-soft">${c.badge}</span>
+                <button class="crew-profile-btn" data-id="${c.id}">Profile</button>
+                <button class="crew-edit-btn" data-id="${c.id}">Edit</button>
+              </span>
+            </li>`
+              )
+              .join("")
+          : `<li><span>No crew data available.</span></li>`
+      }
+    </ul>
+  `;
+
+  attachCrewListHandlers();
 }
+
 /* ============================================================
-   CREW PROFILE + EDITING
+   CREW PROFILES + EDITING
 ============================================================ */
 
-function attachCrewEditHandlers() {
-  if (!bottomSection) return;
+function describeStars(n) {
+  n = Number(n) || 0;
+  if (n === 0) return "☆ New";
+  if (n === 1) return "⭐ Bronze";
+  if (n === 2) return "⭐⭐ Silver";
+  return "⭐⭐⭐ Gold";
+}
 
-  // EDIT BUTTONS
-  bottomSection.querySelectorAll(".crew-edit-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+function attachCrewListHandlers() {
+  document.querySelectorAll(".crew-profile-btn").forEach((btn) => {
+    btn.onclick = () => openCrewProfile(btn.dataset.id);
+  });
+
+  document.querySelectorAll(".crew-edit-btn").forEach((btn) => {
+    btn.onclick = async () => {
       const id = btn.dataset.id;
-      const crew = managerData.crewTrainingSummary.find((c) => c.id === id);
+      const crew = managerData.crewTrainingSummary.find((x) => x.id === id);
       if (!crew) return;
 
-      const newStatus = prompt(
-        `Update training status for ${crew.name}:`,
-        crew.status
-      );
+      const newStatus = prompt("Update status:", crew.status);
       if (newStatus === null) return;
 
-      const newBadge = prompt(
-        `Update badge for ${crew.name}:`,
-        crew.badge
-      );
+      const newBadge = prompt("Update badge:", crew.badge);
       if (newBadge === null) return;
 
-      const starsInput = prompt(
-        `Update McStars (0–3) for ${crew.name}:`,
-        String(crew.stars || 0)
-      );
-      if (starsInput === null) return;
+      let newStars = Number(prompt("Update McStars (0–3):", crew.stars));
+      if (isNaN(newStars)) newStars = crew.stars;
+      newStars = Math.min(3, Math.max(0, newStars));
 
-      let newStars = parseInt(starsInput);
-      if (isNaN(newStars) || newStars < 0) newStars = 0;
-      if (newStars > 3) newStars = 3;
-
-      // Save to Firestore
-      await updateCrewFieldsInFirestore(id, {
+      await updateDoc(doc(db, "stores", sessionUser.storeId, "crewSummary", id), {
         status: newStatus,
         badge: newBadge,
         stars: newStars
       });
 
-      // Update UI
+      // update local
       crew.status = newStatus;
       crew.badge = newBadge;
       crew.stars = newStars;
 
       renderBottomSection(false, managerData);
-    });
-  });
-
-  // PROFILE BUTTON
-  bottomSection.querySelectorAll(".crew-profile-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      openCrewProfile(btn.dataset.id);
-    });
+    };
   });
 }
 
 function openCrewProfile(id) {
-  const crew = managerData.crewTrainingSummary.find((c) => c.id === id);
+  const crew = managerData.crewTrainingSummary.find((x) => x.id === id);
   if (!crew) return;
 
-  const firstName = crew.name.split(" ")[0];
+  crewProfileOverlay.classList.add("show");
 
   crewProfileName.textContent = crew.name;
   crewProfileRole.textContent = "Crew Member";
-  crewProfileStore.textContent =
-    managerData.storeName || sessionUser.storeId || "Restaurant";
+  crewProfileStore.textContent = managerData.storeName;
   crewProfileStatus.textContent = crew.status;
   crewProfileBadge.textContent = crew.badge;
   crewProfileAvatar.textContent = crew.name.charAt(0).toUpperCase();
   crewProfileStars.textContent = describeStars(crew.stars);
 
-  // Demo (could be connected to shifts later)
-  crewProfileNextShift.textContent = "Tomorrow 17:00–23:00 — Front counter";
-  crewProfileStations.textContent = "Front Counter · Fries · Drinks";
-  crewProfileNotes.textContent = `${firstName} performs well during peak times.`;
-
-  crewProfileOverlay.classList.add("show");
+  // Example placeholder
+  crewProfileNextShift.textContent = "Next shift: Posted in schedule";
+  crewProfileStations.textContent = "Stations: Training data";
+  crewProfileNotes.textContent = `${crew.name.split(" ")[0]} is progressing well.`;
 }
 
-// Close profile modal
-crewProfileClose.addEventListener("click", () => {
-  crewProfileOverlay.classList.remove("show");
-});
-crewProfileOverlay.addEventListener("click", (e) => {
-  if (e.target === crewProfileOverlay) {
-    crewProfileOverlay.classList.remove("show");
-  }
-});
+// Close modal
+crewProfileClose.onclick = () => crewProfileOverlay.classList.remove("show");
+crewProfileOverlay.onclick = (e) => {
+  if (e.target === crewProfileOverlay) crewProfileOverlay.classList.remove("show");
+};
 /* ============================================================
    AI SUGGESTIONS
 ============================================================ */
 
 function renderSuggestions(isCrew) {
-  if (!aiSuggestions) return;
   aiSuggestions.innerHTML = "";
 
-  const items = isCrew
+  const suggestions = isCrew
     ? [
         "How many hours do I work this week?",
         "How much will I earn?",
@@ -741,12 +627,12 @@ function renderSuggestions(isCrew) {
       ]
     : [
         "Show me today’s waste.",
-        "How are today’s sales?",
         "Which crew need training?",
-        "Who is near overtime?"
+        "Who is near overtime?",
+        "How many staff are working today?"
       ];
 
-  items.forEach((text) => {
+  suggestions.forEach((text) => {
     const chip = document.createElement("button");
     chip.className = "suggestion-chip";
     chip.textContent = text;
@@ -756,12 +642,12 @@ function renderSuggestions(isCrew) {
 }
 
 /* ============================================================
-   CHAT MESSAGES
+   CHAT UI + THINKING INDICATOR
 ============================================================ */
 
 function addMessage(text, from) {
   const msg = document.createElement("div");
-  msg.className = "message " + (from === "user" ? "msg-user" : "msg-bot");
+  msg.className = `message ${from === "user" ? "msg-user" : "msg-bot"}`;
 
   msg.innerHTML = `
     <div class="bubble">${text}</div>
@@ -772,19 +658,16 @@ function addMessage(text, from) {
   aiChat.scrollTop = aiChat.scrollHeight;
 }
 
-/* ============================================================
-   THINKING INDICATOR
-============================================================ */
-
-let thinkingMessageEl = null;
+let thinkingEl = null;
 
 function showThinking() {
   hideThinking();
-  const el = document.createElement("div");
-  el.className = "message msg-bot thinking";
-  el.innerHTML = `
+  thinkingEl = document.createElement("div");
+  thinkingEl.className = "message msg-bot thinking";
+  thinkingEl.innerHTML = `
     <div class="bubble">
-      Thinking <span class="thinking-dots">
+      Thinking
+      <span class="thinking-dots">
         <span class="thinking-dot"></span>
         <span class="thinking-dot"></span>
         <span class="thinking-dot"></span>
@@ -792,14 +675,13 @@ function showThinking() {
     </div>
     <div class="msg-meta">McAssist</div>
   `;
-  aiChat.appendChild(el);
+  aiChat.appendChild(thinkingEl);
   aiChat.scrollTop = aiChat.scrollHeight;
-  thinkingMessageEl = el;
 }
 
 function hideThinking() {
-  if (thinkingMessageEl) thinkingMessageEl.remove();
-  thinkingMessageEl = null;
+  if (thinkingEl) thinkingEl.remove();
+  thinkingEl = null;
 }
 
 /* ============================================================
@@ -807,91 +689,176 @@ function hideThinking() {
 ============================================================ */
 
 function seedIntroMessages(isCrew) {
-  if (!aiChat) return;
   aiChat.innerHTML = "";
 
-  const name = sessionUser.name.split(" ")[0];
+  const first = isCrew
+    ? `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with hours, pay, breaks and shifts.`
+    : `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with waste, sales, staffing and crew info.`;
 
-  const text = isCrew
-    ? `Hi ${name} 👋 I can help with hours, pay, shifts and training.`
-    : `Hi ${name} 👋 I can help with sales, waste and crew training.`;
-
-  addMessage(text, "bot");
+  addMessage(first, "bot");
 }
+
 /* ============================================================
-   VOICE MODE + WAKE WORD
+   SEND MESSAGE TO BACKEND (McAssist)
+============================================================ */
+
+async function sendUserMessage(text) {
+  if (!text.trim()) return;
+
+  addMessage(text, "user");
+  aiInput.value = "";
+  aiSendBtn.disabled = true;
+  showThinking();
+
+  try {
+    const isCrew = sessionUser.role === "crew";
+
+    // Build AI context
+    const context = {
+      role: sessionUser.role,
+      userName: sessionUser.name,
+      storeId: sessionUser.storeId,
+
+      crewData: isCrew
+        ? {
+            ...crewData,
+            realShifts: window.loadedShiftsForCrew || []
+          }
+        : undefined,
+
+      managerData: !isCrew ? managerData : undefined
+    };
+
+    const res = await fetch("/.netlify/functions/mcassist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: text,
+        user: sessionUser,
+        contextData: context
+      })
+    });
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
+    hideThinking();
+    addMessage(data.reply || "I’m not sure about that.", "bot");
+  } catch (err) {
+    console.error("AI error:", err);
+    hideThinking();
+    addMessage("Sorry, something went wrong with McAssist.", "bot");
+  }
+
+  aiSendBtn.disabled = false;
+}
+
+/* ============================================================
+   CHAT INPUT HANDLER
+============================================================ */
+
+aiForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  sendUserMessage(aiInput.value);
+});
+/* ============================================================
+   VOICE MODE + WAKE WORD ("HEY AMY")
 ============================================================ */
 
 let recognition = null;
 let listening = false;
 let voiceTimeout = null;
 
+/* -----------------------------
+   Microphone support check
+------------------------------*/
 function hasSpeechSupport() {
-  return (
-    "SpeechRecognition" in window || "webkitSpeechRecognition" in window
-  );
+  return "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
+}
+
+/* -----------------------------
+   SOUND FEEDBACK
+------------------------------*/
+function beep(freq = 900, ms = 100, vol = 0.1) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = freq;
+    gain.gain.value = vol;
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    setTimeout(() => {
+      osc.stop();
+      ctx.close();
+    }, ms);
+  } catch {}
 }
 
 if (micBtn && overlay && hasSpeechSupport()) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SR();
-  recognition.lang = "en-GB";        // UK voice
-  recognition.continuous = false;
+  recognition.lang = "en-US";
   recognition.interimResults = false;
+  recognition.continuous = false;
 
+  /* -----------------------------
+     Start full listening mode
+  ------------------------------*/
   function startFullListening() {
     try {
       overlayText.textContent = "Listening…";
+      beep(1100, 90, 0.12);
+
       listening = true;
       recognition.start();
 
-      // Auto-stop after 6 seconds
+      // Auto-stop after 7s of silence
       voiceTimeout = setTimeout(() => {
-        try {
-          recognition.stop();
-        } catch {}
-      }, 6000);
+        try { recognition.stop(); } catch {}
+      }, 7000);
+
     } catch (err) {
       console.error("Voice start error:", err);
+      listening = false;
       overlay.classList.remove("active");
-      overlayText.textContent = "";
-      alert("Microphone access blocked.");
     }
   }
 
-  /* Small mic button → open overlay then start listening */
+  /* -----------------------------
+     Mic button next to chat input
+  ------------------------------*/
   micBtn.onclick = () => {
     if (listening) {
-      try {
-        recognition.stop();
-      } catch {}
+      try { recognition.stop(); } catch {}
     } else {
       overlay.classList.add("active");
       overlayText.textContent = "Ask me anything";
-      setTimeout(startFullListening, 500);
+      setTimeout(startFullListening, 400);
     }
   };
 
-  /* STOP button in overlay */
+  /* -----------------------------
+     Big mic button inside overlay
+  ------------------------------*/
   overlayMic.onclick = () => {
     listening = false;
-    try {
-      recognition.stop();
-    } catch {}
+    try { recognition.stop(); } catch {}
     overlay.classList.remove("active");
-    overlayText.textContent = "";
   };
 
+  /* -----------------------------
+     Speech recognition events
+  ------------------------------*/
   recognition.onresult = (e) => {
     const transcript = e.results[0][0].transcript;
-
-    try {
-      recognition.stop();
-    } catch {}
-
-    listening = false;
-    clearTimeout(voiceTimeout);
     overlay.classList.remove("active");
+    listening = false;
+    if (voiceTimeout) clearTimeout(voiceTimeout);
 
     aiInput.value = transcript;
     sendUserMessage(transcript);
@@ -901,40 +868,33 @@ if (micBtn && overlay && hasSpeechSupport()) {
     console.warn("Voice error:", e.error);
     listening = false;
     overlay.classList.remove("active");
-    overlayText.textContent = "";
-    clearTimeout(voiceTimeout);
 
-    if (e.error === "not-allowed") {
-      alert("Microphone permission blocked.");
-    }
+    if (voiceTimeout) clearTimeout(voiceTimeout);
   };
 
   recognition.onend = () => {
     listening = false;
     overlay.classList.remove("active");
-    overlayText.textContent = "";
-    clearTimeout(voiceTimeout);
+    if (voiceTimeout) clearTimeout(voiceTimeout);
 
-    if (wakeEnabled && !document.hidden && !wakeRunning) {
+    // Auto-restart if wake word enabled
+    if (wakeEnabled && !wakeRunning && !document.hidden) {
       setTimeout(startWakeListener, 400);
     }
   };
 
-  /* -----------------------------
-      WAKE WORD: “HEY AMY”
-  ----------------------------- */
+  /* ============================================================
+     WAKE WORD SYSTEM — "HEY AMY"
+  ============================================================= */
 
   let wakeRecognition = null;
   let wakeEnabled = false;
   let wakeRunning = false;
 
   const HEY_AMY_VARIANTS = [
-    "hey amy",
-    "hey ami",
-    "hey emmy",
-    "hey ammy",
-    "okay amy",
-    "ok amy"
+    "hey amy", "hey ami", "hey amie",
+    "hey emmy", "hey ammy",
+    "ok amy", "okay amy"
   ];
 
   function startWakeListener() {
@@ -942,82 +902,80 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
     const SR2 = window.SpeechRecognition || window.webkitSpeechRecognition;
     wakeRecognition = new SR2();
-    wakeRecognition.lang = "en-GB";
+    wakeRecognition.lang = "en-US";
     wakeRecognition.continuous = true;
     wakeRecognition.interimResults = true;
 
     wakeRecognition.onstart = () => {
       wakeRunning = true;
-      console.log("[Wake] Listening for 'Hey Amy'...");
+      console.log("[Wake] Listening for Hey Amy…");
+    };
+
+    wakeRecognition.onerror = (e) => {
+      if (e.error === "not-allowed") {
+        alert("Microphone blocked. Wake-word disabled.");
+        wakeEnabled = false;
+        wakeToggle.checked = false;
+        return;
+      }
+      wakeRunning = false;
+      if (wakeEnabled) setTimeout(startWakeListener, 700);
+    };
+
+    wakeRecognition.onend = () => {
+      wakeRunning = false;
+      if (wakeEnabled && !document.hidden) {
+        setTimeout(startWakeListener, 400);
+      }
     };
 
     wakeRecognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-          .toLowerCase()
-          .trim();
-        const confidence = event.results[i][0].confidence;
+        const text = event.results[i][0].transcript.toLowerCase().trim();
+        const conf = event.results[i][0].confidence;
 
-        const heardWake = HEY_AMY_VARIANTS.some((w) =>
-          transcript.includes(w)
-        );
+        if (conf > 0.25 && HEY_AMY_VARIANTS.some((w) => text.includes(w))) {
+          console.log("[Wake] Triggered:", text);
 
-        if (heardWake && confidence > 0.25) {
-          try {
-            wakeRecognition.stop();
-          } catch {}
-
+          try { wakeRecognition.stop(); } catch {}
           wakeRunning = false;
 
           overlay.classList.add("active");
           overlayText.textContent = "Ask me anything";
 
+          beep(1400, 90, 0.15);
           setTimeout(startFullListening, 500);
           return;
         }
       }
     };
 
-    wakeRecognition.onerror = (e) => {
-      console.warn("[Wake] Error:", e.error);
-      wakeRunning = false;
-    };
-
-    wakeRecognition.onend = () => {
-      wakeRunning = false;
-      if (wakeEnabled && !document.hidden) {
-        setTimeout(startWakeListener, 600);
-      }
-    };
-
     try {
       wakeRecognition.start();
     } catch (err) {
-      console.warn("Wake start error:", err);
+      console.error("[Wake] start error", err);
     }
   }
 
   function stopWakeListener() {
-    if (wakeRecognition) {
-      try {
-        wakeRecognition.stop();
-      } catch {}
-    }
+    try { wakeRecognition?.stop(); } catch {}
     wakeRunning = false;
   }
 
-  // Toggle
-  wakeToggle.addEventListener("change", () => {
-    wakeEnabled = wakeToggle.checked;
-
-    if (wakeEnabled) {
+  /* -----------------------------
+     Toggle switch for wake word
+  ------------------------------*/
+  wakeToggle?.addEventListener("change", () => {
+    if (wakeToggle.checked) {
+      wakeEnabled = true;
+      beep(900, 80, 0.12);
       startWakeListener();
     } else {
+      wakeEnabled = false;
       stopWakeListener();
     }
   });
 
-  // Handle tab hidden
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       stopWakeListener();
