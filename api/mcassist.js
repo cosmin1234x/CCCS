@@ -156,7 +156,7 @@ module.exports = async function handler(req, res) {
 
     // ==========================
     // SYSTEM PROMPT
-    ==========================
+    // ==========================
     const systemPrompt = [
       "You are McAssist, a friendly assistant for a McDonald's-style restaurant portal.",
       "",
