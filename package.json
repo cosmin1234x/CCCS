@@ -1,7 +1,13 @@
 {
-  "name": "mc-training",
+  "name": "cccs-portal",
   "version": "1.0.0",
-  "dependencies": {
-    "openai": "^4.104.0"
+  "type": "module",
+  "scripts": {
+    "start": "vercel dev",
+    "dev": "vercel dev"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vercel": "^34.0.0"
   }
 }
