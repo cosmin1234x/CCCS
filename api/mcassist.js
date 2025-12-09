@@ -1,20 +1,20 @@
 // api/mcassist.js
 // McAssist serverless function – uses real shifts + manager data
-// Vercel version (Node.js serverless function)
+// Vercel Node.js function (CommonJS version)
 
-import OpenAI from "openai";
+const OpenAI = require("openai");
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    // Vercel usually gives you parsed JSON, but we guard anyway
+    // Vercel usually gives parsed JSON for application/json
     let body = req.body || {};
     if (typeof body === "string") {
       try {
@@ -45,7 +45,6 @@ export default async function handler(req, res) {
       : [];
 
     if (realShifts.length > 0) {
-      // Sort by date + time
       const sorted = realShifts
         .slice()
         .sort((a, b) => {
@@ -54,18 +53,14 @@ export default async function handler(req, res) {
           return keyA.localeCompare(keyB);
         });
 
-      // Build a friendly list
-      derived.realShiftsSummary = sorted.map((s) => {
-        return {
-          date: s.date || "",
-          start: s.start || "",
-          end: s.end || "",
-          station: s.station || "",
-          isShiftManager: !!s.isShiftManager
-        };
-      });
+      derived.realShiftsSummary = sorted.map((s) => ({
+        date: s.date || "",
+        start: s.start || "",
+        end: s.end || "",
+        station: s.station || "",
+        isShiftManager: !!s.isShiftManager
+      }));
 
-      // Compute "next shift" based on current date/time
       const now = new Date();
       const pad = (n) => (n < 10 ? "0" + n : "" + n);
 
@@ -158,7 +153,7 @@ export default async function handler(req, res) {
       };
     }
 
-    // ====== SYSTEM PROMPT (rules for the AI) ======
+    // ====== SYSTEM PROMPT ======
     const systemPrompt = [
       "You are McAssist, a friendly assistant for a McDonald's-style restaurant portal.",
       "",
@@ -209,7 +204,7 @@ export default async function handler(req, res) {
       "",
       "3) Hours and pay (crew):",
       "- Use crewData.hoursThisWeek, estimatedPayThisWeek, hourlyRate.",
-      "- Example style: 'You're scheduled for 18.5 hours and will earn about £194.25 before tax at £10.50/hr.'",
+      "- Example style: 'You're scheduled for 18.5 hours and will earn about £194.25 before tax.'",
       "",
       "4) Training status (crew):",
       "- Use crewData.trainingTodo to list the most important modules they still need.",
@@ -270,11 +265,9 @@ export default async function handler(req, res) {
     return res.status(200).json({ reply });
   } catch (err) {
     console.error("McAssist error:", err);
-    // TEMP: expose error message so you can debug from the browser
     return res.status(500).json({
       error: "Server error",
-      message: err.message || "Unknown error",
-      stack: err.stack || null
+      message: err.message || "Unknown error"
     });
   }
-}
+};
