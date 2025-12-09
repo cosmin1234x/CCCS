@@ -4,13 +4,29 @@
 
 const OpenAI = require("openai");
 
+const apiKey = process.env.OPENAI_API_KEY;
 const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey
 });
 
 module.exports = async function handler(req, res) {
+  // Basic request logging for debugging (won't print body contents)
+  console.log("McAssist handler invoked", {
+    method: req.method,
+    hasApiKey: !!apiKey
+  });
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Fail fast if API key missing
+  if (!apiKey) {
+    console.error("McAssist error: OPENAI_API_KEY is not set in environment");
+    return res.status(500).json({
+      error: "Server misconfiguration",
+      message: "OpenAI API key is not configured on the server (OPENAI_API_KEY missing)."
+    });
   }
 
   try {
@@ -240,15 +256,32 @@ module.exports = async function handler(req, res) {
       "\n\nderived helpers:\n" +
       JSON.stringify(derived, null, 2);
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.2,
-      max_tokens: 350,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent }
-      ]
-    });
+    // Call OpenAI (wrap in try/catch to provide better error messages & logs)
+    let completion;
+    try {
+      completion = await client.chat.completions.create({
+        model: "gpt-4.1-mini",
+        temperature: 0.2,
+        max_tokens: 350,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent }
+        ]
+      });
+    } catch (apiErr) {
+      // Log helpful debugging info (response data if present)
+      console.error("OpenAI API error:", {
+        message: apiErr.message,
+        response: apiErr.response ? apiErr.response.data || apiErr.response : undefined
+      });
+
+      return res.status(502).json({
+        error: "Upstream API error",
+        message: apiErr.message,
+        // include small details for debugging; remove in production if desired
+        details: apiErr.response ? apiErr.response.data : undefined
+      });
+    }
 
     let reply = "Sorry, I couldn't think of a good answer.";
 
@@ -264,7 +297,11 @@ module.exports = async function handler(req, res) {
 
     return res.status(200).json({ reply });
   } catch (err) {
-    console.error("McAssist error:", err);
+    console.error("McAssist error:", {
+      message: err.message,
+      stack: err.stack,
+      response: err.response ? err.response.data || err.response : undefined
+    });
     return res.status(500).json({
       error: "Server error",
       message: err.message || "Unknown error"
