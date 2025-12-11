@@ -394,3 +394,32 @@ body.training-app {
   background:#d1fae5;
   border:2px solid #10b981;
 }
+.module-grid {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.module-card {
+  background: white;
+  padding: 18px;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.module-card:hover {
+  transform: translateY(-3px);
+}
+
+.badge-section {
+  margin-top: 40px;
+}
+
+#badgeGrid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}

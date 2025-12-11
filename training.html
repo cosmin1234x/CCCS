@@ -5,6 +5,7 @@
   <title>McTraining – Gamified Training</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-training-new.css" />
+
 </head>
 
 <body class="training-app">
@@ -36,6 +37,35 @@
       <button id="logoutBtn">Log out</button>
     </div>
   </aside>
+
+  <!-- ====== TRAINING MODULES SECTION ====== -->
+<div id="trainingContent">
+
+  <!-- MODULE GRID -->
+  <section class="module-grid" id="moduleGrid">
+      <!-- Filled by training-new.js -->
+  </section>
+
+  <!-- ACTIVE MODULE VIEW -->
+  <section class="active-module" id="activeModuleView" style="display:none;">
+      <h2 id="activeModuleTitle"></h2>
+
+      <div id="stageList">
+        <!-- Filled dynamically -->
+      </div>
+  </section>
+
+  <!-- BADGES / REWARDS -->
+  <section class="badge-section">
+      <h3>Your Badges</h3>
+      <div id="badgeGrid"></div>
+  </section>
+
+  <!-- Popups -->
+  <div id="rewardPopupContainer"></div>
+
+</div>
+
 
   <!-- ====== MAIN CONTENT ====== -->
   <main class="main-panel">
