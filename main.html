@@ -1,238 +1,197 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>McTraining – Dashboard</title>
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining Portal – Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="mc-theme.css" />
+</head>
+<body class="app-page">
 
-    <!-- Main theme -->
-    <link rel="stylesheet" href="mc-theme.css" />
+  <!-- ========= SIDEBAR ========= -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Crew & Manager portal</p>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+    </div>
 
-    <!-- Firebase + app scripts -->
-    <script type="module" src="firebase-init.js"></script>
-    <script type="module" src="main.js" defer></script>
-  </head>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">MAIN</div>
+      <ul class="nav-list">
+        <li class="nav-item active" onclick="window.location.href='main.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Dashboard</span>
+        </li>
+        <li class="nav-item" onclick="window.location.href='training.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🎓</span>
+          <span class="nav-label">Training</span>
+        </li>
+        <li class="nav-item" onclick="window.location.href='schedule.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">📅</span>
+          <span class="nav-label">Shifts</span>
+        </li>
 
-  <!-- IMPORTANT: class="app-page" to get the layout styles -->
-  <body class="app-page">
-    <!-- ========== SIDEBAR ========== -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <div class="logo-circle">M</div>
-        <div class="sidebar-header-text">
-          <h1>MCTRaining</h1>
-          <p>Crew &amp; Manager portal</p>
+        <!-- Only visible for shiftCreator (hidden by default, shown via JS) -->
+        <li class="nav-item" id="navShiftCreator" style="display:none;"
+            onclick="window.location.href='shifts-admin.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🛠️</span>
+          <span class="nav-label">Shift creator</span>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <!-- ========= MAIN LAYOUT ========= -->
+  <div class="main-layout">
+
+    <!-- ====== LEFT CONTENT AREA ====== -->
+    <div class="content-area">
+
+      <!-- Top bar -->
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <h2 id="welcomeTitle">Welcome back</h2>
+          <p id="welcomeSubtitle">Here’s your week at a glance.</p>
         </div>
 
-        <!-- mobile menu toggle -->
-        <button id="sidebarToggle" class="sidebar-toggle">Menu</button>
+        <div class="top-bar-right">
+          <span id="roleBadge" class="badge-role">CREW</span>
+
+          <!-- My profile (only for crew role) -->
+          <button id="myProfileBtn" class="crew-profile-top-btn" style="display:none;">
+            My profile
+          </button>
+
+          <div id="avatarCircle" class="avatar">U</div>
+        </div>
       </div>
 
-      <nav class="sidebar-nav">
-        <div class="nav-section-title">Main</div>
-        <ul class="nav-list">
-          <!-- DASHBOARD (this page) -->
-          <li class="nav-item active" onclick="window.location.href='main.html'">
-            <div class="nav-dot"></div>
-            <span class="nav-icon">🏠</span>
-            <span class="nav-label">Dashboard</span>
-          </li>
-
-          <!-- TRAINING -->
-          <li class="nav-item" onclick="window.location.href='training.html'">
-            <div class="nav-dot"></div>
-            <span class="nav-icon">🎓</span>
-            <span class="nav-label">Training</span>
-          </li>
-
-          <!-- SHIFTS -->
-          <li class="nav-item" onclick="window.location.href='schedule.html'">
-            <div class="nav-dot"></div>
-            <span class="nav-icon">📅</span>
-            <span class="nav-label">Shifts</span>
-          </li>
-
-          <!-- MANAGER / SHIFT CREATOR extras are handled by JS
-               (you can hide/show items from main.js if needed) -->
-        </ul>
-      </nav>
-
-      <div class="sidebar-footer">
-        <div class="sidebar-user-label">
-          <span id="sidebarUserName">Alex Trey</span><br />
-          <span id="sidebarUserRole">Crew Member</span>
-        </div>
-        <button id="logoutBtn">Log out</button>
-      </div>
-    </aside>
-
-    <!-- ========== MAIN LAYOUT ========== -->
-    <main class="main-layout">
-      <!-- ========== LEFT: PAGE CONTENT ========== -->
-      <section class="content-area">
-        <!-- Top bar greeting -->
-        <header class="top-bar">
-          <div class="top-bar-left">
-            <h2>Welcome back, Alex</h2>
-            <p>Here’s your week at a glance.</p>
-          </div>
-          <div class="top-bar-right">
-            <button id="profileTopBtn" class="crew-profile-top-btn">
-              My profile
-            </button>
-            <span class="badge-role" id="roleBadge">Crew</span>
-            <div class="avatar" id="avatarCircle">A</div>
-          </div>
-        </header>
-
-        <!-- KPI cards row -->
-        <div class="cards-grid" style="margin-top:8px;">
-          <!-- This week’s hours -->
-          <article class="card">
-            <div class="card-header">
-              <div class="card-title">This week’s hours</div>
-              <div class="card-icon">⏱️</div>
-            </div>
-            <div class="card-main-value" id="hoursThisWeekValue">0.00 hrs</div>
-            <div class="card-subtext" id="nextShiftSummary">
-              Next shift: —
-            </div>
-          </article>
-
-          <!-- Estimated pay -->
-          <article class="card">
-            <div class="card-header">
-              <div class="card-title">Estimated pay</div>
-              <div class="card-icon">💷</div>
-            </div>
-            <div class="card-main-value" id="estimatedPayValue">£0.00</div>
-            <div class="card-subtext">
-              Hourly rate: <span id="hourlyRateValue">£0.00/hr</span>
-            </div>
-          </article>
-
-          <!-- Certifications / stations -->
-          <article class="card">
-            <div class="card-header">
-              <div class="card-title">Stations</div>
-              <div class="card-icon">🍟</div>
-            </div>
-            <div class="card-main-value" id="stationsSummary">
-              No certifications yet
-            </div>
-            <div class="card-subtext">
-              Build skills to unlock more stations.
-            </div>
-          </article>
-
-          <!-- Achievements -->
-          <article class="card">
-            <div class="card-header">
-              <div class="card-title">Achievements</div>
-              <div class="card-icon">⭐</div>
-            </div>
-            <div class="card-main-value" id="achievementsValue">
-              0 badges
-            </div>
-            <div class="card-subtext" id="achievementsSubtext">
-              Do something great to earn your first badge.
-            </div>
-          </article>
-        </div>
-
-        <!-- Weekly schedule + training focus -->
-        <article class="card section-card" style="margin-top:10px;">
-          <div class="subsection-title">Weekly schedule</div>
-          <div class="subsection-sub" id="weekSummary">
-            Your shifts for this week.
-          </div>
-
-          <!-- the schedule.js script will fill #scheduleCard
-               and handle week tabs if you re-use them -->
-          <div id="scheduleCard"></div>
-        </article>
-
-        <article class="card section-card" style="margin-top:10px;">
-          <div class="subsection-title">Training focus</div>
-          <div class="subsection-sub">
-            Priority training modules picked just for you.
-          </div>
-
-          <ul class="list" id="trainingFocusList">
-            <!-- main.js fills this with training modules -->
-          </ul>
-        </article>
+      <!-- Top metric cards -->
+      <section id="topCards" class="cards-grid">
+        <!-- JS renders cards here -->
       </section>
 
-      <!-- ========== RIGHT: McASSIST PANEL ========== -->
-      <aside class="ai-panel">
-        <div class="ai-header">
-          <div class="ai-header-left">
-            <div class="ai-avatar">A</div>
-            <div class="ai-header-text">
-              <h3>McAssist</h3>
-              <p>Ask about hours, pay, shifts &amp; training.</p>
-            </div>
-          </div>
-          <div class="ai-status">
-            <span class="ai-status-dot"></span>
-            Online
-          </div>
-        </div>
-
-        <!-- Quick chips (main.js can populate or you can leave static) -->
-        <div class="ai-suggestions" id="aiSuggestions">
-          <button class="suggestion-chip">
-            How many hours do I work this week?
-          </button>
-          <button class="suggestion-chip">
-            How much will I earn?
-          </button>
-          <button class="suggestion-chip">
-            When is my next shift?
-          </button>
-          <button class="suggestion-chip">
-            What training do I need?
-          </button>
-        </div>
-
-        <!-- Chat log -->
-        <div id="chatLog" class="ai-chat">
-          <!-- main.js will append .message elements here -->
-          <div class="message msg-bot">
-            <div class="bubble">
-              Hi Alex 👋 I can help with hours, pay, breaks and shifts.
-            </div>
-            <div class="msg-meta">McAssist</div>
-          </div>
-        </div>
-
-        <!-- Input row -->
-        <div class="ai-input-row">
-          <input
-            id="chatInput"
-            type="text"
-            placeholder="Ask McAssist something..."
-            autocomplete="off"
-          />
-          <button id="voiceBtn" class="voice-btn" type="button">🎙️</button>
-          <button id="sendBtn" class="ai-send-btn" type="button">
-            Send →
-          </button>
-        </div>
-
-        <label class="wake-toggle">
-          <input type="checkbox" id="wakeToggle" />
-          Enable "Hey Amy"
-        </label>
-      </aside>
-    </main>
-
-    <!-- ========== VOICE OVERLAY ========== -->
-    <div id="voiceOverlay" class="voice-overlay">
-      <div class="overlay-text">Listening… ask McAssist anything</div>
-      <button id="overlayMicBtn" class="overlay-mic-btn" type="button">
-        🎙️
-      </button>
+      <!-- Bottom section -->
+      <section id="bottomSection" class="card section-card">
+        <!-- JS injects schedule OR crew summary here -->
+      </section>
     </div>
-  </body>
+
+    <!-- ====== RIGHT SIDE – AI PANEL ====== -->
+    <aside class="ai-panel">
+
+      <div class="ai-header">
+        <div class="ai-header-left">
+          <div class="ai-avatar">A</div>
+          <div class="ai-header-text">
+            <h3>McAssist</h3>
+            <p id="aiSubtitle">Ask about your hours, pay or training.</p>
+          </div>
+        </div>
+
+        <div class="ai-status">
+          <span class="ai-status-dot"></span>
+          <span>Online</span>
+        </div>
+      </div>
+
+      <!-- Suggestions -->
+      <div id="aiSuggestions" class="ai-suggestions"></div>
+
+      <!-- Chat messages -->
+      <div id="aiChat" class="ai-chat"></div>
+
+      <!-- Input row -->
+      <form id="aiForm" class="ai-input-row">
+        <input id="aiInput" type="text" placeholder="Ask McAssist something…"/>
+        <button id="aiSendBtn" type="submit" class="ai-send-btn">
+          <span>Send</span> ➤
+        </button>
+        <button type="button" id="aiMicBtn" class="voice-btn">🎤</button>
+      </form>
+
+      <label class="wake-toggle">
+        <input type="checkbox" id="wakeToggle"/>
+        <span>Enable “Hey Amy”</span>
+      </label>
+
+    </aside>
+  </div>
+
+  <!-- ========= VOICE OVERLAY ========= -->
+  <div id="voiceOverlay" class="voice-overlay">
+    <div id="overlayText" class="overlay-text">Ask me anything</div>
+    <button id="overlayMic" class="overlay-mic-btn">🎤</button>
+  </div>
+
+  <!-- ========= CREW PROFILE OVERLAY ========= -->
+  <div id="crewProfileOverlay" class="crew-profile-overlay">
+    <div class="crew-profile-card">
+
+      <div class="crew-profile-header">
+        <div class="crew-profile-main">
+          <div id="crewProfileAvatar" class="crew-profile-avatar">C</div>
+          <div>
+            <h3 id="crewProfileName"></h3>
+            <p id="crewProfileRole"></p>
+            <p id="crewProfileStore" class="crew-profile-store"></p>
+          </div>
+        </div>
+        <button id="crewProfileClose" class="crew-profile-close">✕</button>
+      </div>
+
+      <div class="crew-profile-body">
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">Training status</span>
+          <span id="crewProfileStatus"></span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">Badge</span>
+          <span id="crewProfileBadge"></span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">McStars</span>
+          <span id="crewProfileStars"></span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">Next shift</span>
+          <span id="crewProfileNextShift"></span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">Stations</span>
+          <span id="crewProfileStations"></span>
+        </div>
+
+        <div class="crew-profile-notes">
+          <div class="crew-profile-label">Notes</div>
+          <p id="crewProfileNotes"></p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========= JS ========= -->
+  <script type="module" src="main.js"></script>
+</body>
 </html>

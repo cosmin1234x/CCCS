@@ -1,39 +1,26 @@
-/* mc-theme.css – modern McDonald's dashboard theme  */
-
-/* ========= DESIGN TOKENS ========= */
+/* mc-theme.css */
+/* ========= McDonald's style theme ========= */
 
 :root {
-  /* Brand */
-  --mc-red: #da0b1c;
-  --mc-red-soft: #fee2e2;
-  --mc-yellow: #ffc400;
-  --mc-yellow-soft: #fff4c4;
-
-  /* Neutrals */
-  --bg-page: #f5f5f4;
-  --bg-soft: #fefaf3;
-  --bg-elevated: #ffffff;
-  --text-main: #111827;
-  --text-muted: #6b7280;
-  --border-subtle: #e5e7eb;
-  --border-strong: #facc15;
-
-  /* Effects */
-  --shadow-soft: 0 10px 25px rgba(15, 23, 42, 0.08);
-  --shadow-strong: 0 18px 40px rgba(15, 23, 42, 0.18);
-
-  --radius-lg: 18px;
-  --radius-pill: 999px;
+  --mc-red: #d9091c;
+  --mc-red-dark: #a30716;
+  --mc-yellow: #ffc300;
+  --mc-yellow-soft: #fff3b0;
+  --mc-dark: #111827;
+  --mc-muted: #6b7280;
+  --bg-soft: #fff7ed;
+  --card-bg: #ffffff;
+  --border-yellow: #facc15;
+  --radius-lg: 20px;
 }
 
-/* ========= BASE ========= */
+/* ====== Base ====== */
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "Segoe UI", sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 body {
@@ -42,13 +29,13 @@ body {
   align-items: stretch;
   justify-content: center;
   background:
-    radial-gradient(circle at top left, rgba(255, 196, 0, 0.12), transparent 60%),
-    radial-gradient(circle at bottom right, rgba(218, 11, 28, 0.12), transparent 60%),
-    linear-gradient(180deg, #fffdf7, var(--bg-page));
-  color: var(--text-main);
+    radial-gradient(circle at top left, rgba(255, 195, 0, 0.45), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(217, 9, 28, 0.35), transparent 55%),
+    linear-gradient(180deg, #fff9e6, #ffe6cf);
+  color: var(--mc-dark);
 }
 
-/* ========= AUTH PAGES ========= */
+/* ========= AUTH PAGES (login & signup) ========= */
 
 .auth-page {
   align-items: center;
@@ -58,11 +45,11 @@ body {
 .auth-shell {
   width: 100%;
   max-width: 480px;
-  background: linear-gradient(145deg, #fffaf2, #ffffff);
+  background: radial-gradient(circle at top, #fff7ed, #fffbeb);
   border-radius: 22px;
-  padding: 22px 24px 18px;
-  box-shadow: var(--shadow-strong);
-  border: 1px solid rgba(250, 204, 21, 0.9);
+  padding: 20px 22px 18px;
+  box-shadow: 0 18px 40px rgba(148, 27, 12, 0.35);
+  border: 1px solid rgba(250, 204, 21, 0.85);
   position: relative;
   overflow: hidden;
 }
@@ -70,12 +57,12 @@ body {
 .auth-shell::before {
   content: "";
   position: absolute;
-  right: -60px;
-  top: -60px;
-  width: 150px;
-  height: 150px;
+  right: -40px;
+  top: -40px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
-  border: 14px solid rgba(255, 195, 0, 0.22);
+  border: 12px solid rgba(255, 195, 0, 0.25);
 }
 
 .auth-header {
@@ -88,8 +75,8 @@ body {
 }
 
 .logo-circle {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: #ffffff;
   display: flex;
@@ -108,14 +95,14 @@ body {
 
 .auth-header-text p {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: var(--mc-muted);
 }
 
 .tagline {
   font-size: 0.75rem;
-  color: #92400e;
+  color: #b45309;
   background: #fffbeb;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -155,23 +142,22 @@ label {
 
 input,
 select {
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  border: 1px solid #fecaca;
   padding: 9px 13px;
   font-size: 0.88rem;
   outline: none;
-  background: #f9fafb;
-  transition: border 0.18s ease, box-shadow 0.18s ease, background 0.18s ease,
-    transform 0.06s ease;
+  background: #fff7ed;
+  transition: border 0.2s, box-shadow 0.2s, transform 0.08s;
   width: 100%;
 }
 
 input:focus,
 select:focus {
   border-color: var(--mc-red);
-  box-shadow: 0 0 0 1px rgba(218, 11, 28, 0.4);
-  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(217, 9, 28, 0.18);
   transform: translateY(-1px);
+  background: #ffffff;
 }
 
 /* Buttons */
@@ -179,21 +165,20 @@ select:focus {
 .btn,
 .login-button,
 .btn-primary {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: none;
   padding: 11px 16px;
   font-size: 0.95rem;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--mc-red), #970411);
+  background: linear-gradient(135deg, var(--mc-red), var(--mc-red-dark));
   color: #fefce8;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  box-shadow: 0 12px 22px rgba(148, 27, 12, 0.45);
-  transition: transform 0.08s ease, box-shadow 0.12s ease,
-    filter 0.1s ease, translate 0.08s ease;
+  box-shadow: 0 12px 22px rgba(148, 27, 12, 0.6);
+  transition: transform 0.08s, box-shadow 0.1s, filter 0.1s;
   margin-top: 4px;
 }
 
@@ -208,14 +193,13 @@ select:focus {
 .btn-primary:hover {
   filter: brightness(1.05);
   transform: translateY(-1px);
-  box-shadow: 0 14px 24px rgba(148, 27, 12, 0.5);
 }
 
 .btn:active,
 .login-button:active,
 .btn-primary:active {
   transform: translateY(0);
-  box-shadow: 0 8px 15px rgba(148, 27, 12, 0.38);
+  box-shadow: 0 8px 15px rgba(148, 27, 12, 0.6);
 }
 
 .btn:disabled,
@@ -232,7 +216,7 @@ select:focus {
   margin-top: 6px;
   font-size: 0.8rem;
   color: #b91c1c;
-  background: #fef2f2;
+  background: #fee2e2;
   border-radius: 10px;
   padding: 6px 9px;
   border: 1px solid #fecaca;
@@ -258,7 +242,7 @@ select:focus {
 }
 
 .link-row a {
-  color: var(--mc-red);
+  color: var(--mc-red-dark);
   text-decoration: none;
   font-weight: 700;
 }
@@ -286,12 +270,14 @@ select:focus {
 
 .sidebar {
   width: 250px;
-  background: linear-gradient(180deg, #111827, #101827);
-  color: #f9fafb;
+  background:
+    radial-gradient(circle at top, rgba(255, 195, 0, 0.8), transparent 55%),
+    linear-gradient(160deg, var(--mc-red), var(--mc-red-dark));
+  color: #fefce8;
   display: flex;
   flex-direction: column;
   padding: 18px 16px;
-  box-shadow: 4px 0 18px rgba(15, 23, 42, 0.45);
+  box-shadow: 4px 0 18px rgba(148, 27, 12, 0.35);
   position: relative;
   overflow: hidden;
 }
@@ -299,12 +285,12 @@ select:focus {
 .sidebar::after {
   content: "";
   position: absolute;
-  right: -60px;
-  bottom: -60px;
-  width: 170px;
-  height: 170px;
+  right: -40px;
+  bottom: -40px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
-  border: 14px solid rgba(255, 195, 0, 0.18);
+  border: 12px solid rgba(255, 195, 0, 0.15);
 }
 
 .sidebar-header {
@@ -325,16 +311,16 @@ select:focus {
 
 .sidebar-header-text p {
   font-size: 0.75rem;
-  color: #e5e7eb;
+  color: #fde68a;
 }
 
 /* Hamburger toggle (hidden on desktop) */
 .sidebar-toggle {
   margin-left: auto;
   border: none;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(0,0,0,0.25);
   color: #fefce8;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   padding: 4px 8px;
   font-size: 0.9rem;
   cursor: pointer;
@@ -364,28 +350,29 @@ select:focus {
 }
 
 .nav-item {
-  padding: 8px 13px;
-  border-radius: var(--radius-pill);
+  padding: 7px 12px;
+  border-radius: 999px;
   font-size: 0.86rem;
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  color: #e5e7eb;
+  color: #fefce8;
   transition: background 0.15s ease, transform 0.08s ease;
   position: relative;
 }
 
 .nav-item:hover {
-  background: rgba(55, 65, 81, 0.7);
+  background: rgba(0, 0, 0, 0.18);
   transform: translateX(2px);
 }
 
 .nav-item.active {
   background: #fef9c3;
-  color: var(--mc-red);
+  color: var(--mc-red-dark);
 }
 
+/* active indicator bar on the left */
 .nav-item.active::before {
   content: "";
   position: absolute;
@@ -402,7 +389,7 @@ select:focus {
   height: 8px;
   border-radius: 50%;
   background: var(--mc-yellow);
-  box-shadow: 0 0 0 3px rgba(248, 250, 252, 0.12);
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.35);
 }
 
 .nav-icon {
@@ -418,8 +405,8 @@ select:focus {
 .sidebar-footer {
   margin-top: auto;
   font-size: 0.75rem;
-  color: #e5e7eb;
-  border-top: 1px solid rgba(248, 250, 252, 0.2);
+  color: #fef3c7;
+  border-top: 1px solid rgba(248, 250, 252, 0.12);
   padding-top: 10px;
   position: relative;
   z-index: 1;
@@ -431,17 +418,17 @@ select:focus {
 
 .sidebar-footer button {
   margin-top: 8px;
-  padding: 6px 10px;
-  border-radius: var(--radius-pill);
+  padding: 5px 10px;
+  border-radius: 999px;
   border: none;
-  background: #f9fafb;
-  color: #111827;
+  background: #111827;
+  color: #f9fafb;
   font-size: 0.78rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.45);
+  box-shadow: 0 5px 10px rgba(15, 23, 42, 0.5);
   width: 100%;
   justify-content: center;
 }
@@ -471,8 +458,6 @@ select:focus {
   gap: 14px;
 }
 
-/* Top bar */
-
 .top-bar {
   display: flex;
   align-items: center;
@@ -496,7 +481,7 @@ select:focus {
 
 .top-bar-left p {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: var(--mc-muted);
 }
 
 .chip {
@@ -505,7 +490,7 @@ select:focus {
   gap: 6px;
   background: var(--mc-yellow-soft);
   color: #92400e;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   padding: 4px 10px;
   font-size: 0.7rem;
   border: 1px solid #fed7aa;
@@ -522,10 +507,10 @@ select:focus {
 }
 
 .badge-role {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   padding: 5px 12px;
   font-size: 0.75rem;
-  background: #111827;
+  background: var(--mc-dark);
   color: #fefce8;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -534,17 +519,17 @@ select:focus {
 .avatar {
   width: 36px;
   height: 36px;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   background: var(--mc-yellow);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
   border: 2px solid #f97316;
-  box-shadow: 0 6px 12px rgba(248, 113, 22, 0.5);
+  box-shadow: 0 6px 12px rgba(248, 113, 22, 0.55);
 }
 
-/* ========= CARDS ========= */
+/* Cards */
 
 .cards-grid {
   display: grid;
@@ -553,11 +538,11 @@ select:focus {
 }
 
 .card {
-  background: var(--bg-elevated);
+  background: var(--card-bg);
   border-radius: var(--radius-lg);
   padding: 12px 13px;
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(250, 204, 21, 0.7);
+  box-shadow: 0 10px 20px rgba(248, 113, 22, 0.18);
   position: relative;
   overflow: hidden;
 }
@@ -570,7 +555,7 @@ select:focus {
   width: 90px;
   height: 90px;
   border-radius: 50%;
-  border: 10px solid rgba(255, 224, 138, 0.25);
+  border: 10px solid rgba(255, 195, 0, 0.12);
 }
 
 .card-header {
@@ -604,7 +589,7 @@ select:focus {
 
 .card-subtext {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--mc-muted);
   position: relative;
   z-index: 1;
 }
@@ -629,7 +614,7 @@ select:focus {
 
 .subsection-sub {
   font-size: 0.78rem;
-  color: var(--text-muted);
+  color: var(--mc-muted);
   margin-bottom: 8px;
 }
 
@@ -644,7 +629,7 @@ select:focus {
   justify-content: space-between;
   align-items: center;
   padding: 5px 0;
-  border-bottom: 1px dashed #e5e7eb;
+  border-bottom: 1px dashed #facc15;
   gap: 8px;
 }
 
@@ -653,7 +638,7 @@ select:focus {
 }
 
 .badge-soft {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   padding: 2px 7px;
   font-size: 0.7rem;
   background: #eff6ff;
@@ -661,7 +646,7 @@ select:focus {
 }
 
 .badge-soft-danger {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   padding: 2px 7px;
   font-size: 0.7rem;
   background: #fee2e2;
@@ -669,7 +654,7 @@ select:focus {
 }
 
 .badge-soft-warn {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   padding: 2px 7px;
   font-size: 0.7rem;
   background: #fef3c7;
@@ -686,7 +671,7 @@ select:focus {
 }
 
 .crew-edit-btn {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: 1px solid #fbbf24;
   padding: 3px 7px;
   font-size: 0.7rem;
@@ -698,16 +683,16 @@ select:focus {
   background: #fef3c7;
 }
 
-/* ========= AI PANEL ========= */
+/* ========= AI Panel ========= */
 
 .ai-panel {
   flex: 1.3;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(145deg, #fffaf2, #ffffff);
+  background: radial-gradient(circle at top, #fff7ed, #ffedd5);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(229, 231, 235, 0.9);
-  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(248, 250, 252, 0.8);
+  box-shadow: 0 12px 30px rgba(148, 27, 12, 0.25);
   padding: 12px;
   max-height: calc(100vh - 32px);
   position: sticky;
@@ -747,7 +732,7 @@ select:focus {
 
 .ai-header-text p {
   font-size: 0.72rem;
-  color: var(--text-muted);
+  color: var(--mc-muted);
 }
 
 .ai-status {
@@ -787,7 +772,7 @@ select:focus {
 
 .msg-user .bubble {
   display: inline-block;
-  background: #111827;
+  background: var(--mc-dark);
   color: #f9fafb;
   padding: 6px 9px;
   border-radius: 14px 14px 2px 14px;
@@ -804,7 +789,7 @@ select:focus {
 
 .msg-meta {
   font-size: 0.65rem;
-  color: var(--text-muted);
+  color: var(--mc-muted);
   margin-top: 2px;
 }
 
@@ -816,7 +801,7 @@ select:focus {
 }
 
 .suggestion-chip {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: 1px solid #fed7aa;
   padding: 4px 8px;
   font-size: 0.7rem;
@@ -834,7 +819,7 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 6px;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: 1px solid #fed7aa;
   padding: 4px 6px;
   background: #fff;
@@ -849,7 +834,7 @@ select:focus {
 }
 
 .ai-send-btn {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: none;
   padding: 5px 10px;
   font-size: 0.8rem;
@@ -875,7 +860,7 @@ select:focus {
   align-items: center;
   gap: 6px;
   padding: 4px 9px;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: 1px solid #e5e7eb;
   font-size: 0.72rem;
   cursor: pointer;
@@ -893,7 +878,7 @@ select:focus {
 .progress-bar {
   width: 100%;
   height: 6px;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   background: #e5e7eb;
   overflow: hidden;
   margin-top: 4px;
@@ -929,7 +914,7 @@ select:focus {
 }
 
 .badge-soft-success {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   padding: 2px 7px;
   font-size: 0.7rem;
   background: #ecfdf5;
@@ -937,7 +922,7 @@ select:focus {
 }
 
 .status-btn {
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: 1px solid #e5e7eb;
   padding: 3px 7px;
   font-size: 0.7rem;
@@ -949,8 +934,9 @@ select:focus {
   background: #f3f4f6;
 }
 
-/* ===== Responsive tweaks (same structure, updated colours only) ===== */
+/* ===== Extra mobile tuning ===== */
 
+/* Tablets / small laptops */
 @media (max-width: 900px) {
   body.app-page {
     flex-direction: column;
@@ -958,6 +944,7 @@ select:focus {
 
   .sidebar {
     width: 100%;
+    flex-direction: column;
     padding: 10px 14px;
   }
 
@@ -965,6 +952,7 @@ select:focus {
     display: inline-flex;
   }
 
+  /* hide nav by default on small screens, open with .sidebar-open */
   .sidebar-nav {
     margin-top: 6px;
     max-height: 0;
@@ -974,6 +962,10 @@ select:focus {
 
   .sidebar.sidebar-open .sidebar-nav {
     max-height: 260px;
+  }
+
+  .nav-list {
+    flex-direction: column;
   }
 
   .main-layout {
@@ -998,6 +990,7 @@ select:focus {
   }
 }
 
+/* Phones */
 @media (max-width: 640px) {
   .sidebar {
     padding-bottom: 70px;
@@ -1009,7 +1002,7 @@ select:focus {
     bottom: 8px;
     left: 12px;
     right: 12px;
-    background: rgba(15, 23, 42, 0.85);
+    background: rgba(0, 0, 0, 0.15);
     padding: 8px;
     border-radius: 10px;
   }
@@ -1074,6 +1067,7 @@ select:focus {
   }
 }
 
+/* Very small phones */
 @media (max-width: 420px) {
   .sidebar {
     padding: 8px 10px 70px;
@@ -1103,10 +1097,73 @@ select:focus {
     font-size: 0.75rem;
   }
 }
+/* === Voice overlay (full-screen “Talking to Amy” mode) === */
+.voice-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(12px);
+  z-index: 999;
+}
 
-/* ===== voice / McAssist extras (mostly colours kept, just aligned to new tokens) ===== */
+.voice-overlay.active {
+  display: flex;
+}
 
-/* Thinking animation */
+.overlay-text {
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+/* === McDonald's-style STOP mic button inside overlay === */
+.overlay-mic-btn {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #d9091c;   /* same red as your theme */
+  color: #ffc300;        /* same yellow as your theme */
+
+  font-size: 2.4rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.overlay-mic-btn:active {
+  transform: scale(0.94);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* === Wake word toggle ("Enable Hey Amy") === */
+.wake-toggle {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #6b7280;
+  opacity: 0.9;
+}
+
+.wake-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+}
+/* === McAssist thinking animation === */
+
 .thinking .bubble {
   display: inline-flex;
   align-items: center;
@@ -1139,8 +1196,7 @@ select:focus {
   50% { opacity: 1; transform: translateY(-1px); }
   100% { opacity: 0.3; transform: translateY(0); }
 }
-
-/* Mic button by input */
+/* === Small mic button (next to input) === */
 
 .voice-btn {
   width: 38px;
@@ -1148,21 +1204,26 @@ select:focus {
   border-radius: 999px;
   border: none;
   cursor: pointer;
+
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
   background: radial-gradient(circle at 30% 0%, #ffeaa7, #ffc300);
   color: #111827;
   font-size: 1.2rem;
+
   box-shadow:
     0 0 0 2px rgba(255, 255, 255, 0.7),
     0 6px 14px rgba(148, 27, 12, 0.4);
+
   position: relative;
   overflow: hidden;
   transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.1s ease;
 }
 
 .voice-btn::after {
+  /* soft pulsing ring */
   content: "";
   position: absolute;
   inset: 0;
@@ -1189,25 +1250,37 @@ select:focus {
     0 4px 10px rgba(148, 27, 12, 0.45);
 }
 
+/* subtle rhythmic pulse */
 @keyframes micButtonPulse {
-  0% { opacity: 0.7; transform: scale(0.6); }
-  70% { opacity: 0; transform: scale(1.4); }
-  100% { opacity: 0; transform: scale(1.4); }
+  0% {
+    opacity: 0.7;
+    transform: scale(0.6);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
 }
-
-/* Full-screen voice overlay */
+/* === Full-screen voice overlay === */
 
 .voice-overlay {
   position: fixed;
   inset: 0;
   display: none;
+
   background: radial-gradient(circle at top, rgba(255, 195, 0, 0.28), transparent 55%),
               radial-gradient(circle at bottom, rgba(217, 9, 28, 0.82), #111827);
   backdrop-filter: blur(14px);
+
   z-index: 999;
   align-items: center;
   justify-content: center;
   flex-direction: column;
+
   animation: voiceOverlayFadeIn 0.18s ease-out;
 }
 
@@ -1224,7 +1297,7 @@ select:focus {
   text-shadow: 0 3px 10px rgba(0, 0, 0, 0.7);
 }
 
-/* Big mic */
+/* === Big McDonald's mic in the middle === */
 
 .overlay-mic-btn {
   width: 96px;
@@ -1232,21 +1305,28 @@ select:focus {
   border-radius: 50%;
   border: none;
   cursor: pointer;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   background: radial-gradient(circle at 30% 0%, #ffeaa7, #ffc300);
   color: #b91c1c;
   font-size: 2.6rem;
+
   box-shadow:
     0 0 0 4px rgba(255, 249, 196, 0.85),
     0 10px 28px rgba(0, 0, 0, 0.5);
+
   position: relative;
   overflow: visible;
   transition: transform 0.08s ease, box-shadow 0.1s ease, filter 0.08s ease;
+
+  /* gentle breathing */
   animation: micBreath 1.7s infinite ease-in-out;
 }
 
+/* Pulsing ring behind big mic */
 .overlay-mic-btn::before {
   content: "";
   position: absolute;
@@ -1273,24 +1353,46 @@ select:focus {
     0 8px 22px rgba(0, 0, 0, 0.6);
 }
 
+/* === Animations === */
+
 @keyframes voiceOverlayFadeIn {
-  from { opacity: 0; transform: scale(1.02); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes micBreath {
-  0%   { transform: translateY(0) scale(1); }
-  50%  { transform: translateY(-2px) scale(1.02); }
-  100% { transform: translateY(0) scale(1); }
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.02);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes micWave {
-  0%   { opacity: 0.7; transform: scale(0.7); }
-  70%  { opacity: 0; transform: scale(1.3); }
-  100% { opacity: 0; transform: scale(1.3); }
+  0% {
+    opacity: 0.7;
+    transform: scale(0.7);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
 }
-
-/* ===== Crew profile / McStars sections – colours nudged but structure same ===== */
+/* === Crew Profile Overlay === */
 
 .crew-profile-overlay {
   position: fixed;
@@ -1309,10 +1411,11 @@ select:focus {
 
 .crew-profile-card {
   width: min(480px, 92vw);
-  background: radial-gradient(circle at top, #fff7ed, #ffedd5);
+  background:
+    radial-gradient(circle at top, #fff7ed, #ffedd5);
   border-radius: 24px;
   border: 1px solid rgba(250, 204, 21, 0.9);
-  box-shadow: var(--shadow-strong);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.6);
   padding: 18px 18px 16px;
   position: relative;
   animation: crewProfilePop 0.18s ease-out;
@@ -1406,10 +1509,26 @@ select:focus {
   border: 1px solid #fed7aa;
 }
 
+/* Simple pop-up animation */
 @keyframes crewProfilePop {
-  from { opacity: 0; transform: translateY(6px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
+.mcstar-pill {
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.7rem;
+  background: linear-gradient(135deg, #facc15, #f97316);
+  color: #111827;
+  box-shadow: 0 2px 6px rgba(248, 113, 22, 0.5);
+}
+/* ===== McStars row styling ===== */
 
 .crew-list {
   margin-top: 6px;
@@ -1450,6 +1569,8 @@ select:focus {
   gap: 6px;
 }
 
+/* McStar pills */
+
 .mcstar-pill {
   border-radius: 999px;
   padding: 3px 10px;
@@ -1468,6 +1589,7 @@ select:focus {
   font-size: 0.9rem;
 }
 
+/* tiers */
 .mcstar-pill--bronze {
   background: linear-gradient(135deg, #f97316, #b45309);
 }
@@ -1485,6 +1607,8 @@ select:focus {
   color: #4b5563;
   box-shadow: none;
 }
+
+/* Training status chip */
 
 .training-chip {
   border-radius: 999px;
@@ -1514,6 +1638,8 @@ select:focus {
   color: #b45309;
 }
 
+/* Profile / Edit buttons in row */
+
 .crew-row-btn {
   border-radius: 999px;
   border: none;
@@ -1530,6 +1656,8 @@ select:focus {
   border: 1px solid #e5e7eb;
 }
 
+/* summary footer */
+
 .crew-summary-footer {
   display: flex;
   flex-wrap: wrap;
@@ -1538,17 +1666,20 @@ select:focus {
   font-size: 0.78rem;
 }
 
+/* mobile tweak */
 @media (max-width: 640px) {
   .crew-row {
     flex-direction: column;
     align-items: flex-start;
   }
+
   .crew-row-actions {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
 }
 
+/* Top bar "My profile" button */
 .crew-profile-top-btn {
   border-radius: 999px;
   border: none;
@@ -1565,7 +1696,6 @@ select:focus {
 .crew-profile-top-btn:hover {
   background: #fde68a;
 }
-
 .shift-btn {
   position: relative;
   z-index: 1;
