@@ -2,126 +2,105 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal – Training</title>
+  <title>McTraining – Gamified Training</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="mc-theme.css" />
+  <link rel="stylesheet" href="mc-training-new.css" />
 </head>
-<body class="app-page">
 
-  <!-- ========= SIDEBAR ========= -->
+<body class="training-app">
+<!-- Reward popup system -->
+<div id="rewardPopupContainer"></div>
+
+  <!-- ====== SIDEBAR ====== -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo-circle">M</div>
-      <div class="sidebar-header-text">
+      <div>
         <h1>McTraining</h1>
-        <p>Crew & Manager portal</p>
+        <p>Training & Development</p>
       </div>
       <button id="sidebarToggle" class="sidebar-toggle">☰</button>
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-title">Main</div>
       <ul class="nav-list">
-        <li class="nav-item" onclick="window.location.href='main.html'">
-          <span class="nav-dot"></span>
-          <span class="nav-icon">🏠</span>
-          <span class="nav-label">Dashboard</span>
-        </li>
-        <li class="nav-item active" onclick="window.location.href='training.html'">
-          <span class="nav-dot"></span>
-          <span class="nav-icon">🎓</span>
-          <span class="nav-label">Training</span>
-          <li class="nav-item" onclick="window.location.href='schedule.html'">
-  <span class="nav-dot"></span>
-  <span class="nav-icon">📅</span>
-  <span class="nav-label">Shifts</span>
-</li>
-
-        </li>
+        <li onclick="window.location.href='main.html'">🏠 Dashboard</li>
+        <li class="active" onclick="window.location.href='training.html'">🎓 Training</li>
+        <li onclick="window.location.href='schedule.html'">📅 Shifts</li>
       </ul>
     </nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-user-label">
-        <strong id="sidebarUserName">User Name</strong><br />
-        <span id="sidebarUserRole">Crew Member</span>
-      </div>
+      <strong id="sidebarUserName">User</strong><br>
+      <span id="sidebarUserRole">Crew</span>
       <button id="logoutBtn">Log out</button>
     </div>
   </aside>
 
-  <!-- ========= MAIN LAYOUT ========= -->
-  <div class="main-layout">
-    <div class="content-area">
-      <div class="top-bar">
-        <div class="top-bar-left">
-          <h2 id="trainingTitle">Training overview</h2>
-          <p id="trainingSubtitle">Modules and certifications for your store.</p>
-        </div>
-        <div class="top-bar-right">
-          <span id="roleBadge" class="badge-role">Crew</span>
-          <div id="avatarCircle" class="avatar">U</div>
-        </div>
+  <!-- ====== MAIN CONTENT ====== -->
+  <main class="main-panel">
+
+    <!-- LEVEL + XP BAR -->
+    <section class="xp-header">
+      <div class="level-circle" id="levelCircle">1</div>
+
+      <div class="xp-bar-wrapper">
+        <div class="xp-bar-fill" id="xpFill"></div>
       </div>
 
-      <!-- ===== STORE-WIDE TRAINING METRICS (manager focus) ===== -->
-      <section id="trainingMetrics" class="cards-grid">
-        <!-- Filled by training.js -->
-      </section>
-
-      <!-- Station versatility block -->
-      <section id="stationVersatilityCard" class="card section-card" style="margin-top:10px;">
-        <!-- Filled by training.js -->
-      </section>
-
-      <!-- Filters + personal/store modules -->
-      <div class="card section-card" style="margin-top:10px;">
-        <div class="subsection-title">Filters</div>
-        <div class="subsection-sub" id="filtersDescription">
-          Focus on a role or status to see the most important modules.
-        </div>
-
-        <div id="filterRow">
-          <button class="pill-filter active" data-filter="all">All modules</button>
-          <button class="pill-filter" data-filter="crew">Crew basics</button>
-          <button class="pill-filter" data-filter="kitchen">Kitchen</button>
-          <button class="pill-filter" data-filter="drive">Drive-thru</button>
-          <button class="pill-filter" data-filter="manager">Manager</button>
-        </div>
-
-        <div style="margin-top:10px;">
-          <span style="font-size:0.8rem;color:#6b7280;">Overall completion</span>
-          <div class="progress-bar">
-            <div id="trainingProgress" class="progress-bar-inner"></div>
-          </div>
-        </div>
+      <div class="xp-label">
+        <span id="xpText">0 / 100 XP</span>
       </div>
+    </section>
 
-      <!-- Modules table -->
-      <div class="card section-card" style="margin-top:10px;">
-        <div class="subsection-title" id="modulesTitle">Modules</div>
-        <div class="subsection-sub" id="modulesSubtitle">
-          Click a status to update it if you’re a manager.
-        </div>
+    <!-- BATTLE PASS TRACK -->
+    <section class="track-section">
+      <h2>Your Training Track</h2>
+      <p class="track-sub">Complete modules, earn XP, level up & unlock rewards.</p>
 
-        <table id="modulesTable">
-          <thead>
-            <tr>
-              <th>Module</th>
-              <th>Category</th>
-              <th>Status</th>
-              <th>Crew name</th>
-            </tr>
-          </thead>
-          <tbody id="modulesBody">
-            <!-- Filled by training.js -->
-          </tbody>
-        </table>
+      <div class="track-container" id="trackContainer">
+        <!-- training.js fills cards here -->
       </div>
+    </section>
+
+    <!-- STORE METRICS (Manager Only) -->
+    <section class="manager-metrics" id="managerMetrics"></section>
+
+  </main>
+
+  <!-- ===== MODULE MODAL ===== -->
+  <div class="modal" id="moduleModal">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModuleModal()">✕</button>
+      <h2 id="moduleTitle"></h2>
+      <p id="moduleDescription"></p>
+
+      <button id="startQuizBtn" class="btn-primary">Start Quiz</button>
     </div>
   </div>
 
-  <!-- Scripts -->
-  <script type="module" src="training.js"></script>
+  <!-- ===== QUIZ MODAL ===== -->
+  <div class="modal" id="quizModal">
+    <div class="modal-box quiz-box">
+      <button class="modal-close" onclick="closeQuizModal()">✕</button>
+      <h2 id="quizTitle"></h2>
+
+      <div id="quizQuestion"></div>
+      <div id="quizOptions"></div>
+
+      <button id="submitQuizBtn" class="btn-primary">Submit</button>
+    </div>
+  </div>
+
+  <!-- ===== LOOT CRATE / REWARD MODAL ===== -->
+  <div class="modal" id="rewardModal">
+    <div class="modal-box reward-box">
+      <h2>🎁 Reward Unlocked!</h2>
+      <p id="rewardText"></p>
+      <button class="btn-primary" onclick="closeRewardModal()">Collect</button>
+    </div>
+  </div>
+
+  <script type="module" src="training-new.js"></script>
 </body>
 </html>

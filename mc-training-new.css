@@ -1,0 +1,396 @@
+/* =========================================================
+   MCTRANING — MODERN GAMIFIED THEME
+   Clean McDonald's colours + futuristic UI
+   ========================================================= */
+
+:root {
+  --mc-red: #d9091c;
+  --mc-yellow: #ffc300;
+  --mc-dark: #111;
+  --mc-light: #f8f8f8;
+  --mc-grey: #d1d5db;
+  --mc-accent: #ffec8b;
+
+  --radius: 16px;
+  --shadow: 0 8px 20px rgba(0,0,0,0.15);
+  --transition: all .25s ease;
+}
+
+/* Reset */
+* {
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family:"Inter",system-ui,sans-serif;
+}
+
+body.training-app {
+  display:flex;
+  background:#fafafa;
+  color:#111;
+  height:100vh;
+}
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
+.sidebar {
+  width:260px;
+  background:linear-gradient(180deg, var(--mc-red), #a30716);
+  color:white;
+  display:flex;
+  flex-direction:column;
+  padding:18px;
+  box-shadow: 4px 0 20px rgba(0,0,0,0.25);
+}
+
+.logo-circle {
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  background:white;
+  color:var(--mc-red);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:900;
+  font-size:1.5rem;
+}
+
+.sidebar-header {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:20px;
+}
+
+.sidebar-toggle {
+  display:none;
+}
+
+.sidebar-nav {
+  margin-top:10px;
+}
+
+.nav-list li {
+  list-style:none;
+  padding:12px 14px;
+  margin-bottom:6px;
+  border-radius:var(--radius);
+  background:rgba(255,255,255,0.06);
+  cursor:pointer;
+  transition:var(--transition);
+  font-size:0.95rem;
+}
+
+.nav-list li:hover {
+  background:rgba(255,255,255,0.18);
+}
+
+.nav-list .active {
+  background:white;
+  color:var(--mc-red);
+  font-weight:700;
+}
+
+.sidebar-footer {
+  margin-top:auto;
+  color:#ffe;
+  font-size:0.85rem;
+}
+
+#logoutBtn {
+  width:100%;
+  margin-top:10px;
+  padding:8px;
+  background:white;
+  color:var(--mc-red);
+  font-weight:700;
+  border:none;
+  border-radius:var(--radius);
+  cursor:pointer;
+  transition:var(--transition);
+}
+
+#logoutBtn:hover {
+  background:#ffe6e6;
+}
+
+/* =========================================================
+   MAIN PANEL
+   ========================================================= */
+
+.main-panel {
+  flex:1;
+  padding:24px;
+  overflow-y:auto;
+}
+
+/* =========================================================
+   LEVEL & XP BAR
+   ========================================================= */
+
+.xp-header {
+  display:flex;
+  align-items:center;
+  gap:18px;
+  margin-bottom:32px;
+}
+
+.level-circle {
+  width:70px;
+  height:70px;
+  border-radius:50%;
+  background:var(--mc-yellow);
+  color:var(--mc-dark);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:1.8rem;
+  font-weight:900;
+  box-shadow:0 6px 14px rgba(255,195,0,0.4);
+  animation:popIn .45s ease-out;
+}
+
+@keyframes popIn {
+  from {transform:scale(.6); opacity:0;}
+  to   {transform:scale(1); opacity:1;}
+}
+
+.xp-bar-wrapper {
+  flex:1;
+  height:16px;
+  background:#e5e7eb;
+  border-radius:999px;
+  overflow:hidden;
+  position:relative;
+}
+
+.xp-bar-fill {
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg, #ffe150, var(--mc-yellow));
+  border-radius:999px;
+  transition:width .45s ease-out;
+  box-shadow:inset 0 0 12px rgba(0,0,0,0.2);
+}
+
+.xp-label {
+  min-width:120px;
+  font-weight:600;
+  color:#444;
+}
+
+/* =========================================================
+   TRAINING TRACK — BATTLE PASS STYLE
+   ========================================================= */
+
+.track-section h2 {
+  font-size:1.4rem;
+  margin-bottom:4px;
+  font-weight:800;
+}
+
+.track-sub {
+  color:#555;
+  font-size:0.9rem;
+  margin-bottom:14px;
+}
+
+.track-container {
+  display:flex;
+  gap:16px;
+  overflow-x:auto;
+  padding-bottom:12px;
+  scrollbar-width:thin;
+}
+
+.track-card {
+  min-width:240px;
+  background:white;
+  border-radius:var(--radius);
+  padding:16px;
+  box-shadow:var(--shadow);
+  position:relative;
+  transition:var(--transition);
+  cursor:pointer;
+}
+
+.track-card:hover {
+  transform:translateY(-4px);
+  box-shadow:0 12px 24px rgba(0,0,0,0.2);
+}
+
+.track-card.locked {
+  opacity:.45;
+}
+
+.track-card .stage-number {
+  font-size:.8rem;
+  color:#888;
+  font-weight:600;
+}
+
+.track-card h3 {
+  margin-top:6px;
+  font-size:1.05rem;
+  font-weight:700;
+}
+
+.track-card .xp-reward {
+  margin-top:10px;
+  background:#fff9c4;
+  border:1px solid #facc15;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:0.8rem;
+  width:max-content;
+  color:#7a5a00;
+  font-weight:700;
+}
+
+/* Completed overlay */
+.track-card.completed::after {
+  content:"✔ Completed";
+  position:absolute;
+  top:8px;
+  right:8px;
+  background:#22c55e;
+  color:white;
+  font-size:0.75rem;
+  padding:4px 8px;
+  border-radius:999px;
+}
+
+/* =========================================================
+   MANAGER METRICS
+   ========================================================= */
+
+.manager-metrics {
+  margin-top:40px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(200px,1fr));
+  gap:16px;
+}
+
+.metric-box {
+  background:white;
+  padding:16px;
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+
+.metric-box h4 {
+  font-size:0.95rem;
+  color:#777;
+}
+
+.metric-value {
+  font-size:1.6rem;
+  font-weight:800;
+  margin-top:4px;
+}
+
+/* =========================================================
+   MODALS
+   ========================================================= */
+
+.modal {
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.55);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:50;
+  padding:20px;
+}
+
+.modal.show {
+  display:flex;
+}
+
+.modal-box {
+  background:white;
+  padding:20px;
+  border-radius:var(--radius);
+  width:min(420px, 90%);
+  box-shadow:var(--shadow);
+  position:relative;
+  animation:fadeIn .25s ease-out;
+}
+
+@keyframes fadeIn {
+  from {opacity:0; transform:scale(.9);}
+  to   {opacity:1; transform:scale(1);}
+}
+
+.modal-close {
+  position:absolute;
+  top:10px;
+  right:10px;
+  border:none;
+  background:#eee;
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  cursor:pointer;
+}
+
+.btn-primary {
+  background:var(--mc-red);
+  color:white;
+  padding:10px 14px;
+  border-radius:999px;
+  border:none;
+  cursor:pointer;
+  font-weight:700;
+  transition:var(--transition);
+}
+
+.btn-primary:hover {
+  background:#b30710;
+}
+
+/* Reward modal style */
+.reward-box {
+  text-align:center;
+}
+
+.reward-box h2 {
+  font-size:1.5rem;
+  margin-bottom:10px;
+}
+
+.reward-box p {
+  font-size:1rem;
+  margin-bottom:20px;
+}
+
+/* Quiz modal */
+.quiz-box {
+  max-width:500px;
+}
+
+#quizOptions {
+  margin-top:12px;
+}
+
+.quiz-option {
+  padding:10px;
+  border-radius:var(--radius);
+  background:#f3f4f6;
+  margin-bottom:8px;
+  cursor:pointer;
+  transition:var(--transition);
+}
+
+.quiz-option:hover {
+  background:#e5e7eb;
+}
+
+.quiz-option.selected {
+  background:#d1fae5;
+  border:2px solid #10b981;
+}
