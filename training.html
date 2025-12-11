@@ -2,135 +2,633 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining – Gamified Training</title>
+  <title>McTraining Portal – Training</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="mc-training-new.css" />
 
+  <!-- Your existing theme -->
+  <link rel="stylesheet" href="mc-theme.css" />
+
+  <!-- Optional: little extra reset for this page -->
+  <style>
+    .training-shell {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 18px 24px;
+      gap: 18px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* ===== Level + XP header ===== */
+    .level-xp-header {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 8px;
+    }
+
+    .level-badge-big {
+      width: 74px;
+      height: 74px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 0%, #ffeaa7, #ffc300);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.6rem;
+      color: #111827;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+    }
+
+    .xp-track {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .xp-bar-outer {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      overflow: hidden;
+    }
+
+    .xp-bar-inner {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #22c55e, #16a34a);
+      transition: width 0.25s ease-out;
+    }
+
+    .xp-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+
+    .xp-label-row strong {
+      color: #111827;
+    }
+
+    /* ===== Intro text ===== */
+    .training-intro {
+      margin-top: 8px;
+    }
+
+    .training-intro h1 {
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .training-intro p {
+      font-size: 0.84rem;
+      color: #6b7280;
+    }
+
+    /* ===== Main layout: left (modules) + right (rewards/badges) ===== */
+    .training-main {
+      display: grid;
+      grid-template-columns: minmax(0, 2.1fr) minmax(260px, 1fr);
+      gap: 18px;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 960px) {
+      .training-main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    /* ===== Module grid ===== */
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .module-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 14px 14px 12px;
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e5e7eb;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: transform 0.12s ease, box-shadow 0.12s ease,
+        border-color 0.12s ease;
+    }
+
+    .module-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
+      border-color: #facc15;
+    }
+
+    .module-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .module-card-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .module-card-chip {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: #4b5563;
+    }
+
+    .module-card-body {
+      font-size: 0.78rem;
+      color: #6b7280;
+    }
+
+    .module-card-footer {
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+    }
+
+    .module-card-footer button {
+      border-radius: 999px;
+      border: none;
+      padding: 4px 11px;
+      font-size: 0.74rem;
+      background: #111827;
+      color: #f9fafb;
+      cursor: pointer;
+    }
+
+    .module-status-pill {
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 0.72rem;
+    }
+
+    .module-status--not-started {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .module-status--in-progress {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .module-status--completed {
+      background: #ecfdf5;
+      color: #047857;
+    }
+
+    /* ===== Active module view (stages & quiz container) ===== */
+    .active-module {
+      margin-top: 18px;
+      background: #ffffff;
+      border-radius: 18px;
+      padding: 16px 16px 14px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.09);
+    }
+
+    .active-module-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .active-module-title {
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .active-module-badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: #f3f4f6;
+      color: #4b5563;
+    }
+
+    .stage-list {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.8rem;
+    }
+
+    .stage-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: #f9fafb;
+    }
+
+    .stage-check {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 2px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+    }
+
+    .stage-item.completed {
+      background: #ecfdf5;
+    }
+
+    .stage-item.completed .stage-check {
+      background: #22c55e;
+      border-color: #22c55e;
+      color: white;
+    }
+
+    .quiz-section {
+      margin-top: 14px;
+      border-top: 1px dashed #e5e7eb;
+      padding-top: 10px;
+      font-size: 0.8rem;
+    }
+
+    .quiz-question {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .quiz-options {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .quiz-option {
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 6px 10px;
+      background: #f9fafb;
+      cursor: pointer;
+      font-size: 0.78rem;
+      text-align: left;
+    }
+
+    .quiz-option.correct {
+      background: #ecfdf5;
+      border-color: #22c55e;
+      color: #166534;
+    }
+
+    .quiz-option.incorrect {
+      background: #fee2e2;
+      border-color: #b91c1c;
+      color: #b91c1c;
+    }
+
+    .quiz-feedback {
+      font-size: 0.76rem;
+      color: #6b7280;
+    }
+
+    /* ===== Right side: rewards, badges, streak ===== */
+    .training-aside {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .aside-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 12px 13px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+      font-size: 0.78rem;
+    }
+
+    .aside-card h3 {
+      font-size: 0.86rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .reward-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .reward-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .reward-tag {
+      border-radius: 999px;
+      padding: 2px 7px;
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 0.7rem;
+    }
+
+    .badge-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .badge-pill {
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 0.72rem;
+      background: #111827;
+      color: #f9fafb;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-pill.locked {
+      background: #e5e7eb;
+      color: #6b7280;
+    }
+
+    .streak-value {
+      font-size: 1.1rem;
+      font-weight: 800;
+    }
+
+    /* ===== Popup container (level up, XP banners) ===== */
+    .training-popup-root {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 60px;
+      z-index: 1200;
+    }
+
+    .training-popup {
+      pointer-events: auto;
+      min-width: 260px;
+      max-width: 340px;
+      background: #111827;
+      color: #fefce8;
+      border-radius: 18px;
+      padding: 12px 14px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.7);
+      font-size: 0.8rem;
+      display: none;
+    }
+
+    .training-popup.show {
+      display: block;
+      animation: popupIn 0.18s ease-out;
+    }
+
+    .training-popup-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .training-popup-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 0%, #ffeaa7, #ffc300);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #111827;
+      font-size: 1.2rem;
+    }
+
+    .training-popup-title {
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+
+    .training-popup-close {
+      margin-left: auto;
+      border: none;
+      background: transparent;
+      color: #e5e7eb;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    @keyframes popupIn {
+      from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+  </style>
 </head>
 
-<body class="training-app">
-<!-- Reward popup system -->
-<div id="rewardPopupContainer"></div>
+<body class="app-page">
 
-  <!-- ====== SIDEBAR ====== -->
+  <!-- ========= SIDEBAR ========= -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo-circle">M</div>
-      <div>
+      <div class="sidebar-header-text">
         <h1>McTraining</h1>
-        <p>Training & Development</p>
+        <p>Training &amp; Development</p>
       </div>
       <button id="sidebarToggle" class="sidebar-toggle">☰</button>
     </div>
 
     <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
       <ul class="nav-list">
-        <li onclick="window.location.href='main.html'">🏠 Dashboard</li>
-        <li class="active" onclick="window.location.href='training.html'">🎓 Training</li>
-        <li onclick="window.location.href='schedule.html'">📅 Shifts</li>
+        <li class="nav-item" onclick="window.location.href='main.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Dashboard</span>
+        </li>
+        <li class="nav-item active" onclick="window.location.href='training.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🎓</span>
+          <span class="nav-label">Training</span>
+        </li>
+        <li class="nav-item" onclick="window.location.href='schedule.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">📅</span>
+          <span class="nav-label">Shifts</span>
+        </li>
       </ul>
     </nav>
 
     <div class="sidebar-footer">
-      <strong id="sidebarUserName">User</strong><br>
-      <span id="sidebarUserRole">Crew</span>
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User</strong><br />
+        <span id="sidebarUserRole">Crew</span>
+      </div>
       <button id="logoutBtn">Log out</button>
     </div>
   </aside>
 
-  <!-- ====== TRAINING MODULES SECTION ====== -->
-<div id="trainingContent">
+  <!-- ========= MAIN TRAINING AREA ========= -->
+  <main class="training-shell">
 
-  <!-- MODULE GRID -->
-  <section class="module-grid" id="moduleGrid">
-      <!-- Filled by training-new.js -->
-  </section>
-
-  <!-- ACTIVE MODULE VIEW -->
-  <section class="active-module" id="activeModuleView" style="display:none;">
-      <h2 id="activeModuleTitle"></h2>
-
-      <div id="stageList">
-        <!-- Filled dynamically -->
+    <!-- Top right user bits re-using existing theme -->
+    <div class="top-bar" style="margin-bottom:4px;">
+      <div class="top-bar-left">
+        <p style="font-size:0.8rem;color:#6b7280;margin:0;">
+          Welcome to your McTraining level track.
+        </p>
       </div>
-  </section>
+      <div class="top-bar-right">
+        <span id="roleBadge" class="badge-role">Crew</span>
+        <div id="avatarCircle" class="avatar">U</div>
+      </div>
+    </div>
 
-  <!-- BADGES / REWARDS -->
-  <section class="badge-section">
-      <h3>Your Badges</h3>
-      <div id="badgeGrid"></div>
-  </section>
-
-  <!-- Popups -->
-  <div id="rewardPopupContainer"></div>
-
-</div>
-
-
-  <!-- ====== MAIN CONTENT ====== -->
-  <main class="main-panel">
-
-    <!-- LEVEL + XP BAR -->
-    <section class="xp-header">
-      <div class="level-circle" id="levelCircle">1</div>
-
-      <div class="xp-bar-wrapper">
-        <div class="xp-bar-fill" id="xpFill"></div>
+    <!-- LEVEL + XP HEADER (matches your screenshot) -->
+    <section class="level-xp-header">
+      <div class="level-badge-big" id="levelCircle">
+        <span id="levelNumber">1</span>
       </div>
 
-      <div class="xp-label">
-        <span id="xpText">0 / 100 XP</span>
+      <div class="xp-track">
+        <div class="xp-bar-outer">
+          <div class="xp-bar-inner" id="xpBarFill"></div>
+        </div>
+        <div class="xp-label-row">
+          <span>Your Training Track</span>
+          <span><strong id="xpLabel">0 / 100 XP</strong></span>
+        </div>
       </div>
     </section>
 
-    <!-- BATTLE PASS TRACK -->
-    <section class="track-section">
-      <h2>Your Training Track</h2>
-      <p class="track-sub">Complete modules, earn XP, level up & unlock rewards.</p>
-
-      <div class="track-container" id="trackContainer">
-        <!-- training.js fills cards here -->
-      </div>
+    <!-- Intro copy -->
+    <section class="training-intro">
+      <h1>Your Training Track</h1>
+      <p>
+        Complete modules, earn XP, level up &amp; unlock rewards. Each module
+        is based on real McDonald’s training areas – front counter, kitchen,
+        drive-thru and shift leadership.
+      </p>
     </section>
 
-    <!-- STORE METRICS (Manager Only) -->
-    <section class="manager-metrics" id="managerMetrics"></section>
+    <!-- MAIN CONTENT: modules on the left, rewards/badges on the right -->
+    <section class="training-main">
 
+      <!-- LEFT: module grid + active module + quiz -->
+      <div>
+
+        <!-- Filled dynamically with module cards -->
+        <section id="moduleGrid" class="module-grid">
+          <!-- module-card elements inserted by training.js -->
+        </section>
+
+        <!-- Active module details (hidden until user clicks a module) -->
+        <section id="activeModuleView" class="active-module" style="display:none;">
+          <div class="active-module-header">
+            <div>
+              <div class="active-module-title" id="activeModuleTitle">
+                <!-- title -->
+              </div>
+              <div style="font-size:0.78rem;color:#6b7280;" id="activeModuleSubtitle">
+                <!-- short description -->
+              </div>
+            </div>
+            <span class="active-module-badge" id="activeModuleCategory">Crew basics</span>
+          </div>
+
+          <div class="stage-list" id="stageList">
+            <!-- stage-item rows inserted here -->
+          </div>
+
+          <!-- Quiz / quick check-in -->
+          <div class="quiz-section" id="quizSection" style="display:none;">
+            <div class="quiz-question" id="quizQuestion"></div>
+            <div class="quiz-options" id="quizOptions"></div>
+            <div class="quiz-feedback" id="quizFeedback"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- RIGHT: rewards, badges, streak -->
+      <aside class="training-aside">
+        <section class="aside-card">
+          <h3>Level rewards</h3>
+          <ul class="reward-list" id="rewardList">
+            <!-- JS will fill with reward lines like “Level 2 – choose your next station” -->
+          </ul>
+        </section>
+
+        <section class="aside-card">
+          <h3>Your badges</h3>
+          <div class="badge-grid" id="badgeGrid">
+            <!-- badge-pill elements inserted by JS -->
+          </div>
+        </section>
+
+        <section class="aside-card">
+          <h3>Streak</h3>
+          <p>
+            <span class="streak-value" id="streakValue">0</span>-day training streak
+          </p>
+          <p style="margin-top:4px;">
+            Come back tomorrow, complete at least one step, and keep your
+            streak alive.
+          </p>
+        </section>
+      </aside>
+    </section>
   </main>
 
-  <!-- ===== MODULE MODAL ===== -->
-  <div class="modal" id="moduleModal">
-    <div class="modal-box">
-      <button class="modal-close" onclick="closeModuleModal()">✕</button>
-      <h2 id="moduleTitle"></h2>
-      <p id="moduleDescription"></p>
-
-      <button id="startQuizBtn" class="btn-primary">Start Quiz</button>
+  <!-- ===== POPUP ROOT (level-up / XP banners) ===== -->
+  <div class="training-popup-root" id="trainingPopupRoot">
+    <div class="training-popup" id="trainingPopup">
+      <div class="training-popup-header">
+        <div class="training-popup-icon">⭐</div>
+        <div>
+          <div class="training-popup-title" id="trainingPopupTitle">
+            Level up!
+          </div>
+          <div id="trainingPopupSubtitle" style="font-size:0.76rem;">
+            You reached Level 2 and unlocked a new reward.
+          </div>
+        </div>
+        <button class="training-popup-close" id="trainingPopupClose">✕</button>
+      </div>
     </div>
   </div>
 
-  <!-- ===== QUIZ MODAL ===== -->
-  <div class="modal" id="quizModal">
-    <div class="modal-box quiz-box">
-      <button class="modal-close" onclick="closeQuizModal()">✕</button>
-      <h2 id="quizTitle"></h2>
-
-      <div id="quizQuestion"></div>
-      <div id="quizOptions"></div>
-
-      <button id="submitQuizBtn" class="btn-primary">Submit</button>
-    </div>
-  </div>
-
-  <!-- ===== LOOT CRATE / REWARD MODAL ===== -->
-  <div class="modal" id="rewardModal">
-    <div class="modal-box reward-box">
-      <h2>🎁 Reward Unlocked!</h2>
-      <p id="rewardText"></p>
-      <button class="btn-primary" onclick="closeRewardModal()">Collect</button>
-    </div>
-  </div>
-
-  <script type="module" src="training-new.js"></script>
+  <!-- ========= SCRIPTS ========= -->
+  <!-- Your existing Firebase init -->
+  <script type="module" src="training.js"></script>
 </body>
 </html>
