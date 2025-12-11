@@ -283,14 +283,15 @@ function computeManagerMetrics() {
 }
 
 function computeCrewMetrics(myShifts) {
-  if (!Array.isArray(myShifts)) return;
+  if (!myShifts) return;
 
-  const today = new Date();
-  const { start, end } = getWeekRange(0, today);
+  const { start, end } = getWeekRange(0);
   const weekStart = toISODateString(start);
   const weekEnd = toISODateString(end);
 
-  let totalPaidHours = 0;
+  const now = new Date();
+
+  let totalPaid = 0;
   const scheduleMap = {};
   let nextShiftObj = null;
 
@@ -299,22 +300,28 @@ function computeCrewMetrics(myShifts) {
     const breakMin = calculateBreakMinutes(rawHours);
     const paid = rawHours - breakMin / 60;
 
-    // weekly totals
+    // save break minutes on the shift (used by AI etc.)
+    s.breakMinutes = breakMin;
+
+    // ----- THIS WEEK HOURS -----
     if (s.date >= weekStart && s.date <= weekEnd) {
-      totalPaidHours += paid;
+      totalPaid += paid;
 
       if (!scheduleMap[s.date]) scheduleMap[s.date] = [];
-      scheduleMap[s.date].push(`${s.start}-${s.end} (Break ${breakMin}m)`);
+      scheduleMap[s.date].push(`${s.start}–${s.end} (Break ${breakMin}m)`);
     }
 
-    // next shift
-    const dt = new Date(`${s.date}T${s.start}:00`);
-    if (!nextShiftObj || dt < nextShiftObj._dt) {
-      nextShiftObj = { _dt: dt, ...s };
+    // ----- NEXT FUTURE SHIFT -----
+    const shiftDateTime = new Date(`${s.date}T${s.start || "00:00"}:00`);
+
+    if (shiftDateTime > now) {
+      if (!nextShiftObj || shiftDateTime < nextShiftObj._dt) {
+        nextShiftObj = { _dt: shiftDateTime, ...s };
+      }
     }
   });
 
-  // schedule list
+  // Convert schedule map → list for the bottom section
   crewData.schedule = Object.entries(scheduleMap)
     .sort(([a], [b]) => (a > b ? 1 : -1))
     .map(([date, times]) => {
@@ -323,11 +330,12 @@ function computeCrewMetrics(myShifts) {
       return { day: dayName, time: times.join(", ") };
     });
 
-  crewData.hoursThisWeek = Number(totalPaidHours.toFixed(2));
+  crewData.hoursThisWeek = Number(totalPaid.toFixed(2));
   crewData.estimatedPayThisWeek = Number(
-    (crewData.hoursThisWeek * (crewData.hourlyRate || 0)).toFixed(2)
+    (crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2)
   );
 
+  // ----- WRITE NEXT SHIFT INTO crewData -----
   if (nextShiftObj) {
     const dt = nextShiftObj._dt;
     const dn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dt.getDay()];
@@ -338,9 +346,11 @@ function computeCrewMetrics(myShifts) {
       end: nextShiftObj.end
     };
   } else {
+    // no future shifts at all
     crewData.nextShift = { day: "-", date: "", start: "", end: "" };
   }
 }
+
 
 /* ============================================================
    AUTH INIT
