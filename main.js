@@ -350,8 +350,6 @@ function computeCrewMetrics(myShifts) {
     crewData.nextShift = { day: "-", date: "", start: "", end: "" };
   }
 }
-
-
 /* ============================================================
    AUTH INIT
 ============================================================ */
