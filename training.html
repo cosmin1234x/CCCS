@@ -2,264 +2,272 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal – Training</title>
+  <title>McTraining – Learning Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 
-  <!-- Training-page specific styling -->
+  <!-- Training v2 page-specific styles -->
   <style>
-    .training-shell {
+    .learning-layout {
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 14px;
     }
 
-    /* XP strip */
-    .xp-strip {
+    .learning-header {
       display: flex;
       align-items: center;
-      gap: 18px;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .learning-header-left h2 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .learning-header-left h2::before {
+      content: "🎓";
+    }
+
+    .learning-header-left p {
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+
+    .learning-header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+
+    .learning-level-pill {
+      border-radius: 999px;
+      padding: 5px 12px;
+      background: #111827;
+      color: #f9fafb;
+      font-size: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .learning-level-pill span:first-child {
+      font-size: 0.95rem;
+    }
+
+    .learning-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 2.2fr 1.2fr;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    @media (max-width: 1024px) {
+      .learning-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Path rail (left) */
+    .path-rail {
+      background: #ffffff;
+      border-radius: 18px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+      padding: 12px 12px 10px;
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+    }
+
+    .path-rail h3 {
+      font-size: 0.9rem;
+      font-weight: 800;
       margin-bottom: 4px;
     }
 
-    .level-circle {
-      width: 70px;
-      height: 70px;
-      border-radius: 999px;
-      background: radial-gradient(circle at 30% 0%, #ffeaa7, #ffc300);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.8rem;
-      font-weight: 900;
-      color: #111827;
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
-      position: relative;
-      overflow: hidden;
+    .path-rail p {
+      font-size: 0.76rem;
+      color: #6b7280;
+      margin-bottom: 8px;
     }
 
-    .level-circle::after {
-      /* subtle shine */
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), transparent);
-      mix-blend-mode: screen;
-      opacity: 0.3;
-      pointer-events: none;
-    }
-
-    .level-circle-bump {
-      animation: levelBump 0.4s ease-out;
-    }
-
-    @keyframes levelBump {
-      0% { transform: scale(1); }
-      40% { transform: scale(1.12); }
-      100% { transform: scale(1); }
-    }
-
-    .xp-track {
-      flex: 1;
+    .path-list {
+      list-style: none;
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
 
-    .xp-bar-shell {
-      width: 100%;
-      height: 10px;
-      border-radius: 999px;
-      background: #e5e7eb;
-      overflow: hidden;
-    }
-
-    .xp-bar-fill {
-      height: 100%;
-      width: 0%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, #22c55e, #facc15);
-      transition: width 0.4s ease-out;
-    }
-
-    .xp-label-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.8rem;
-      color: #4b5563;
-    }
-
-    .xp-label-row span strong {
-      color: #111827;
-    }
-
-    /* Track (battle-pass style) */
-    .track-shell {
-      background: #ffffff;
-      border-radius: 20px;
-      border: 1px solid rgba(229, 231, 235, 0.9);
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-      padding: 14px 16px 16px;
-    }
-
-    .track-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-      gap: 8px;
-    }
-
-    .track-header-left h2 {
-      font-size: 1rem;
-      font-weight: 800;
-    }
-
-    .track-header-left p {
-      font-size: 0.8rem;
-      color: #6b7280;
-    }
-
-    .track-header-badge {
-      font-size: 0.72rem;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: #fef9c3;
-      color: #854d0e;
-      border: 1px solid #fde68a;
-    }
-
-    .track-row {
-      display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: minmax(170px, 1fr);
-      gap: 10px;
-      overflow-x: auto;
-      padding-bottom: 4px;
-      scrollbar-width: thin;
-    }
-
-    .track-card {
-      background: #f9fafb;
-      border-radius: 14px;
-      padding: 10px 10px 9px;
+    .path-item {
+      border-radius: 12px;
+      padding: 7px 9px;
       border: 1px solid #e5e7eb;
+      background: #f9fafb;
       cursor: pointer;
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-      position: relative;
-      transition: transform 0.12s ease, box-shadow 0.12s ease,
-        border-color 0.12s ease, background 0.12s ease;
-      min-height: 90px;
+      gap: 8px;
+      align-items: flex-start;
+      transition: transform 0.08s ease, box-shadow 0.08s ease,
+        border-color 0.08s ease, background 0.08s ease;
+      font-size: 0.8rem;
     }
 
-    .track-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 7px 18px rgba(15, 23, 42, 0.18);
+    .path-item:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 13px rgba(15, 23, 42, 0.16);
       border-color: #fbbf24;
       background: #ffffff;
     }
 
-    .track-card.completed {
-      border-color: #22c55e;
-      background: #ecfdf5;
+    .path-item.active {
+      border-color: #d97706;
+      background: #fffbeb;
     }
 
-    .track-card.locked {
-      opacity: 0.45;
-      cursor: default;
-    }
-
-    .track-card.locked::after {
-      content: "🔒";
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      font-size: 0.9rem;
-    }
-
-    .stage-number {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.09em;
-      color: #9ca3af;
-    }
-
-    .track-card h3 {
-      font-size: 0.86rem;
-      font-weight: 700;
-    }
-
-    .xp-reward {
-      margin-top: auto;
-      font-size: 0.72rem;
-      color: #16a34a;
-    }
-
-    /* Lesson area */
-    .lesson-shell {
-      display: grid;
-      grid-template-columns: 2.1fr 1.3fr;
-      gap: 14px;
-      margin-top: 4px;
-    }
-
-    @media (max-width: 900px) {
-      .lesson-shell {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .lesson-card,
-    .quiz-card {
-      background: #ffffff;
-      border-radius: 20px;
-      border: 1px solid rgba(229, 231, 235, 0.9);
-      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
-      padding: 14px 16px 14px;
-    }
-
-    .lesson-title-row {
+    .path-step {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #e5e7eb;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .lesson-title-row h3 {
-      font-size: 0.95rem;
-      font-weight: 800;
-    }
-
-    .lesson-tag {
+      justify-content: center;
       font-size: 0.72rem;
-      padding: 3px 9px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .path-item.completed .path-step {
+      background: #22c55e;
+      color: #f9fafb;
+    }
+
+    .path-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .path-title-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .path-title-row span:first-child {
+      font-weight: 600;
+    }
+
+    .path-tag {
+      font-size: 0.68rem;
+      padding: 2px 7px;
       border-radius: 999px;
       background: #eff6ff;
       color: #1d4ed8;
+      white-space: nowrap;
     }
 
-    .lesson-body {
+    .path-meta {
+      font-size: 0.7rem;
+      color: #6b7280;
+    }
+
+    /* Lesson panel (center) */
+    .lesson-panel {
+      background: #ffffff;
+      border-radius: 18px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+      padding: 14px 16px 14px;
+      min-height: 260px;
+      opacity: 0;
+      transform: translateY(4px);
+      animation: lessonFadeIn 0.18s ease-out forwards;
+    }
+
+    @keyframes lessonFadeIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .lesson-header-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .lesson-header-main h3 {
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .lesson-header-main p {
+      font-size: 0.78rem;
+      color: #6b7280;
+    }
+
+    .lesson-tag-pill {
+      font-size: 0.7rem;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #fef9c3;
+      color: #92400e;
+      border: 1px solid #fde68a;
+      align-self: flex-start;
+    }
+
+    .lesson-section {
+      margin-top: 8px;
+    }
+
+    .lesson-section h4 {
       font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+
+    .lesson-section p,
+    .lesson-section li {
+      font-size: 0.8rem;
       color: #374151;
       line-height: 1.45;
     }
 
-    .lesson-body ul {
-      margin-top: 6px;
+    .lesson-section ul {
       padding-left: 16px;
+      margin-top: 4px;
     }
 
-    .lesson-body li {
-      margin-bottom: 3px;
+    .lesson-scenario {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: #f9fafb;
+      border: 1px dashed #e5e7eb;
+      font-size: 0.78rem;
+      color: #4b5563;
     }
 
-    .lesson-tips {
+    .lesson-scenario strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .lesson-highlight {
       margin-top: 8px;
       padding: 8px 10px;
       border-radius: 12px;
@@ -274,28 +282,121 @@
       color: #6b7280;
     }
 
-    .quiz-card h3 {
+    /* Progress / checklist (right) */
+    .progress-panel {
+      background: #ffffff;
+      border-radius: 18px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+      padding: 12px 14px 12px;
+      font-size: 0.8rem;
+    }
+
+    .progress-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .progress-heading h3 {
       font-size: 0.9rem;
       font-weight: 800;
-      margin-bottom: 4px;
     }
 
-    .quiz-card p {
-      font-size: 0.8rem;
-      color: #4b5563;
-      margin-bottom: 10px;
+    .status-pill {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #374151;
     }
 
-    .quiz-meta {
+    .status-pill.completed {
+      background: #ecfdf5;
+      color: #15803d;
+    }
+
+    .xp-small {
       font-size: 0.75rem;
       color: #6b7280;
       margin-bottom: 6px;
     }
 
-    .btn-primary-sm {
+    .xp-bar-shell-small {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      overflow: hidden;
+      margin-top: 2px;
+      margin-bottom: 6px;
+    }
+
+    .xp-bar-fill-small {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #22c55e, #facc15);
+      transition: width 0.3s ease-out;
+    }
+
+    .checklist {
+      list-style: none;
+      margin-top: 4px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .check-item input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+    }
+
+    .check-item span {
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
+
+    .mini-reflection {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed #e5e7eb;
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
+
+    .mini-reflection textarea {
+      width: 100%;
+      margin-top: 4px;
+      border-radius: 10px;
+      border: 1px solid #e5e7eb;
+      padding: 6px 8px;
+      font-size: 0.76rem;
+      resize: vertical;
+      min-height: 36px;
+    }
+
+    .progress-actions {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .btn-main {
       border-radius: 999px;
       border: none;
-      padding: 7px 13px;
+      padding: 7px 10px;
       font-size: 0.8rem;
       font-weight: 700;
       background: linear-gradient(135deg, #d9091c, #a30716);
@@ -303,136 +404,87 @@
       cursor: pointer;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
       box-shadow: 0 8px 16px rgba(148, 27, 12, 0.55);
       transition: transform 0.08s, box-shadow 0.08s;
     }
 
-    .btn-primary-sm:hover {
+    .btn-main:hover {
       transform: translateY(-1px);
-      box-shadow: 0 10px 20px rgba(148, 27, 12, 0.6);
+      box-shadow: 0 10px 22px rgba(148, 27, 12, 0.6);
     }
 
-    .btn-primary-sm:active {
+    .btn-main:active {
       transform: translateY(0);
       box-shadow: 0 6px 13px rgba(148, 27, 12, 0.5);
     }
 
-    /* Quiz modal */
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      display: none;
+    .btn-main:disabled {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .btn-ghost {
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      padding: 6px 9px;
+      font-size: 0.78rem;
+      background: #f9fafb;
+      cursor: pointer;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: rgba(15, 23, 42, 0.65);
-      backdrop-filter: blur(10px);
-      z-index: 1000;
+      gap: 6px;
     }
 
-    .modal-backdrop.show {
-      display: flex;
+    .btn-ghost:hover {
+      background: #f3f4f6;
     }
 
-    .modal-card {
-      width: min(480px, 92vw);
-      background: #ffffff;
-      border-radius: 20px;
-      padding: 16px 16px 14px;
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.8);
-      animation: modalPop 0.18s ease-out;
+    /* Reward toast (simple, non-modal) */
+    .toast {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 1200;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: #111827;
+      color: #f9fafb;
+      font-size: 0.8rem;
+      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.8);
+      display: none;
+      max-width: 260px;
     }
 
-    @keyframes modalPop {
+    .toast.show {
+      display: block;
+      animation: toastFade 0.22s ease-out;
+    }
+
+    @keyframes toastFade {
       from {
         opacity: 0;
-        transform: translateY(6px) scale(0.97);
+        transform: translateY(6px);
       }
       to {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translateY(0);
       }
     }
 
-    .modal-header-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .modal-header-row h3 {
-      font-size: 0.95rem;
-      font-weight: 800;
-    }
-
-    .modal-close {
-      border: none;
-      border-radius: 999px;
-      width: 26px;
-      height: 26px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      background: #f3f4f6;
-      font-size: 1rem;
-    }
-
-    .quiz-question {
-      font-size: 0.85rem;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: #111827;
-    }
-
-    .quiz-options {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 10px;
-    }
-
-    .quiz-option {
-      border-radius: 999px;
-      border: 1px solid #e5e7eb;
-      padding: 7px 10px;
-      font-size: 0.8rem;
-      cursor: pointer;
-      background: #f9fafb;
-    }
-
-    .quiz-option:hover {
-      background: #f3f4f6;
-    }
-
-    .quiz-option.selected {
-      border-color: #22c55e;
-      background: #ecfdf5;
-    }
-
-    /* Reward modal */
-    .reward-title {
-      font-size: 1rem;
-      font-weight: 800;
-      margin-bottom: 4px;
-    }
-
-    .reward-text {
-      font-size: 0.85rem;
-      color: #374151;
-    }
-
-    /* Small tweaks for mobile */
+    /* Mobile tweaks */
     @media (max-width: 640px) {
-      .xp-strip {
+      .learning-header {
+        flex-direction: column;
         align-items: flex-start;
+        gap: 6px;
       }
-      .level-circle {
-        width: 60px;
-        height: 60px;
-        font-size: 1.4rem;
+      .learning-header-right {
+        align-self: stretch;
+        justify-content: space-between;
       }
     }
   </style>
@@ -445,7 +497,7 @@
       <div class="logo-circle">M</div>
       <div class="sidebar-header-text">
         <h1>McTraining</h1>
-        <p>Training & Development</p>
+        <p>Training &amp; Development</p>
       </div>
       <button id="sidebarToggle" class="sidebar-toggle">☰</button>
     </div>
@@ -480,113 +532,100 @@
     </div>
   </aside>
 
-  <!-- ========= MAIN LAYOUT ========= -->
+  <!-- ========= MAIN ========= -->
   <div class="main-layout">
-    <div class="training-shell">
+    <div class="learning-layout">
 
-      <!-- XP / Level strip -->
-      <div class="xp-strip">
-        <div id="levelCircle" class="level-circle">1</div>
-        <div class="xp-track">
-          <div class="xp-label-row">
-            <span><strong>Your Training Track</strong></span>
-            <span id="xpLabel">0 / 100 XP</span>
+      <header class="learning-header">
+        <div class="learning-header-left">
+          <h2>Learning Hub</h2>
+          <p>Work through bite-sized modules that teach real skills for your store.</p>
+        </div>
+        <div class="learning-header-right">
+          <div class="learning-level-pill">
+            <span id="headerLevel">1</span>
+            <span>Training level</span>
           </div>
-          <div class="xp-bar-shell">
-            <div id="xpFill" class="xp-bar-fill"></div>
+          <span id="headerXP">0 XP total</span>
+        </div>
+      </header>
+
+      <section class="learning-grid">
+        <!-- LEFT: Path rail -->
+        <aside class="path-rail">
+          <h3>Your learning path</h3>
+          <p>Select a module to load the lesson.</p>
+          <ul id="pathList" class="path-list">
+            <!-- Filled by training.js -->
+          </ul>
+        </aside>
+
+        <!-- CENTER: Lesson content -->
+        <main id="lessonPanel" class="lesson-panel">
+          <div class="lesson-header-row">
+            <div class="lesson-header-main">
+              <h3 id="lessonTitle">Choose a module to get started</h3>
+              <p id="lessonSubtitle">
+                You’ll see a simple explanation, key steps and a real scenario for that part of the job.
+              </p>
+            </div>
+            <div id="lessonTag" class="lesson-tag-pill">Overview</div>
           </div>
-          <div class="xp-label-row">
-            <span style="font-size:0.75rem;color:#6b7280;">
-              Complete modules, earn XP, level up & unlock rewards.
+
+          <div id="lessonContent">
+            <p class="lesson-placeholder">
+              Use the learning path on the left to pick where you’d like to focus first:
+              food safety, kitchen, front counter, drive-thru or customer experience.
+              As you complete modules you’ll build a solid base for certification.
+            </p>
+          </div>
+        </main>
+
+        <!-- RIGHT: Progress panel -->
+        <aside class="progress-panel">
+          <div class="progress-heading">
+            <h3>Module progress</h3>
+            <span id="statusPill" class="status-pill">No module selected</span>
+          </div>
+
+          <div class="xp-small">
+            <span id="moduleXPInfo">Select a module to see its XP value.</span>
+            <div class="xp-bar-shell-small">
+              <div id="moduleXpFill" class="xp-bar-fill-small"></div>
+            </div>
+          </div>
+
+          <div>
+            <strong style="font-size:0.78rem;">Checklist for this lesson</strong>
+            <ul id="checklist" class="checklist">
+              <!-- Filled by training.js -->
+            </ul>
+          </div>
+
+          <div class="mini-reflection">
+            <strong>Quick note to self</strong>
+            <span style="display:block;margin-top:2px;">
+              What’s one thing you’ll do differently on your next shift?
             </span>
+            <textarea id="reflectionInput" placeholder="Example: 'I’ll call out big orders before they’re ready.'"></textarea>
           </div>
-        </div>
-      </div>
 
-      <!-- Battle-pass / stages row -->
-      <section class="track-shell">
-        <div class="track-header">
-          <div class="track-header-left">
-            <h2>Training stages</h2>
-            <p>Select a stage to review the lesson, then take a quick quiz.</p>
-          </div>
-          <div class="track-header-badge">
-            🎯 Goal: Complete all 10 stages
-          </div>
-        </div>
-        <div id="trackContainer" class="track-row">
-          <!-- Filled by training.js -->
-        </div>
-      </section>
-
-      <!-- Lesson + quick-quiz overview -->
-      <section class="lesson-shell">
-        <!-- Lesson card (content changes depending on stage) -->
-        <article class="lesson-card">
-          <div class="lesson-title-row">
-            <h3 id="lessonTitle">Pick a stage to start learning</h3>
-            <span id="lessonTag" class="lesson-tag">Overview</span>
-          </div>
-          <div id="lessonBody" class="lesson-body lesson-placeholder">
-            Click any stage in the track above. You’ll see a short lesson here
-            explaining key points for that part of the job — like food safety,
-            service steps, or station setups.
-          </div>
-          <div id="lessonTips" class="lesson-tips" style="display:none;"></div>
-        </article>
-
-        <!-- Quick quiz card -->
-        <aside class="quiz-card">
-          <h3>Quick check</h3>
-          <p>
-            Once you’ve read the lesson, take a 1-minute quiz to earn XP and unlock
-            the next stage.
-          </p>
-          <div class="quiz-meta">
-            • 3 questions max<br />
-            • Passing = complete the stage<br />
-            • You can retry if you miss one
-          </div>
-          <button id="startQuizBtn" class="btn-primary-sm" disabled>
-            Start quiz for this stage
-          </button>
-          <div id="quizHint" style="margin-top:8px;font-size:0.75rem;color:#6b7280;">
-            Choose a stage first to enable the quiz.
+          <div class="progress-actions">
+            <button id="completeModuleBtn" class="btn-main" disabled>
+              Mark module as complete
+            </button>
+            <button id="resetModuleBtn" class="btn-ghost" disabled>
+              Reset this module
+            </button>
           </div>
         </aside>
       </section>
     </div>
   </div>
 
-  <!-- ========= QUIZ MODAL ========= -->
-  <div id="quizModal" class="modal-backdrop">
-    <div class="modal-card">
-      <div class="modal-header-row">
-        <h3>Stage quiz</h3>
-        <button class="modal-close" id="quizCloseBtn">&times;</button>
-      </div>
-      <div id="quizQuestion" class="quiz-question"></div>
-      <div id="quizOptions" class="quiz-options"></div>
-      <button id="quizSubmit" class="btn-primary-sm" style="width:100%;justify-content:center;">
-        Submit answer
-      </button>
-    </div>
-  </div>
+  <!-- Simple toast -->
+  <div id="toast" class="toast"></div>
 
-  <!-- ========= REWARD MODAL ========= -->
-  <div id="rewardModal" class="modal-backdrop">
-    <div class="modal-card">
-      <div class="modal-header-row">
-        <h3 class="reward-title" id="rewardTitle">Nice!</h3>
-        <button class="modal-close" id="rewardClose">&times;</button>
-      </div>
-      <div class="reward-text" id="rewardText">
-        You earned XP for completing this stage.
-      </div>
-    </div>
-  </div>
-
-  <!-- Scripts -->
   <script type="module" src="training.js"></script>
 </body>
 </html>

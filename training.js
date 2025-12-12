@@ -1,7 +1,7 @@
 /** ============================================================
- *  McTRAINING — GAMIFIED TRAINING ENGINE
- *  XP System • Leveling • Rewards • Battle-Pass Track • Quizzes
- *  Firestore Sync • Manager Analytics
+ * McTRAINING – Learning Hub v2
+ * Real lessons + checklists + light XP system
+ * Firestore sync at users/{id}/trainingV2/profile
  * ============================================================ */
 
 import { auth, db } from "./firebase-init.js";
@@ -9,7 +9,6 @@ import {
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
 import {
   doc,
   getDoc,
@@ -17,57 +16,45 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ============================================================
-   DOM ELEMENTS
-   ============================================================ */
+/* ---------- DOM ---------- */
 
 const sidebarUserName = document.getElementById("sidebarUserName");
 const sidebarUserRole = document.getElementById("sidebarUserRole");
 const logoutBtn = document.getElementById("logoutBtn");
-
-/* XP UI */
-const levelCircle = document.getElementById("levelCircle");
-const xpFill = document.getElementById("xpFill");
-const xpLabel = document.getElementById("xpLabel");
-
-/* Battle Track */
-const trackContainer = document.getElementById("trackContainer");
-
-/* Lesson area */
-const lessonTitleEl = document.getElementById("lessonTitle");
-const lessonTagEl = document.getElementById("lessonTag");
-const lessonBodyEl = document.getElementById("lessonBody");
-const lessonTipsEl = document.getElementById("lessonTips");
-const startQuizBtn = document.getElementById("startQuizBtn");
-const quizHint = document.getElementById("quizHint");
-
-/* Modals */
-const rewardModal = document.getElementById("rewardModal");
-const rewardTitle = document.getElementById("rewardTitle");
-const rewardText = document.getElementById("rewardText");
-const rewardClose = document.getElementById("rewardClose");
-
-const quizModal = document.getElementById("quizModal");
-const quizQuestionEl = document.getElementById("quizQuestion");
-const quizOptionsEl = document.getElementById("quizOptions");
-const quizSubmit = document.getElementById("quizSubmit");
-const quizCloseBtn = document.getElementById("quizCloseBtn");
-
-/* Sidebar toggle (mobile) */
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
+
+const headerLevel = document.getElementById("headerLevel");
+const headerXP = document.getElementById("headerXP");
+
+const pathList = document.getElementById("pathList");
+
+const lessonPanel = document.getElementById("lessonPanel");
+const lessonTitle = document.getElementById("lessonTitle");
+const lessonSubtitle = document.getElementById("lessonSubtitle");
+const lessonTag = document.getElementById("lessonTag");
+const lessonContent = document.getElementById("lessonContent");
+
+const statusPill = document.getElementById("statusPill");
+const moduleXPInfo = document.getElementById("moduleXPInfo");
+const moduleXpFill = document.getElementById("moduleXpFill");
+const checklistEl = document.getElementById("checklist");
+const reflectionInput = document.getElementById("reflectionInput");
+const completeModuleBtn = document.getElementById("completeModuleBtn");
+const resetModuleBtn = document.getElementById("resetModuleBtn");
+
+const toastEl = document.getElementById("toast");
+
+/* ---------- Mobile sidebar toggle ---------- */
 if (sidebar && sidebarToggle) {
   sidebarToggle.addEventListener("click", () => {
     sidebar.classList.toggle("sidebar-open");
   });
 }
 
-/* ============================================================
-   USER SESSION
-   ============================================================ */
+/* ---------- Session ---------- */
 
 let sessionUser = null;
-let currentStage = null; // which stage is selected for lesson/quiz
 
 function loadSession() {
   try {
@@ -77,546 +64,501 @@ function loadSession() {
   }
 }
 
-/* ============================================================
-   TRAINING STAGES  (with actual lesson content)
-   ============================================================ */
+/* ---------- Learning content ---------- */
 
-const trainingStages = [
+const modules = [
   {
-    id: 1,
-    name: "Welcome to McDonald's",
-    xp: 50,
+    id: "welcome",
+    index: 1,
+    title: "Welcome to McDonald's",
     tag: "Orientation",
-    lesson: {
-      summary:
-        "Get familiar with our values, basic policies and how shifts work at your restaurant.",
-      bullets: [
-        "Customer safety and food safety always come first.",
-        "Always arrive in full, clean uniform and clock in on time.",
-        "If you’re unsure, ask a manager or trainer — never guess."
-      ],
-      tips:
-        "Tip: Spend your first week watching how experienced crew handle rushes. Notice how they stay calm, communicate, and follow the same steps every time."
+    estMinutes: 5,
+    xp: 40,
+    focus: "What McDonald's expects from every crew member.",
+    objectives: [
+      "Understand our three priorities: safety, quality, and service.",
+      "Know who to speak to when you’re unsure about something.",
+      "Understand how the rota, clock-in and breaks work in your store."
+    ],
+    keySteps: [
+      "Arrive on time in full, clean uniform and clock in correctly.",
+      "Introduce yourself to the shift manager and check your station.",
+      "Ask questions early — it’s better than guessing."
+    ],
+    do: [
+      "Use people’s names where possible.",
+      "Keep phones away unless your manager agrees otherwise.",
+      "Tell a manager if you feel unsafe or unsure."
+    ],
+    dont: [
+      "Guess temperatures or food safety steps.",
+      "Ignore unsafe behaviour because you’re new.",
+      "Leave your station without telling anyone."
+    ],
+    scenario: {
+      title: "It’s your first Friday shift",
+      text:
+        "You’re not sure where to put your bag, how breaks work, or what to do when there are no guests. A good first step is to ask your shift manager to quickly walk you through the basics, then look for small ways to help: wiping, restocking or shadowing another crew member."
     }
   },
   {
-    id: 2,
-    name: "Crew Basics",
-    xp: 60,
+    id: "crew-basics",
+    index: 2,
+    title: "Crew Basics",
     tag: "Core skills",
-    lesson: {
-      summary:
-        "Learn the fundamental behaviours expected from every crew member, in any store.",
-      bullets: [
-        "Follow the '4 steps of service': Greet, Take order, Prepare, Hand over & thank.",
-        "Use the correct PPE when handling food (gloves, apron, hat / hairnet).",
-        "Keep your station tidy between orders — quick wipes save time later."
-      ],
-      tips:
-        "Tip: When you’re not serving a guest, scan your station: wipes, restock, or help another crew member."
+    estMinutes: 8,
+    xp: 60,
+    focus: "The behaviours and habits that make every shift smoother.",
+    objectives: [
+      "Use the basic service steps on any station.",
+      "Communicate clearly with other crew and managers.",
+      "Know what to do when you’re not directly serving a guest."
+    ],
+    keySteps: [
+      "Follow the service pattern: Greet → Take order → Prepare → Hand over & thank.",
+      "Talk out loud: call orders, low stock and issues so the team can react.",
+      "In quiet moments: clean, restock or help a nearby station."
+    ],
+    do: [
+      "Smile and make eye contact with every guest.",
+      "Repeat orders back to avoid mistakes.",
+      "Check screens before handing food out."
+    ],
+    dont: [
+      "Turn away from guests when they approach.",
+      "Leave mess or spills for someone else.",
+      "Say 'I don’t know' without trying to get help."
+    ],
+    scenario: {
+      title: "You have a short queue",
+      text:
+        "There are three guests in line and you’re on front counter. You greet the next guest, repeat their order back and check the screen before handing food out. Between guests, you wipe your counter and check sauce stock so you’re ready for the next mini-rush."
     }
   },
   {
-    id: 3,
-    name: "Food Safety & Hygiene",
-    xp: 80,
+    id: "food-safety",
+    index: 3,
+    title: "Food Safety & Hygiene",
     tag: "Food safety",
-    lesson: {
-      summary:
-        "Understand how we keep food safe from delivery to serving the guest.",
-      bullets: [
-        "Wash hands for at least 20 seconds at the correct sink, then dry with paper towel.",
-        "Follow colour-coded equipment rules and avoid cross-contamination.",
-        "Cooked patties must reach the required temperature before serving."
-      ],
-      tips:
-        "Tip: If you are ever unsure whether food is safe, treat it as unsafe and ask a manager — we never risk it for speed."
+    estMinutes: 10,
+    xp: 80,
+    focus: "Keeping food safe from delivery to serving the guest.",
+    objectives: [
+      "Wash hands correctly and use PPE when needed.",
+      "Avoid cross-contamination between raw and ready-to-eat food.",
+      "Know what to do if you think food might be unsafe."
+    ],
+    keySteps: [
+      "Wash hands at the correct sink for at least 20 seconds, then dry with paper towels.",
+      "Use colour-coded equipment and follow raw / cooked separation rules.",
+      "If you’re unsure whether food is safe, treat it as unsafe and call a manager."
+    ],
+    do: [
+      "Change gloves when switching tasks.",
+      "Keep sanitiser bottles and cloths where they’re meant to be.",
+      "Record checks (temperatures, holding times) on time."
+    ],
+    dont: [
+      "Touch your face or phone and then handle food.",
+      "Ignore a timer that has expired.",
+      "Serve food that looks undercooked or wrong."
+    ],
+    scenario: {
+      title: "A holding timer has just expired",
+      text:
+        "You see a timer expire on the UHC. Instead of re-starting the timer, you call a manager, discard the product and cook fresh. This slows things down for one order but protects guests and the brand."
     }
   },
   {
-    id: 4,
-    name: "Kitchen Essentials",
-    xp: 100,
+    id: "kitchen",
+    index: 4,
+    title: "Kitchen Essentials",
     tag: "Kitchen",
-    lesson: {
-      summary:
-        "Learn how the kitchen is organised so you can move quickly and safely.",
-      bullets: [
-        "Know where each ingredient lives and label products correctly.",
-        "Follow build charts exactly — consistency matters to guests.",
-        "Keep cooking surfaces and utensils sanitised between tasks."
-      ],
-      tips:
-        "Tip: Before busy periods, restock your line so you’re not searching for items during a rush."
+    estMinutes: 10,
+    xp: 80,
+    focus: "Moving confidently around the kitchen without losing control.",
+    objectives: [
+      "Know the layout and key pieces of equipment in your kitchen.",
+      "Follow build charts accurately for each product.",
+      "Keep your line stocked and clean through the rush."
+    ],
+    keySteps: [
+      "Learn the build chart for your main products and keep a copy nearby.",
+      "Set up your station before the rush: sauces, wraps, boxes, trays.",
+      "Call out low stock early so there’s time to cook more."
+    ],
+    do: [
+      "Check cook times and holding times regularly.",
+      "Label and rotate products so oldest is used first.",
+      "Move with purpose but never run."
+    ],
+    dont: [
+      "Guess builds because you’re in a hurry.",
+      "Leave tongs or utensils on dirty surfaces.",
+      "Block walkways or emergency exits with boxes or trays."
+    ],
+    scenario: {
+      title: "You’re on the bun station at lunch",
+      text:
+        "Orders are building up. You keep your bun area tidy, call out when you’re running low, and follow the build charts without skipping steps. When you fall behind, you ask a manager for short-term help rather than trying to do everything alone."
     }
   },
   {
-    id: 5,
-    name: "Front Counter Service",
-    xp: 120,
+    id: "front-counter",
+    index: 5,
+    title: "Front Counter Service",
     tag: "Service",
-    lesson: {
-      summary:
-        "Deliver friendly, accurate service on front counter, kiosks and mobile orders.",
-      bullets: [
-        "Greet every guest within a few seconds with a smile and eye contact.",
-        "Repeat orders back to confirm and check screens before handing food out.",
-        "Handle complaints calmly — apologise, fix the issue, and involve a manager when needed."
-      ],
-      tips:
-        "Tip: Use names (when shown on kiosk/mobile orders) — it personalises the experience and reduces mix-ups."
+    estMinutes: 8,
+    xp: 70,
+    focus: "Making face-to-face service fast, accurate and friendly.",
+    objectives: [
+      "Handle kiosk, app and front counter orders confidently.",
+      "Use positive language even when guests are frustrated.",
+      "Know simple ways to recover a poor experience."
+    ],
+    keySteps: [
+      "Greet every guest within a few seconds, even if you’re still finishing the last order.",
+      "Repeat orders back and check names / table numbers.",
+      "If something goes wrong, apologise, fix it and involve a manager when needed."
+    ],
+    do: [
+      "Thank guests for waiting when it’s busy.",
+      "Use the guest’s name when it appears on the screen.",
+      "Offer clear options rather than saying 'I don’t know'."
+    ],
+    dont: [
+      "Blame other crew in front of guests.",
+      "Ignore guests who look unsure about kiosks.",
+      "Let long queues build without telling a manager."
+    ],
+    scenario: {
+      title: "An order has missing fries",
+      text:
+        "A guest says their fries are missing. You stay calm, apologise and quickly check their receipt and the screen. You fix the mistake, re-check the rest of the order and thank them for their patience."
     }
   },
   {
-    id: 6,
-    name: "Drive-Thru Service",
-    xp: 140,
+    id: "drive-thru",
+    index: 6,
+    title: "Drive-Thru Teamwork",
     tag: "Drive-Thru",
-    lesson: {
-      summary:
-        "Work as a tight team to keep the Drive-Thru fast, accurate and friendly.",
-      bullets: [
-        "Use the headset correctly — short, clear phrases and repeat the total.",
-        "Check drinks, bags and condiments match the order on screen.",
-        "Never lean too far out of the window; prioritise safety."
-      ],
-      tips:
-        "Tip: Listen for repeat orders and anticipate the next car — small seconds saved on each order add up."
-    }
-  },
-  {
-    id: 7,
-    name: "Peak Time Efficiency",
-    xp: 160,
-    tag: "Rush times",
-    lesson: {
-      summary:
-        "Stay organised when the restaurant is busy so guests still feel looked after.",
-      bullets: [
-        "Communicate constantly: call out large orders and low stock early.",
-        "Use simple phrases like 'I’ll take orders', 'I’ll bag', 'I’ll drinks'.",
-        "Move with purpose but never run — safety before speed."
-      ],
-      tips:
-        "Tip: Agree roles with the team before the rush starts. Changing roles mid-rush slows everyone down."
-    }
-  },
-  {
-    id: 8,
-    name: "Customer Experience",
-    xp: 180,
-    tag: "Guest focus",
-    lesson: {
-      summary:
-        "Create small moments of 'wow' that make guests want to come back.",
-      bullets: [
-        "Keep dining and counter areas clean and welcoming.",
-        "Look for chances to help: highchairs, carrying trays, topping up sauces.",
-        "Thank guests sincerely and invite them back."
-      ],
-      tips:
-        "Tip: A simple 'Thanks for waiting, I really appreciate your patience' can turn a delay into a positive experience."
-    }
-  },
-  {
-    id: 9,
-    name: "Advanced Station Training",
-    xp: 200,
-    tag: "Cross-training",
-    lesson: {
-      summary:
-        "Become confident working across multiple stations so you can support any shift.",
-      bullets: [
-        "Once you’re solid on one station, ask to shadow another during quieter times.",
-        "Use training checklists to track which tasks you can do independently.",
-        "Share tips with newer crew — teaching others reinforces your own knowledge."
-      ],
-      tips:
-        "Tip: Aim to be signed off on 3+ stations; it makes you more valuable on the rota and opens progression paths."
-    }
-  },
-  {
-    id: 10,
-    name: "Certification Challenge",
-    xp: 250,
-    tag: "Certification",
-    lesson: {
-      summary:
-        "Pull together everything you’ve learned to demonstrate you’re certification-ready.",
-      bullets: [
-        "Show safe behaviours without reminders: handwashing, PPE, sanitising.",
-        "Hit expected times on your stations while staying calm and polite.",
-        "Explain key safety and service steps to your trainer or manager."
-      ],
-      tips:
-        "Tip: Before your assessment, re-read earlier stages and ask for feedback on one thing to tighten up each shift."
+    estMinutes: 8,
+    xp: 70,
+    focus: "Working as a team across order, pay and handout windows.",
+    objectives: [
+      "Use headsets and screens correctly.",
+      "Coordinate with the kitchen so food is ready at the right time.",
+      "Handle payments safely and accurately."
+    ],
+    keySteps: [
+      "Use short, clear phrases on the headset and repeat totals.",
+      "Check bags, drinks and condiments before handing them out.",
+      "Tell a manager if there’s a long delay or system problem."
+    ],
+    do: [
+      "Stay polite even if guests sound stressed.",
+      "Call out special items (like no salt fries) so the team can react.",
+      "Keep windows and counters clean between cars."
+    ],
+    dont: [
+      "Lean too far out of the window.",
+      "Guess orders without checking screens.",
+      "Talk over other crew on the headset."
+    ],
+    scenario: {
+      title: "Cars are backed up to the road",
+      text:
+        "You have a queue of cars and the kitchen is behind. You stay calm, update guests with realistic times and tell your manager so they can add support or hold cars in the bays instead of blocking the road."
     }
   }
 ];
 
-/* ============================================================
-   USER TRAINING DATA (Synced with Firestore)
-   ============================================================ */
+/* ---------- Training state (synced with Firestore) ---------- */
 
-let trainingData = {
+let trainingState = {
   xp: 0,
-  level: 1,
-  completedStages: [],   // [1,2,3,...]
-  unlocked: 1,           // first stage unlocked
-  rewardsClaimed: []
+  completedModules: [],       // [moduleId,...]
+  reflections: {}             // {moduleId: text}
 };
 
-/* ============================================================
-   FIRESTORE: LOAD OR CREATE USER PROFILE
-   ============================================================ */
+let currentModule = null;
 
-async function loadTrainingProfile(userId) {
+/* Firestore helpers */
+
+async function loadTrainingState(userId) {
   try {
-    const ref = doc(db, "users", userId, "training", "profile");
+    const ref = doc(db, "users", userId, "trainingV2", "profile");
     const snap = await getDoc(ref);
 
     if (!snap.exists()) {
-      console.log("Training profile does not exist — creating new one.");
-      await setDoc(ref, trainingData);
-      return trainingData;
+      await setDoc(ref, trainingState);
+      return trainingState;
     }
 
-    const data = snap.data();
-    trainingData = { ...trainingData, ...data };
-
-    console.log("Loaded training profile:", trainingData);
-    return trainingData;
+    const data = snap.data() || {};
+    trainingState = { ...trainingState, ...data };
+    return trainingState;
   } catch (err) {
-    console.error("Error loading training profile:", err);
+    console.error("[Training] Failed to load training state:", err);
+    return trainingState;
   }
 }
 
-/* ============================================================
-   FIRESTORE: SAVE PROFILE
-   ============================================================ */
-
-async function saveTrainingProfile() {
+async function saveTrainingState() {
   if (!sessionUser) return;
   try {
-    const ref = doc(db, "users", sessionUser.id, "training", "profile");
-    await updateDoc(ref, trainingData);
+    const ref = doc(db, "users", sessionUser.id, "trainingV2", "profile");
+    await updateDoc(ref, trainingState);
   } catch (err) {
-    console.error("Error saving training profile:", err);
+    // if update fails because doc doesn't exist, fall back to setDoc once
+    try {
+      const ref = doc(db, "users", sessionUser.id, "trainingV2", "profile");
+      await setDoc(ref, trainingState, { merge: true });
+    } catch (err2) {
+      console.error("[Training] Failed to save training state:", err2);
+    }
   }
 }
 
-/* ============================================================
-   XP + LEVEL SYSTEM
-   ============================================================ */
+/* ---------- XP & level ---------- */
 
-function getXpRequired(level) {
-  return 100 + (level - 1) * 50; // increases each level
+function xpToLevel(xp) {
+  // simple curve: each level is +150 xp
+  return Math.floor(xp / 150) + 1;
 }
 
-function bumpLevelCircle() {
-  if (!levelCircle) return;
-  levelCircle.classList.remove("level-circle-bump");
-  // trigger reflow
-  void levelCircle.offsetWidth;
-  levelCircle.classList.add("level-circle-bump");
+function showToast(message) {
+  if (!toastEl) return;
+  toastEl.textContent = message;
+  toastEl.classList.add("show");
+  setTimeout(() => toastEl.classList.remove("show"), 2600);
 }
 
 function addXP(amount) {
-  trainingData.xp += amount;
-
-  const required = getXpRequired(trainingData.level);
-
-  if (trainingData.xp >= required) {
-    trainingData.xp -= required;
-    trainingData.level++;
-    bumpLevelCircle();
-    showRewardModal("LEVEL UP!", `You reached Level ${trainingData.level}! ⭐`);
-  }
-
-  updateXPUI();
-  saveTrainingProfile();
+  trainingState.xp += amount;
+  updateHeaderXP();
+  saveTrainingState();
+  showToast(`+${amount} XP added to your training.`);
 }
 
-function updateXPUI() {
-  if (!xpFill || !xpLabel || !levelCircle) return;
-
-  const needed = getXpRequired(trainingData.level);
-  const pct = Math.min(100, (trainingData.xp / needed) * 100);
-
-  xpFill.style.width = pct + "%";
-  xpLabel.textContent = `${trainingData.xp} / ${needed} XP`;
-  levelCircle.textContent = trainingData.level;
+function updateHeaderXP() {
+  const xp = trainingState.xp || 0;
+  const level = xpToLevel(xp);
+  if (headerLevel) headerLevel.textContent = level;
+  if (headerXP) headerXP.textContent = `${xp} XP total`;
 }
 
-/* ============================================================
-   TRACK RENDERING
-   ============================================================ */
+/* ---------- Rendering: path rail ---------- */
 
-function renderTrainingTrack() {
-  trackContainer.innerHTML = "";
+function renderPathRail() {
+  if (!pathList) return;
+  pathList.innerHTML = "";
 
-  trainingStages.forEach((stage) => {
-    const card = document.createElement("div");
-    const completed = trainingData.completedStages.includes(stage.id);
-    const locked = stage.id > trainingData.unlocked;
+  modules.forEach((m) => {
+    const li = document.createElement("li");
+    li.className = "path-item";
+    li.dataset.moduleId = m.id;
 
-    card.className = "track-card";
-    if (completed) card.classList.add("completed");
-    if (locked) card.classList.add("locked");
+    const completed = trainingState.completedModules.includes(m.id);
+    if (completed) li.classList.add("completed");
+    if (currentModule && currentModule.id === m.id) li.classList.add("active");
 
-    card.innerHTML = `
-      <div class="stage-number">Stage ${stage.id}</div>
-      <h3>${stage.name}</h3>
-      <div class="xp-reward">+${stage.xp} XP</div>
+    li.innerHTML = `
+      <div class="path-step">${m.index}</div>
+      <div class="path-text">
+        <div class="path-title-row">
+          <span>${m.title}</span>
+          <span class="path-tag">${m.tag}</span>
+        </div>
+        <div class="path-meta">
+          ${m.estMinutes} min • ${m.xp} XP
+        </div>
+      </div>
     `;
 
-    card.onclick = () => {
-      if (locked) return;
-      openStage(stage);
-    };
+    li.addEventListener("click", () => {
+      selectModule(m.id);
+    });
 
-    trackContainer.appendChild(card);
+    pathList.appendChild(li);
   });
 }
 
-/* ============================================================
-   LESSON RENDERING + STAGE OPEN
-   ============================================================ */
+/* ---------- Rendering: lesson panel ---------- */
 
-function renderLesson(stage) {
-  currentStage = stage;
+function renderLesson(module) {
+  if (!lessonPanel || !lessonTitle || !lessonSubtitle || !lessonTag) return;
 
-  if (!lessonTitleEl || !lessonBodyEl || !lessonTagEl) return;
+  // restart animation
+  lessonPanel.classList.remove("lesson-panel-anim");
+  void lessonPanel.offsetWidth;
+  lessonPanel.classList.add("lesson-panel-anim");
 
-  lessonTitleEl.textContent = stage.name;
-  lessonTagEl.textContent = stage.tag || "Training";
-  lessonBodyEl.classList.remove("lesson-placeholder");
+  lessonTitle.textContent = module.title;
+  lessonSubtitle.textContent = module.focus;
+  lessonTag.textContent = module.tag;
 
-  const lesson = stage.lesson || {};
-  const bullets = (lesson.bullets || [])
-    .map((b) => `<li>${b}</li>`)
+  const objectives = module.objectives
+    .map((o) => `<li>${o}</li>`)
     .join("");
 
-  lessonBodyEl.innerHTML = `
-    <p>${lesson.summary || ""}</p>
-    ${
-      bullets
-        ? `<ul>${bullets}</ul>`
-        : ""
-    }
+  const steps = module.keySteps
+    .map((s) => `<li>${s}</li>`)
+    .join("");
+
+  const doList = module.do
+    .map((d) => `<li>✅ ${d}</li>`)
+    .join("");
+
+  const dontList = module.dont
+    .map((d) => `<li>⚠️ ${d}</li>`)
+    .join("");
+
+  const scenario = module.scenario || {};
+
+  lessonContent.innerHTML = `
+    <section class="lesson-section">
+      <h4>What you'll learn</h4>
+      <ul>${objectives}</ul>
+    </section>
+
+    <section class="lesson-section">
+      <h4>Step-by-step on shift</h4>
+      <ul>${steps}</ul>
+    </section>
+
+    <section class="lesson-section">
+      <h4>Do & don't</h4>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px;">
+        <ul>${doList}</ul>
+        <ul>${dontList}</ul>
+      </div>
+    </section>
+
+    <section class="lesson-section">
+      <h4>Real shift scenario</h4>
+      <div class="lesson-scenario">
+        <strong>${scenario.title || "On a busy shift"}</strong>
+        <span>${scenario.text || ""}</span>
+      </div>
+    </section>
+
+    <section class="lesson-highlight">
+      Tip: Pick one thing from this lesson and write it in your own words
+      in the note box on the right. Then try it on your very next shift.
+    </section>
   `;
-
-  if (lessonTipsEl) {
-    if (lesson.tips) {
-      lessonTipsEl.style.display = "block";
-      lessonTipsEl.textContent = lesson.tips;
-    } else {
-      lessonTipsEl.style.display = "none";
-    }
-  }
-
-  if (startQuizBtn) {
-    startQuizBtn.disabled = false;
-    startQuizBtn.textContent = `Start quiz for "${stage.name}"`;
-  }
-  if (quizHint) {
-    quizHint.textContent = "When you’re ready, take the quiz to complete this stage.";
-  }
 }
 
-function openStage(stage) {
-  renderLesson(stage);
+/* ---------- Rendering: progress panel ---------- */
+
+function renderProgressPanel(module) {
+  if (!statusPill || !moduleXPInfo || !moduleXpFill || !checklistEl) return;
+
+  const completed = trainingState.completedModules.includes(module.id);
+
+  statusPill.textContent = completed ? "Completed" : "In progress";
+  statusPill.classList.toggle("completed", completed);
+
+  moduleXPInfo.textContent = `${module.xp} XP when you complete this module.`;
+
+  // simple module completion bar: full if completed, half if not yet
+  moduleXpFill.style.width = completed ? "100%" : "40%";
+
+  // checklist: just echo key steps in short form
+  checklistEl.innerHTML = "";
+  module.keySteps.forEach((step, idx) => {
+    const li = document.createElement("li");
+    li.className = "check-item";
+    li.innerHTML = `
+      <input type="checkbox" data-step="${idx}">
+      <span>${step}</span>
+    `;
+    checklistEl.appendChild(li);
+  });
+
+  // reflection
+  const storedReflection = trainingState.reflections?.[module.id] || "";
+  if (reflectionInput) {
+    reflectionInput.value = storedReflection;
+    reflectionInput.disabled = false;
+  }
+
+  completeModuleBtn.disabled = false;
+  resetModuleBtn.disabled = !completed;
 }
 
-/* ============================================================
-   COMPLETING A STAGE → XP + Unlock next + Reward
-   ============================================================ */
+/* ---------- Select module ---------- */
 
-function completeStage(stage) {
-  if (!trainingData.completedStages.includes(stage.id)) {
-    trainingData.completedStages.push(stage.id);
+function selectModule(id) {
+  const module = modules.find((m) => m.id === id);
+  if (!module) return;
 
-    // unlock next
-    if (trainingData.unlocked < trainingStages.length) {
-      trainingData.unlocked = stage.id + 1;
-    }
+  currentModule = module;
 
-    addXP(stage.xp);
-
-    showRewardModal(
-      "Training complete!",
-      `You completed <strong>${stage.name}</strong> and earned <strong>${stage.xp} XP</strong>.`
+  // update path rail highlighting
+  document.querySelectorAll(".path-item").forEach((item) => {
+    item.classList.toggle(
+      "active",
+      item.dataset.moduleId === module.id
     );
+  });
 
-    saveTrainingProfile();
-    renderTrainingTrack();
+  renderLesson(module);
+  renderProgressPanel(module);
+}
+
+/* ---------- Complete / reset module ---------- */
+
+function completeCurrentModule() {
+  if (!currentModule) return;
+
+  if (!trainingState.completedModules.includes(currentModule.id)) {
+    trainingState.completedModules.push(currentModule.id);
+    addXP(currentModule.xp);
+    saveTrainingState();
   }
+
+  renderPathRail();
+  renderProgressPanel(currentModule);
+  showToast(`Nice work – "${currentModule.title}" marked as complete.`);
 }
 
-/* ============================================================
-   QUIZ SYSTEM
-   ============================================================ */
+function resetCurrentModule() {
+  if (!currentModule) return;
 
-function showQuizModal(stage) {
-  if (!stage) return;
-  quizModal.classList.add("show");
-  populateQuiz(stage);
+  trainingState.completedModules = trainingState.completedModules.filter(
+    (id) => id !== currentModule.id
+  );
+
+  renderPathRail();
+  renderProgressPanel(currentModule);
+  saveTrainingState();
+  showToast(`Progress for "${currentModule.title}" has been reset.`);
 }
 
-function hideQuizModal() {
-  quizModal.classList.remove("show");
-}
+/* ---------- Reflection save ---------- */
 
-function populateQuiz(stage) {
-  const question = generateQuizQuestion(stage.id);
-  const options = generateQuizOptions(stage.id);
-
-  quizQuestionEl.textContent = question;
-  quizOptionsEl.innerHTML = "";
-
-  options.forEach((opt) => {
-    const el = document.createElement("div");
-    el.className = "quiz-option";
-    el.textContent = opt.text;
-    el.dataset.correct = opt.correct ? "true" : "false";
-    el.onclick = () => {
-      document
-        .querySelectorAll(".quiz-option")
-        .forEach((o) => o.classList.remove("selected"));
-      el.classList.add("selected");
-    };
-    quizOptionsEl.appendChild(el);
+if (reflectionInput) {
+  reflectionInput.addEventListener("blur", () => {
+    if (!currentModule) return;
+    if (!trainingState.reflections) trainingState.reflections = {};
+    trainingState.reflections[currentModule.id] = reflectionInput.value || "";
+    saveTrainingState();
   });
 }
 
-/* Example quiz questions */
-function generateQuizQuestion(id) {
-  const questions = {
-    1: "What is the #1 priority at McDonald's?",
-    2: "Which item is considered PPE?",
-    3: "What temperature must cooked patties reach before serving?",
-    4: "Why is following build charts important?",
-    5: "What should you do after taking a guest’s order?",
-    6: "What’s key for great Drive-Thru service?",
-    7: "What should the team do before a busy period?",
-    8: "Which action most improves customer experience?",
-    9: "What is cross-training?",
-    10: "What should you do before your certification assessment?"
-  };
-  return questions[id] || "Question missing.";
+/* ---------- Buttons ---------- */
+
+if (completeModuleBtn) {
+  completeModuleBtn.addEventListener("click", completeCurrentModule);
 }
 
-function generateQuizOptions(id) {
-  const answers = {
-    1: [
-      { text: "Customer and food safety", correct: true },
-      { text: "Speed only", correct: false },
-      { text: "Cleaning only", correct: false }
-    ],
-    2: [
-      { text: "Gloves", correct: true },
-      { text: "Fries", correct: false },
-      { text: "Drink lids", correct: false }
-    ],
-    3: [
-      { text: "At least 75°C", correct: true },
-      { text: "30°C", correct: false },
-      { text: "45°C", correct: false }
-    ],
-    4: [
-      { text: "They keep products consistent for guests", correct: true },
-      { text: "They make burgers look bigger", correct: false },
-      { text: "They are optional suggestions", correct: false }
-    ],
-    5: [
-      { text: "Repeat the order and thank the guest", correct: true },
-      { text: "Turn away and start another task", correct: false },
-      { text: "Hand over food without checking", correct: false }
-    ],
-    6: [
-      { text: "Clear communication and accuracy", correct: true },
-      { text: "Speaking as fast as possible", correct: false },
-      { text: "Ignoring screens and guessing orders", correct: false }
-    ],
-    7: [
-      { text: "Agree roles and restock stations", correct: true },
-      { text: "Wait until it’s busy, then decide", correct: false },
-      { text: "All swap roles randomly during the rush", correct: false }
-    ],
-    8: [
-      { text: "Thank guests and keep areas clean", correct: true },
-      { text: "Avoid eye contact", correct: false },
-      { text: "Only focus on drive-thru cars", correct: false }
-    ],
-    9: [
-      { text: "Training to work confidently on multiple stations", correct: true },
-      { text: "Doing the same task all shift", correct: false },
-      { text: "Skipping training modules", correct: false }
-    ],
-    10: [
-      {
-        text: "Review earlier stages and ask for feedback",
-        correct: true
-      },
-      { text: "Avoid talking to your trainer", correct: false },
-      { text: "Ignore food safety rules", correct: false }
-    ]
-  };
-
-  return answers[id] || [{ text: "OK", correct: true }];
+if (resetModuleBtn) {
+  resetModuleBtn.addEventListener("click", resetCurrentModule);
 }
 
-/* Quiz submit handler */
-if (quizSubmit) {
-  quizSubmit.onclick = () => {
-    const selected = document.querySelector(".quiz-option.selected");
-    if (!selected) return;
-
-    const isCorrect = selected.dataset.correct === "true";
-
-    if (!currentStage) return;
-
-    if (isCorrect) {
-      hideQuizModal();
-      completeStage(currentStage);
-    } else {
-      selected.style.background = "#fee2e2";
-      setTimeout(() => {
-        selected.style.background = "";
-      }, 500);
-      showRewardModal("Try again", "Oops! That wasn’t quite right. Read the lesson once more and try again.");
-    }
-  };
-}
-
-/* ============================================================
-   REWARD MODAL
-   ============================================================ */
-
-function showRewardModal(title, text) {
-  rewardTitle.textContent = title;
-  rewardText.innerHTML = text;
-  rewardModal.classList.add("show");
-}
-
-rewardClose.onclick = () => rewardModal.classList.remove("show");
-
-/* Close quiz modal via X */
-if (quizCloseBtn) {
-  quizCloseBtn.onclick = () => hideQuizModal();
-}
-
-/* Start quiz from side card */
-if (startQuizBtn) {
-  startQuizBtn.onclick = () => {
-    if (!currentStage) return;
-    showQuizModal(currentStage);
-  };
-}
-
-/* ============================================================
-   AUTH INIT
-   ============================================================ */
+/* ---------- Auth init ---------- */
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -624,30 +566,35 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  sessionUser = loadSession() || {
-    id: user.uid,
-    role: "crew",
-    name: user.displayName || user.email || "User"
-  };
+  sessionUser =
+    loadSession() || {
+      id: user.uid,
+      role: "crew",
+      name: user.displayName || user.email || "User"
+    };
 
-  sidebarUserName.textContent = sessionUser.name;
-  sidebarUserRole.textContent =
-    sessionUser.role === "manager" ? "Restaurant Manager" : "Crew Member";
+  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
+  if (sidebarUserRole) {
+    sidebarUserRole.textContent =
+      sessionUser.role === "manager" ? "Restaurant Manager" : "Crew Member";
+  }
 
-  await loadTrainingProfile(sessionUser.id);
+  await loadTrainingState(sessionUser.id);
+  updateHeaderXP();
+  renderPathRail();
 
-  updateXPUI();
-  renderTrainingTrack();
+  // auto-select first module if none selected
+  if (modules.length) {
+    selectModule(modules[0].id);
+  }
 });
 
-/* ============================================================
-   LOGOUT
-   ============================================================ */
+/* ---------- Logout ---------- */
 
 if (logoutBtn) {
-  logoutBtn.onclick = async () => {
+  logoutBtn.addEventListener("click", async () => {
     await signOut(auth);
     localStorage.removeItem("mc_session_user");
     window.location.href = "index.html";
-  };
+  });
 }
