@@ -1,5 +1,6 @@
-// schedule.js – Option 2: AI-ish shift generator (Forecast + Availability + Skills + Max Hours)
-// Uses Firestore: stores/{storeId}/Shifts (capital S) like your existing project.
+// schedule.js – Option 2 (Improved): AI-ish shift generator
+// Forecast + Availability + Skills + Max Hours
+// Writes to Firestore: stores/{storeId}/Shifts (capital S)
 
 import { auth, db } from "./firebase-init.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -95,14 +96,8 @@ function dayKeyFromDate(dateObj) {
 }
 
 function hhmmToMinutes(h) {
-  const [hh, mm] = (h || "00:00").split(":").map(Number);
+  const [hh, mm] = (h || "00:00").split(":").map((n) => parseInt(n, 10) || 0);
   return hh * 60 + mm;
-}
-
-function minutesToHHMM(m) {
-  const hh = Math.floor(m / 60);
-  const mm = m % 60;
-  return String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
 }
 
 function shiftHours(startHHMM, endHHMM) {
@@ -118,6 +113,45 @@ function overlaps(aStart, aEnd, bStart, bEnd) {
   if (aE < aS) aE += 24 * 60;
   if (bE < bS) bE += 24 * 60;
   return aS < bE && bS < aE;
+}
+
+/* ============================================================
+   KEY FIX: Merge adjacent blocks (core + close) into 1 shift
+   - If same user, same day, end == next start → merge
+============================================================ */
+
+function mergeAdjacentShifts(planned) {
+  const items = planned
+    .filter((p) => !p._unfilled)
+    .slice()
+    .sort((a, b) => {
+      if (a.userId !== b.userId) return a.userId.localeCompare(b.userId);
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
+      return hhmmToMinutes(a.start) - hhmmToMinutes(b.start);
+    });
+
+  const out = [];
+  for (const p of items) {
+    const last = out[out.length - 1];
+    if (
+      last &&
+      last.userId === p.userId &&
+      last.date === p.date &&
+      last.end === p.start
+    ) {
+      // merge blocks
+      last.end = p.end;
+      if (last.station !== p.station) last.station = "Mixed stations";
+      // demandLevel: keep "highest"
+      const rank = (x) => (x === "high" ? 3 : x === "normal" ? 2 : 1);
+      if (rank(p.demandLevel) > rank(last.demandLevel)) last.demandLevel = p.demandLevel;
+      continue;
+    }
+    out.push({ ...p });
+  }
+
+  const unfilled = planned.filter((p) => p._unfilled);
+  return [...out, ...unfilled];
 }
 
 /* ========= FIRESTORE LOAD ========= */
@@ -154,7 +188,8 @@ async function loadShiftsFromFirestore(storeId) {
         role: d.role || "crew",
         station: d.station || "",
         isShiftManager: !!d.isShiftManager,
-        generatedByAI: !!d.generatedByAI
+        generatedByAI: !!d.generatedByAI,
+        demandLevel: d.demandLevel || "normal"
       });
     });
   } catch (err) {
@@ -165,11 +200,9 @@ async function loadShiftsFromFirestore(storeId) {
 function normalizeUser(d, id) {
   const name = d.name || d.email || "Crew member";
   const role = d.role || "crew";
-
   const skills = typeof d.skills === "object" && d.skills ? d.skills : {};
   const availability = typeof d.availability === "object" && d.availability ? d.availability : {};
   const maxHoursPerWeek = typeof d.maxHoursPerWeek === "number" ? d.maxHoursPerWeek : 40;
-
   return { id, name, role, skills, availability, maxHoursPerWeek };
 }
 
@@ -342,7 +375,7 @@ function renderSchedule(isManagerLike, canManageShifts) {
 
       let othersBlock = "";
 
-      // If shift manager today, show crew
+      // If shift manager today OR shift creator, show crew list
       if (isShiftManagerToday || canManageShifts) {
         const others = dayShifts.filter((s) => s.userId !== sessionUser.id);
         if (others.length) {
@@ -422,12 +455,10 @@ function attachDeleteHandlers(canManageShifts) {
 
 /* ============================================================
    AI SHIFT GENERATION (Option 2)
-   - Uses forecast + availability + maxHours + skills
 ============================================================ */
 
 function getStationPlanForDemand(demand, dayPart) {
-  // You can tweak this to match your store perfectly.
-  // dayPart: "core" or "close"
+  // station keys must match user.skills.{stationKey}
   const low = {
     core:   ["front","fries","line","grill"],
     close:  ["front","line","grill"]
@@ -483,6 +514,7 @@ function computeAssignedHoursThisWeek(userId, weekStartISO, weekEndISO, extraPla
 
   // planned new shifts (not yet saved)
   extraPlanned.forEach((p) => {
+    if (p._unfilled) return;
     if (p.userId !== userId) return;
     if (p.date < weekStartISO || p.date > weekEndISO) return;
     hrs += shiftHours(p.start, p.end);
@@ -654,7 +686,9 @@ function renderShiftManageTools(canManageShifts, storeId) {
         return;
       }
 
-      const clash = allShifts.some((s) => s.userId === userId && s.date === date && overlaps(s.start, s.end, start, end));
+      const clash = allShifts.some(
+        (s) => s.userId === userId && s.date === date && overlaps(s.start, s.end, start, end)
+      );
       if (clash) {
         shiftManageMessage.style.color = "#b91c1c";
         shiftManageMessage.textContent = "This person already has a shift that overlaps.";
@@ -743,18 +777,13 @@ function renderShiftManageTools(canManageShifts, storeId) {
           days.push(d);
         }
 
-        // We only assign CREW users (you can include managers too if you want)
+        // Only assign crew users
         const eligibleCrew = storeCrew.filter((c) => c.role === "crew");
 
-        // A little fairness: track planned hours
+        // Fairness: track planned hours
         const plannedHours = new Map();
-
-        function getPlannedHours(uid) {
-          return plannedHours.get(uid) || 0;
-        }
-        function addPlannedHours(uid, hrs) {
-          plannedHours.set(uid, getPlannedHours(uid) + hrs);
-        }
+        const getPlannedHours = (uid) => plannedHours.get(uid) || 0;
+        const addPlannedHours = (uid, hrs) => plannedHours.set(uid, getPlannedHours(uid) + hrs);
 
         // Assign by day, by block, by required station
         for (const dayDate of days) {
@@ -769,13 +798,11 @@ function renderShiftManageTools(canManageShifts, storeId) {
             const requiredStations = getStationPlanForDemand(demand, part);
 
             for (const station of requiredStations) {
-              // pick best candidate
               const candidates = eligibleCrew
                 .filter((c) => userHasSkill(c, station))
                 .filter((c) => canUserWorkBlock(c, dk, blockStart, blockEnd))
                 .filter((c) => !userHasClash(c.id, dateISO, blockStart, blockEnd))
                 .sort((a, b) => {
-                  // fewer planned hours first, then name
                   const ah = getPlannedHours(a.id);
                   const bh = getPlannedHours(b.id);
                   if (ah !== bh) return ah - bh;
@@ -785,11 +812,7 @@ function renderShiftManageTools(canManageShifts, storeId) {
               let chosen = null;
 
               for (const c of candidates) {
-                const { start: wS, end: wE } = getWeekRange(weekOffset, new Date());
-                const wsISO = toISODateString(wS);
-                const weISO = toISODateString(wE);
-
-                const already = computeAssignedHoursThisWeek(c.id, wsISO, weISO, planned);
+                const already = computeAssignedHoursThisWeek(c.id, weekStartISO, weekEndISO, planned);
                 const maxH = typeof c.maxHoursPerWeek === "number" ? c.maxHoursPerWeek : 40;
                 const addH = shiftHours(blockStart, blockEnd);
 
@@ -800,18 +823,17 @@ function renderShiftManageTools(canManageShifts, storeId) {
               }
 
               if (!chosen) {
-                // Couldn't fill this station; skip but keep going
                 planned.push({
                   _unfilled: true,
                   date: dateISO,
                   start: blockStart,
                   end: blockEnd,
-                  station
+                  station,
+                  demandLevel: demand
                 });
                 continue;
               }
 
-              // Create planned shift
               planned.push({
                 date: dateISO,
                 start: blockStart,
@@ -830,16 +852,24 @@ function renderShiftManageTools(canManageShifts, storeId) {
           }
         }
 
+        // ✅ KEY FIX: merge core+close adjacent blocks per user/day (so schedule looks clean)
+        const mergedPlanned = mergeAdjacentShifts(planned);
+
         // Write planned shifts to Firestore (skip unfilled)
         let created = 0;
         let unfilled = 0;
+        const unfilledByStation = {};
 
-        for (const p of planned) {
-          if (p._unfilled) { unfilled++; continue; }
+        for (const p of mergedPlanned) {
+          if (p._unfilled) {
+            unfilled++;
+            unfilledByStation[p.station] = (unfilledByStation[p.station] || 0) + 1;
+            continue;
+          }
 
-          // Final clash check against fresh allShifts + planned (safe)
-          const clashExisting = allShifts.some((s) =>
-            s.userId === p.userId && s.date === p.date && overlaps(s.start, s.end, p.start, p.end)
+          // final safety clash check
+          const clashExisting = allShifts.some(
+            (s) => s.userId === p.userId && s.date === p.date && overlaps(s.start, s.end, p.start, p.end)
           );
           if (clashExisting) continue;
 
@@ -864,8 +894,17 @@ function renderShiftManageTools(canManageShifts, storeId) {
         await loadShiftsFromFirestore(storeId);
         renderSchedule(true, true);
 
+        const topMissing = Object.entries(unfilledByStation)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", ");
+
         aiGenMsg.style.color = "#15803d";
-        aiGenMsg.textContent = `Generated ${created} shifts. Unfilled slots: ${unfilled}. (Add more availability/skills to fill everything.)`;
+        aiGenMsg.textContent =
+          `Generated ${created} shifts. Unfilled slots: ${unfilled}` +
+          (topMissing ? ` (Most missing: ${topMissing})` : "") +
+          `.`;
       } catch (err) {
         console.error("[AI Gen] error:", err);
         aiGenMsg.style.color = "#b91c1c";
