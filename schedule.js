@@ -6,7 +6,14 @@
 // ✅ Works with skills + availability + maxHoursPerWeek
 // ✅ Keeps your week tabs + schedule rendering
 // ✅ Optional overwrite (delete week shifts) ONLY when publishing
+//
+// ✅ PERMISSIONS FIX:
+//   - Ensures /users/{uid} exists BEFORE querying /users or /stores/*
+//   - Loads storeId + role from Firestore user doc (not localStorage)
+// ==========================================================
 
+import { auth, db } from "./firebase-init.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   collection,
   getDocs,
@@ -19,7 +26,6 @@ import {
   setDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
 
 /* ===================== DOM ===================== */
 
@@ -123,6 +129,26 @@ function overlaps(aStart, aEnd, bStart, bEnd) {
   return aS < bE && bS < aE;
 }
 
+/* ===================== PERMISSIONS FIX ===================== */
+/** Ensures /users/{uid} exists (required by your Firestore rules). */
+async function ensureUserDoc(firebaseUser) {
+  const ref = doc(db, "users", firebaseUser.uid);
+  const snap = await getDoc(ref);
+
+  if (snap.exists()) return snap.data();
+
+  const payload = {
+    name: firebaseUser.displayName || firebaseUser.email || "User",
+    email: String(firebaseUser.email || "").toLowerCase(),
+    role: "crew",
+    storeId: "store001",
+    createdAt: serverTimestamp()
+  };
+
+  await setDoc(ref, payload);
+  return payload;
+}
+
 /* ===================== FIRESTORE LOAD ===================== */
 
 async function loadCrew() {
@@ -167,7 +193,6 @@ async function loadShifts() {
 /* ===================== AI ENGINE (WEBSITE ONLY) ===================== */
 
 function stationPlan(demand, dayPart) {
-  // Tune this to match your store staffing plan
   const low = {
     core:  ["front","line","grill"],
     close: ["front","line","grill"]
@@ -221,10 +246,7 @@ function computeWeekHoursFrom(list, userId, weekStartISO, weekEndISO) {
   return total;
 }
 
-/**
- * Generates shifts in-memory (preview only).
- * Does NOT write to Firestore.
- */
+/** Generates shifts in-memory (preview only). Does NOT write to Firestore. */
 function generateAIWeekPreview({ weekOffset, demandMap, coreStart, coreEnd, closeStart, closeEnd }) {
   aiPreviewShifts = [];
   aiPreviewActive = true;
@@ -236,7 +258,6 @@ function generateAIWeekPreview({ weekOffset, demandMap, coreStart, coreEnd, clos
   const days = getWeekDays(weekOffset, new Date());
   const eligibleCrew = storeCrew.filter((c) => c.role === "crew");
 
-  // fairness hours tracker (planned only)
   const plannedHours = new Map();
   const getPlanned = (uid) => plannedHours.get(uid) || 0;
   const addPlanned = (uid, h) => plannedHours.set(uid, getPlanned(uid) + h);
@@ -258,10 +279,8 @@ function generateAIWeekPreview({ weekOffset, demandMap, coreStart, coreEnd, clos
         const candidates = eligibleCrew
           .filter((u) => hasSkill(u, station))
           .filter((u) => canWork(u, dayKey, startHHMM, endHHMM))
-          // no overlaps against EXISTING shifts OR already planned preview shifts
           .filter((u) => !hasClashIn(allShifts, u.id, dateISO, startHHMM, endHHMM))
           .filter((u) => !hasClashIn(aiPreviewShifts, u.id, dateISO, startHHMM, endHHMM))
-          // fairness: least planned hours first
           .sort((a, b) => {
             const ah = getPlanned(a.id);
             const bh = getPlanned(b.id);
@@ -399,7 +418,6 @@ function renderSchedule() {
         `).join("");
       }
     } else {
-      // manager-like view shows all shifts
       listHTML = dayShifts.map((s) => `
         <li style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
           <div style="display:flex; flex-direction:column;">
@@ -427,10 +445,8 @@ function renderSchedule() {
   html += `</div>`;
   scheduleCard.innerHTML = html;
 
-  // delete handlers (only on real shifts)
   if (isManagerLike && canManageShifts && !aiPreviewActive) attachDeleteHandlers();
 
-  // preview controls
   if (aiPreviewActive) {
     document.getElementById("aiDiscardBtn")?.addEventListener("click", () => {
       aiPreviewActive = false;
@@ -449,7 +465,6 @@ function renderSchedule() {
 
       try {
         await publishPreviewToFirestore(overwrite);
-
         if (msg) {
           msg.style.color = "#15803d";
           msg.textContent = "Published ✅";
@@ -711,7 +726,6 @@ function renderShiftManageTools() {
       msg.textContent = `Preview created: ${result.created} shifts. Unfilled slots: ${result.unfilled.length}.`;
     }
 
-    // switch the calendar to the same week we generated
     currentWeekOffset = weekOffset;
     renderWeekTabs();
     renderSchedule();
@@ -728,7 +742,6 @@ async function publishPreviewToFirestore(overwriteWeek = false) {
   const weekEndISO = toISO(end);
 
   if (overwriteWeek) {
-    // delete existing shifts in that week ONLY
     const toDelete = allShifts.filter((s) => s.date >= weekStartISO && s.date <= weekEndISO);
     for (const s of toDelete) {
       await deleteDoc(doc(db, "stores", storeId, "Shifts", s.id));
@@ -751,7 +764,6 @@ async function publishPreviewToFirestore(overwriteWeek = false) {
     });
   }
 
-  // clear preview + reload
   aiPreviewActive = false;
   aiPreviewShifts = [];
   await loadShifts();
@@ -763,11 +775,15 @@ async function publishPreviewToFirestore(overwriteWeek = false) {
 onAuthStateChanged(auth, async (user) => {
   if (!user) return (location.href = "index.html");
 
-  sessionUser = JSON.parse(localStorage.getItem("mc_session_user")) || {
+  // ✅ critical fix: ensure /users/{uid} exists for rules
+  const userDoc = await ensureUserDoc(user);
+
+  // always trust Firestore user doc for role/storeId
+  sessionUser = {
     id: user.uid,
-    name: user.displayName || user.email || "User",
-    role: "shiftCreator",
-    storeId: "store001"
+    name: userDoc.name || user.displayName || user.email || "User",
+    role: userDoc.role || "crew",
+    storeId: userDoc.storeId || "store001"
   };
 
   storeId = sessionUser.storeId || "store001";
