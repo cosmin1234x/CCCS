@@ -1,564 +1,657 @@
-/** ============================================================
- * McTRAINING – Learning Hub v2
- * Real lessons + checklists + light XP system
- * Firestore sync at users/{id}/trainingV2/profile
- * ============================================================ */
+// ================================================
+// training.js — Training Page Upgrade (Instant Open + Q&A + Quizzes)
+// ✅ Local module library (no Firestore needed)
+// ✅ "open grill training module" instantly opens best match
+// ✅ AI answers from relevant modules (lightweight local retrieval)
+// ✅ Quiz UI runs locally; AI can also generate quiz variants
+// ================================================
 
 import { auth, db } from "./firebase-init.js";
-import {
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   doc,
   getDoc,
   setDoc,
-  updateDoc
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ---------- DOM ---------- */
+/* ===================== OPTIONAL USER DOC ENSURE ===================== */
 
-const sidebarUserName = document.getElementById("sidebarUserName");
-const sidebarUserRole = document.getElementById("sidebarUserRole");
-const logoutBtn = document.getElementById("logoutBtn");
-const sidebar = document.querySelector(".sidebar");
-const sidebarToggle = document.getElementById("sidebarToggle");
-
-const headerLevel = document.getElementById("headerLevel");
-const headerXP = document.getElementById("headerXP");
-
-const pathList = document.getElementById("pathList");
-
-const lessonPanel = document.getElementById("lessonPanel");
-const lessonTitle = document.getElementById("lessonTitle");
-const lessonSubtitle = document.getElementById("lessonSubtitle");
-const lessonTag = document.getElementById("lessonTag");
-const lessonContent = document.getElementById("lessonContent");
-
-const statusPill = document.getElementById("statusPill");
-const moduleXPInfo = document.getElementById("moduleXPInfo");
-const moduleXpFill = document.getElementById("moduleXpFill");
-const checklistEl = document.getElementById("checklist");
-const reflectionInput = document.getElementById("reflectionInput");
-const completeModuleBtn = document.getElementById("completeModuleBtn");
-const resetModuleBtn = document.getElementById("resetModuleBtn");
-
-const toastEl = document.getElementById("toast");
-
-/* ---------- Mobile sidebar toggle ---------- */
-if (sidebar && sidebarToggle) {
-  sidebarToggle.addEventListener("click", () => {
-    sidebar.classList.toggle("sidebar-open");
-  });
+function loadSessionUser() {
+  try { return JSON.parse(localStorage.getItem("mc_session_user")); } catch { return null; }
+}
+function saveSessionUser(u) {
+  localStorage.setItem("mc_session_user", JSON.stringify(u));
 }
 
-/* ---------- Session ---------- */
+async function ensureUserDoc(firebaseUser) {
+  const userRef = doc(db, "users", firebaseUser.uid);
+  const snap = await getDoc(userRef);
+  if (snap.exists()) return snap.data();
+
+  const cached = loadSessionUser() || {};
+  const payload = {
+    name: cached.name || firebaseUser.displayName || firebaseUser.email || "User",
+    email: String(firebaseUser.email || "").toLowerCase(),
+    role: cached.role || "crew",
+    storeId: cached.storeId || "store001",
+    createdAt: serverTimestamp(),
+    trainingStatus: "—",
+    badge: "—",
+    stars: 0
+  };
+  await setDoc(userRef, payload);
+  return payload;
+}
+
+/* ===================== DOM ===================== */
+
+const trainingSearch = document.getElementById("trainingSearch");
+const trainingSearchBtn = document.getElementById("trainingSearchBtn");
+const trainingModuleGrid = document.getElementById("trainingModuleGrid");
+
+const trainingChat = document.getElementById("trainingChat");
+const trainingAiForm = document.getElementById("trainingAiForm");
+const trainingAiInput = document.getElementById("trainingAiInput");
+const trainingAiSend = document.getElementById("trainingAiSend");
+const trainingQuickChips = document.getElementById("trainingQuickChips");
+const trainingAiSubtitle = document.getElementById("trainingAiSubtitle");
+
+const moduleOverlay = document.getElementById("moduleOverlay");
+const moduleTitle = document.getElementById("moduleTitle");
+const moduleMeta = document.getElementById("moduleMeta");
+const moduleBody = document.getElementById("moduleBody");
+const closeModuleBtn = document.getElementById("closeModuleBtn");
+const startQuizBtn = document.getElementById("startQuizBtn");
+const quizArea = document.getElementById("quizArea");
+
+// Optional: if you have logout button on training page
+const logoutBtn = document.getElementById("logoutBtn");
+
+/* ===================== STATE ===================== */
 
 let sessionUser = null;
+let storeId = "store001";
+let activeModule = null;
 
-function loadSession() {
-  try {
-    return JSON.parse(localStorage.getItem("mc_session_user"));
-  } catch {
-    return null;
-  }
-}
-
-/* ---------- Learning content ---------- */
-
-const modules = [
+/* ===================== MODULE LIBRARY ===================== */
+/**
+ * Write your modules here. Keep them short & practical.
+ * If you want, I can also convert these into Firestore later.
+ */
+const MODULES = [
   {
-    id: "welcome",
-    index: 1,
-    title: "Welcome to McDonald's",
-    tag: "Orientation",
-    estMinutes: 5,
-    xp: 40,
-    focus: "What McDonald's expects from every crew member.",
-    objectives: [
-      "Understand our three priorities: safety, quality, and service.",
-      "Know who to speak to when you’re unsure about something.",
-      "Understand how the rota, clock-in and breaks work in your store."
+    id: "grill-101",
+    title: "Grill Training 101",
+    tags: ["grill", "kitchen", "beef", "temperature", "timers", "safety"],
+    minutes: 12,
+    sections: [
+      { h: "Goal", p: "Cook safe, consistent patties using timers, correct placement, and clean working habits." },
+      { h: "Core steps", bullets: [
+        "Wash hands, glove up, check grill area is clean and clear.",
+        "Confirm correct product and correct timer program.",
+        "Place patties evenly; avoid stacking or overlapping.",
+        "Close grill properly; start correct timer.",
+        "When timer ends: remove, stage correctly, and follow holding-time rules."
+      ]},
+      { h: "Safety & quality checks", bullets: [
+        "Never guess cook times—use the correct timer.",
+        "Keep raw and cooked tools separate.",
+        "If anything looks wrong (undercooked, off smell), stop and tell a manager."
+      ]},
+      { h: "Common mistakes", bullets: [
+        "Wrong timer program.",
+        "Crowding the grill.",
+        "Not cleaning between runs.",
+        "Cross-contamination with raw tools."
+      ]}
     ],
-    keySteps: [
-      "Arrive on time in full, clean uniform and clock in correctly.",
-      "Introduce yourself to the shift manager and check your station.",
-      "Ask questions early — it’s better than guessing."
-    ],
-    do: [
-      "Use people’s names where possible.",
-      "Keep phones away unless your manager agrees otherwise.",
-      "Tell a manager if you feel unsafe or unsure."
-    ],
-    dont: [
-      "Guess temperatures or food safety steps.",
-      "Ignore unsafe behaviour because you’re new.",
-      "Leave your station without telling anyone."
-    ],
-    scenario: {
-      title: "It’s your first Friday shift",
-      text:
-        "You’re not sure where to put your bag, how breaks work, or what to do when there are no guests. A good first step is to ask your shift manager to quickly walk you through the basics, then look for small ways to help: wiping, restocking or shadowing another crew member."
-    }
+    quiz: [
+      { q: "What should you use to ensure correct cook time?", choices: ["A stopwatch", "The correct grill timer/program", "Guess based on experience"], a: 1, explain: "Use the correct programmed timer for consistent safe cooking." },
+      { q: "Why should patties not overlap?", choices: ["It wastes space", "It can cook unevenly", "It makes them taste better"], a: 1, explain: "Overlapping can cause uneven cooking and safety issues." },
+      { q: "What do you do if a batch looks undercooked?", choices: ["Serve it anyway", "Throw it away silently", "Stop and tell a manager / follow procedure"], a: 2, explain: "Escalate and follow food safety procedure." }
+    ]
   },
   {
-    id: "crew-basics",
-    index: 2,
-    title: "Crew Basics",
-    tag: "Core skills",
-    estMinutes: 8,
-    xp: 60,
-    focus: "The behaviours and habits that make every shift smoother.",
-    objectives: [
-      "Use the basic service steps on any station.",
-      "Communicate clearly with other crew and managers.",
-      "Know what to do when you’re not directly serving a guest."
+    id: "fries-station",
+    title: "Fries Station Basics",
+    tags: ["fries", "oil", "salt", "holding", "portion"],
+    minutes: 10,
+    sections: [
+      { h: "Goal", p: "Fast, consistent fries with correct salt, portioning, and holding time." },
+      { h: "Core steps", bullets: [
+        "Check oil level/temperature and basket condition.",
+        "Cook correct batch size; shake basket if required by your process.",
+        "Drain properly; salt evenly; portion correctly.",
+        "Respect holding time—rotate stock, don’t top-up old fries."
+      ]},
+      { h: "Quality checks", bullets: [
+        "Color: golden, not pale or burnt.",
+        "Texture: crisp outside, soft inside.",
+        "Portion: consistent scoops."
+      ]}
     ],
-    keySteps: [
-      "Follow the service pattern: Greet → Take order → Prepare → Hand over & thank.",
-      "Talk out loud: call orders, low stock and issues so the team can react.",
-      "In quiet moments: clean, restock or help a nearby station."
-    ],
-    do: [
-      "Smile and make eye contact with every guest.",
-      "Repeat orders back to avoid mistakes.",
-      "Check screens before handing food out."
-    ],
-    dont: [
-      "Turn away from guests when they approach.",
-      "Leave mess or spills for someone else.",
-      "Say 'I don’t know' without trying to get help."
-    ],
-    scenario: {
-      title: "You have a short queue",
-      text:
-        "There are three guests in line and you’re on front counter. You greet the next guest, repeat their order back and check the screen before handing food out. Between guests, you wipe your counter and check sauce stock so you’re ready for the next mini-rush."
-    }
-  },
-  {
-    id: "food-safety",
-    index: 3,
-    title: "Food Safety & Hygiene",
-    tag: "Food safety",
-    estMinutes: 10,
-    xp: 80,
-    focus: "Keeping food safe from delivery to serving the guest.",
-    objectives: [
-      "Wash hands correctly and use PPE when needed.",
-      "Avoid cross-contamination between raw and ready-to-eat food.",
-      "Know what to do if you think food might be unsafe."
-    ],
-    keySteps: [
-      "Wash hands at the correct sink for at least 20 seconds, then dry with paper towels.",
-      "Use colour-coded equipment and follow raw / cooked separation rules.",
-      "If you’re unsure whether food is safe, treat it as unsafe and call a manager."
-    ],
-    do: [
-      "Change gloves when switching tasks.",
-      "Keep sanitiser bottles and cloths where they’re meant to be.",
-      "Record checks (temperatures, holding times) on time."
-    ],
-    dont: [
-      "Touch your face or phone and then handle food.",
-      "Ignore a timer that has expired.",
-      "Serve food that looks undercooked or wrong."
-    ],
-    scenario: {
-      title: "A holding timer has just expired",
-      text:
-        "You see a timer expire on the UHC. Instead of re-starting the timer, you call a manager, discard the product and cook fresh. This slows things down for one order but protects guests and the brand."
-    }
-  },
-  {
-    id: "kitchen",
-    index: 4,
-    title: "Kitchen Essentials",
-    tag: "Kitchen",
-    estMinutes: 10,
-    xp: 80,
-    focus: "Moving confidently around the kitchen without losing control.",
-    objectives: [
-      "Know the layout and key pieces of equipment in your kitchen.",
-      "Follow build charts accurately for each product.",
-      "Keep your line stocked and clean through the rush."
-    ],
-    keySteps: [
-      "Learn the build chart for your main products and keep a copy nearby.",
-      "Set up your station before the rush: sauces, wraps, boxes, trays.",
-      "Call out low stock early so there’s time to cook more."
-    ],
-    do: [
-      "Check cook times and holding times regularly.",
-      "Label and rotate products so oldest is used first.",
-      "Move with purpose but never run."
-    ],
-    dont: [
-      "Guess builds because you’re in a hurry.",
-      "Leave tongs or utensils on dirty surfaces.",
-      "Block walkways or emergency exits with boxes or trays."
-    ],
-    scenario: {
-      title: "You’re on the bun station at lunch",
-      text:
-        "Orders are building up. You keep your bun area tidy, call out when you’re running low, and follow the build charts without skipping steps. When you fall behind, you ask a manager for short-term help rather than trying to do everything alone."
-    }
+    quiz: [
+      { q: "What’s the best way to handle old fries nearing holding time?", choices: ["Top-up with new fries", "Serve them first no matter what", "Replace/rotate following holding-time rules"], a: 2, explain: "Rotate stock and follow holding-time rules to maintain quality." }
+    ]
   },
   {
     id: "front-counter",
-    index: 5,
-    title: "Front Counter Service",
-    tag: "Service",
-    estMinutes: 8,
-    xp: 70,
-    focus: "Making face-to-face service fast, accurate and friendly.",
-    objectives: [
-      "Handle kiosk, app and front counter orders confidently.",
-      "Use positive language even when guests are frustrated.",
-      "Know simple ways to recover a poor experience."
+    title: "Front Counter Customer Service",
+    tags: ["front", "counter", "service", "orders", "smile"],
+    minutes: 8,
+    sections: [
+      { h: "Goal", p: "Accurate orders, friendly service, and quick recovery when something goes wrong." },
+      { h: "Service basics", bullets: [
+        "Greet, confirm order, repeat key items.",
+        "Keep eye contact, speak clearly, stay calm.",
+        "If an issue happens: apologise, fix, and escalate if needed."
+      ]},
+      { h: "Accuracy habits", bullets: [
+        "Read back order.",
+        "Double-check drinks/sides.",
+        "Label or separate special requests."
+      ]}
     ],
-    keySteps: [
-      "Greet every guest within a few seconds, even if you’re still finishing the last order.",
-      "Repeat orders back and check names / table numbers.",
-      "If something goes wrong, apologise, fix it and involve a manager when needed."
-    ],
-    do: [
-      "Thank guests for waiting when it’s busy.",
-      "Use the guest’s name when it appears on the screen.",
-      "Offer clear options rather than saying 'I don’t know'."
-    ],
-    dont: [
-      "Blame other crew in front of guests.",
-      "Ignore guests who look unsure about kiosks.",
-      "Let long queues build without telling a manager."
-    ],
-    scenario: {
-      title: "An order has missing fries",
-      text:
-        "A guest says their fries are missing. You stay calm, apologise and quickly check their receipt and the screen. You fix the mistake, re-check the rest of the order and thank them for their patience."
-    }
+    quiz: [
+      { q: "Best first step if a customer says their order is wrong?", choices: ["Argue back", "Apologise and check the receipt/order", "Ignore it"], a: 1, explain: "Acknowledge and verify, then fix quickly." }
+    ]
   },
   {
     id: "drive-thru",
-    index: 6,
-    title: "Drive-Thru Teamwork",
-    tag: "Drive-Thru",
-    estMinutes: 8,
-    xp: 70,
-    focus: "Working as a team across order, pay and handout windows.",
-    objectives: [
-      "Use headsets and screens correctly.",
-      "Coordinate with the kitchen so food is ready at the right time.",
-      "Handle payments safely and accurately."
+    title: "Drive-Thru Flow & Accuracy",
+    tags: ["drive", "drivethru", "headset", "accuracy", "speed"],
+    minutes: 10,
+    sections: [
+      { h: "Goal", p: "Keep the line moving while maintaining order accuracy." },
+      { h: "Core steps", bullets: [
+        "Confirm each order clearly.",
+        "Repeat total and key items.",
+        "Coordinate with runners/kitchen.",
+        "Handle changes politely and quickly."
+      ]},
+      { h: "Speed tips", bullets: [
+        "Use short, clear phrases.",
+        "If it’s busy, suggest quick add-ons once, not repeatedly."
+      ]}
     ],
-    keySteps: [
-      "Use short, clear phrases on the headset and repeat totals.",
-      "Check bags, drinks and condiments before handing them out.",
-      "Tell a manager if there’s a long delay or system problem."
+    quiz: [
+      { q: "Why repeat the key items back to the customer?", choices: ["It’s annoying", "It improves accuracy", "It wastes time"], a: 1, explain: "Repeating reduces mistakes and remakes." }
+    ]
+  },
+  {
+    id: "food-safety",
+    title: "Food Safety & Hygiene Essentials",
+    tags: ["hygiene", "safety", "handwashing", "cross contamination", "allergens"],
+    minutes: 12,
+    sections: [
+      { h: "Goal", p: "Prevent contamination and keep food safe every shift." },
+      { h: "Non-negotiables", bullets: [
+        "Wash hands properly and often.",
+        "Separate raw and cooked tools/areas.",
+        "Keep surfaces sanitised.",
+        "Follow holding times and temperature checks."
+      ]},
+      { h: "Allergens", bullets: [
+        "Take allergen requests seriously—use the correct process.",
+        "If unsure, stop and ask a manager."
+      ]}
     ],
-    do: [
-      "Stay polite even if guests sound stressed.",
-      "Call out special items (like no salt fries) so the team can react.",
-      "Keep windows and counters clean between cars."
+    quiz: [
+      { q: "If you’re unsure about an allergen request, what do you do?", choices: ["Guess", "Ask a manager / follow allergen process", "Ignore it"], a: 1, explain: "Always follow allergen procedure; escalate if unsure." }
+    ]
+  },
+  {
+    id: "close-clean",
+    title: "Close Down & Cleaning Routine",
+    tags: ["close", "clean", "hygiene", "checklist"],
+    minutes: 15,
+    sections: [
+      { h: "Goal", p: "Leave the store clean, stocked, and safe for the next team." },
+      { h: "Routine", bullets: [
+        "Do tasks little-by-little before rush ends.",
+        "Follow the close checklist (stations, floors, bins, surfaces).",
+        "Restock essentials for open.",
+        "Final walk-through with shift manager."
+      ]}
     ],
-    dont: [
-      "Lean too far out of the window.",
-      "Guess orders without checking screens.",
-      "Talk over other crew on the headset."
+    quiz: [
+      { q: "Best way to avoid a huge cleanup at the end?", choices: ["Ignore cleaning until close", "Clean as you go", "Ask someone else"], a: 1, explain: "Cleaning as you go prevents end-of-night overload." }
+    ]
+  },
+  {
+    id: "cash-handling",
+    title: "Cash Handling Basics",
+    tags: ["cash", "till", "money", "refunds"],
+    minutes: 9,
+    sections: [
+      { h: "Goal", p: "Accurate tills and safe handling to reduce errors." },
+      { h: "Basics", bullets: [
+        "Count change back clearly.",
+        "Keep till closed when not in use.",
+        "Don’t share logins.",
+        "Follow refund/void rules (manager approval if required)."
+      ]}
     ],
-    scenario: {
-      title: "Cars are backed up to the road",
-      text:
-        "You have a queue of cars and the kitchen is behind. You stay calm, update guests with realistic times and tell your manager so they can add support or hold cars in the bays instead of blocking the road."
-    }
+    quiz: [
+      { q: "Why shouldn’t you share till logins?", choices: ["It’s faster", "It breaks accountability", "It’s required"], a: 1, explain: "Accountability matters for errors and audits." }
+    ]
   }
 ];
 
-/* ---------- Training state (synced with Firestore) ---------- */
+/* ===================== SEARCH + OPEN MODULE ===================== */
 
-let trainingState = {
-  xp: 0,
-  completedModules: [],       // [moduleId,...]
-  reflections: {}             // {moduleId: text}
-};
-
-let currentModule = null;
-
-/* Firestore helpers */
-
-async function loadTrainingState(userId) {
-  try {
-    const ref = doc(db, "users", userId, "trainingV2", "profile");
-    const snap = await getDoc(ref);
-
-    if (!snap.exists()) {
-      await setDoc(ref, trainingState);
-      return trainingState;
-    }
-
-    const data = snap.data() || {};
-    trainingState = { ...trainingState, ...data };
-    return trainingState;
-  } catch (err) {
-    console.error("[Training] Failed to load training state:", err);
-    return trainingState;
-  }
+function normalise(str) {
+  return String(str || "").toLowerCase().trim();
 }
 
-async function saveTrainingState() {
-  if (!sessionUser) return;
-  try {
-    const ref = doc(db, "users", sessionUser.id, "trainingV2", "profile");
-    await updateDoc(ref, trainingState);
-  } catch (err) {
-    // if update fails because doc doesn't exist, fall back to setDoc once
-    try {
-      const ref = doc(db, "users", sessionUser.id, "trainingV2", "profile");
-      await setDoc(ref, trainingState, { merge: true });
-    } catch (err2) {
-      console.error("[Training] Failed to save training state:", err2);
-    }
-  }
-}
+function scoreModule(mod, queryText) {
+  const q = normalise(queryText);
+  if (!q) return 0;
 
-/* ---------- XP & level ---------- */
-
-function xpToLevel(xp) {
-  // simple curve: each level is +150 xp
-  return Math.floor(xp / 150) + 1;
-}
-
-function showToast(message) {
-  if (!toastEl) return;
-  toastEl.textContent = message;
-  toastEl.classList.add("show");
-  setTimeout(() => toastEl.classList.remove("show"), 2600);
-}
-
-function addXP(amount) {
-  trainingState.xp += amount;
-  updateHeaderXP();
-  saveTrainingState();
-  showToast(`+${amount} XP added to your training.`);
-}
-
-function updateHeaderXP() {
-  const xp = trainingState.xp || 0;
-  const level = xpToLevel(xp);
-  if (headerLevel) headerLevel.textContent = level;
-  if (headerXP) headerXP.textContent = `${xp} XP total`;
-}
-
-/* ---------- Rendering: path rail ---------- */
-
-function renderPathRail() {
-  if (!pathList) return;
-  pathList.innerHTML = "";
-
-  modules.forEach((m) => {
-    const li = document.createElement("li");
-    li.className = "path-item";
-    li.dataset.moduleId = m.id;
-
-    const completed = trainingState.completedModules.includes(m.id);
-    if (completed) li.classList.add("completed");
-    if (currentModule && currentModule.id === m.id) li.classList.add("active");
-
-    li.innerHTML = `
-      <div class="path-step">${m.index}</div>
-      <div class="path-text">
-        <div class="path-title-row">
-          <span>${m.title}</span>
-          <span class="path-tag">${m.tag}</span>
-        </div>
-        <div class="path-meta">
-          ${m.estMinutes} min • ${m.xp} XP
-        </div>
-      </div>
-    `;
-
-    li.addEventListener("click", () => {
-      selectModule(m.id);
-    });
-
-    pathList.appendChild(li);
-  });
-}
-
-/* ---------- Rendering: lesson panel ---------- */
-
-function renderLesson(module) {
-  if (!lessonPanel || !lessonTitle || !lessonSubtitle || !lessonTag) return;
-
-  // restart animation
-  lessonPanel.classList.remove("lesson-panel-anim");
-  void lessonPanel.offsetWidth;
-  lessonPanel.classList.add("lesson-panel-anim");
-
-  lessonTitle.textContent = module.title;
-  lessonSubtitle.textContent = module.focus;
-  lessonTag.textContent = module.tag;
-
-  const objectives = module.objectives
-    .map((o) => `<li>${o}</li>`)
-    .join("");
-
-  const steps = module.keySteps
-    .map((s) => `<li>${s}</li>`)
-    .join("");
-
-  const doList = module.do
-    .map((d) => `<li>✅ ${d}</li>`)
-    .join("");
-
-  const dontList = module.dont
-    .map((d) => `<li>⚠️ ${d}</li>`)
-    .join("");
-
-  const scenario = module.scenario || {};
-
-  lessonContent.innerHTML = `
-    <section class="lesson-section">
-      <h4>What you'll learn</h4>
-      <ul>${objectives}</ul>
-    </section>
-
-    <section class="lesson-section">
-      <h4>Step-by-step on shift</h4>
-      <ul>${steps}</ul>
-    </section>
-
-    <section class="lesson-section">
-      <h4>Do & don't</h4>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px;">
-        <ul>${doList}</ul>
-        <ul>${dontList}</ul>
-      </div>
-    </section>
-
-    <section class="lesson-section">
-      <h4>Real shift scenario</h4>
-      <div class="lesson-scenario">
-        <strong>${scenario.title || "On a busy shift"}</strong>
-        <span>${scenario.text || ""}</span>
-      </div>
-    </section>
-
-    <section class="lesson-highlight">
-      Tip: Pick one thing from this lesson and write it in your own words
-      in the note box on the right. Then try it on your very next shift.
-    </section>
-  `;
-}
-
-/* ---------- Rendering: progress panel ---------- */
-
-function renderProgressPanel(module) {
-  if (!statusPill || !moduleXPInfo || !moduleXpFill || !checklistEl) return;
-
-  const completed = trainingState.completedModules.includes(module.id);
-
-  statusPill.textContent = completed ? "Completed" : "In progress";
-  statusPill.classList.toggle("completed", completed);
-
-  moduleXPInfo.textContent = `${module.xp} XP when you complete this module.`;
-
-  // simple module completion bar: full if completed, half if not yet
-  moduleXpFill.style.width = completed ? "100%" : "40%";
-
-  // checklist: just echo key steps in short form
-  checklistEl.innerHTML = "";
-  module.keySteps.forEach((step, idx) => {
-    const li = document.createElement("li");
-    li.className = "check-item";
-    li.innerHTML = `
-      <input type="checkbox" data-step="${idx}">
-      <span>${step}</span>
-    `;
-    checklistEl.appendChild(li);
-  });
-
-  // reflection
-  const storedReflection = trainingState.reflections?.[module.id] || "";
-  if (reflectionInput) {
-    reflectionInput.value = storedReflection;
-    reflectionInput.disabled = false;
-  }
-
-  completeModuleBtn.disabled = false;
-  resetModuleBtn.disabled = !completed;
-}
-
-/* ---------- Select module ---------- */
-
-function selectModule(id) {
-  const module = modules.find((m) => m.id === id);
-  if (!module) return;
-
-  currentModule = module;
-
-  // update path rail highlighting
-  document.querySelectorAll(".path-item").forEach((item) => {
-    item.classList.toggle(
-      "active",
-      item.dataset.moduleId === module.id
-    );
-  });
-
-  renderLesson(module);
-  renderProgressPanel(module);
-}
-
-/* ---------- Complete / reset module ---------- */
-
-function completeCurrentModule() {
-  if (!currentModule) return;
-
-  if (!trainingState.completedModules.includes(currentModule.id)) {
-    trainingState.completedModules.push(currentModule.id);
-    addXP(currentModule.xp);
-    saveTrainingState();
-  }
-
-  renderPathRail();
-  renderProgressPanel(currentModule);
-  showToast(`Nice work – "${currentModule.title}" marked as complete.`);
-}
-
-function resetCurrentModule() {
-  if (!currentModule) return;
-
-  trainingState.completedModules = trainingState.completedModules.filter(
-    (id) => id !== currentModule.id
+  const title = normalise(mod.title);
+  const tags = (mod.tags || []).map(normalise);
+  const body = normalise(
+    (mod.sections || [])
+      .map((s) => [s.h, s.p, ...(s.bullets || [])].join(" "))
+      .join(" ")
   );
 
-  renderPathRail();
-  renderProgressPanel(currentModule);
-  saveTrainingState();
-  showToast(`Progress for "${currentModule.title}" has been reset.`);
+  let score = 0;
+
+  // strong signals
+  if (title.includes(q)) score += 50;
+  if (tags.some((t) => t.includes(q) || q.includes(t))) score += 30;
+
+  // word overlap
+  const words = q.split(/\s+/).filter(Boolean);
+  for (const w of words) {
+    if (w.length < 3) continue;
+    if (title.includes(w)) score += 12;
+    if (tags.some((t) => t.includes(w))) score += 8;
+    if (body.includes(w)) score += 3;
+  }
+
+  return score;
 }
 
-/* ---------- Reflection save ---------- */
+function findBestModule(queryText) {
+  const scored = MODULES
+    .map((m) => ({ m, s: scoreModule(m, queryText) }))
+    .sort((a, b) => b.s - a.s);
 
-if (reflectionInput) {
-  reflectionInput.addEventListener("blur", () => {
-    if (!currentModule) return;
-    if (!trainingState.reflections) trainingState.reflections = {};
-    trainingState.reflections[currentModule.id] = reflectionInput.value || "";
-    saveTrainingState();
+  return scored[0]?.s > 0 ? scored[0].m : null;
+}
+
+function renderModules(list = MODULES) {
+  if (!trainingModuleGrid) return;
+
+  trainingModuleGrid.innerHTML = "";
+  const sorted = [...list].sort((a, b) => a.title.localeCompare(b.title));
+
+  sorted.forEach((m) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.cursor = "pointer";
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="card-title">${m.title}</div>
+        <div class="card-icon">🎓</div>
+      </div>
+      <div class="card-subtext" style="margin-top:6px;">
+        ${m.minutes ? `${m.minutes} min` : "Module"} · ${(m.tags || []).slice(0, 4).join(", ")}
+      </div>
+      <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+        <span class="badge-soft">Open</span>
+        <span class="badge-soft-warn">Quiz</span>
+      </div>
+    `;
+    card.onclick = () => openModuleById(m.id);
+    trainingModuleGrid.appendChild(card);
   });
 }
 
-/* ---------- Buttons ---------- */
-
-if (completeModuleBtn) {
-  completeModuleBtn.addEventListener("click", completeCurrentModule);
+function moduleToHTML(mod) {
+  const parts = [];
+  (mod.sections || []).forEach((sec) => {
+    if (sec.h) parts.push(`<h4 style="margin:10px 0 6px; font-weight:900;">${sec.h}</h4>`);
+    if (sec.p) parts.push(`<p style="margin:0 0 8px; color:#374151; line-height:1.45;">${sec.p}</p>`);
+    if (Array.isArray(sec.bullets) && sec.bullets.length) {
+      parts.push(`<ul style="margin:0 0 10px 18px; color:#374151;">${sec.bullets.map((b) => `<li>${b}</li>`).join("")}</ul>`);
+    }
+  });
+  return parts.join("");
 }
 
-if (resetModuleBtn) {
-  resetModuleBtn.addEventListener("click", resetCurrentModule);
+function openModuleById(id) {
+  const mod = MODULES.find((m) => m.id === id);
+  if (!mod || !moduleOverlay) return;
+
+  activeModule = mod;
+  moduleTitle.textContent = mod.title;
+  moduleMeta.textContent = `${mod.minutes ? `${mod.minutes} min` : "Module"} · ${(mod.tags || []).join(", ")}`;
+
+  moduleBody.innerHTML = moduleToHTML(mod);
+
+  // hide quiz area initially
+  if (quizArea) {
+    quizArea.style.display = "none";
+    quizArea.innerHTML = "";
+  }
+
+  moduleOverlay.style.display = "flex";
 }
 
-/* ---------- Auth init ---------- */
+function closeModule() {
+  if (!moduleOverlay) return;
+  moduleOverlay.style.display = "none";
+  activeModule = null;
+}
+
+/* ===================== QUIZ UI ===================== */
+
+function renderQuiz(mod, quiz = mod?.quiz || []) {
+  if (!quizArea) return;
+
+  if (!quiz.length) {
+    quizArea.style.display = "block";
+    quizArea.innerHTML = `<div class="subsection-title">Quiz</div><div class="subsection-sub">No quiz for this module yet.</div>`;
+    return;
+  }
+
+  quizArea.style.display = "block";
+  quizArea.innerHTML = `
+    <div class="subsection-title">Quiz: ${mod.title}</div>
+    <div class="subsection-sub">Answer the questions, then submit.</div>
+    <form id="quizForm" style="margin-top:10px; display:flex; flex-direction:column; gap:10px;"></form>
+    <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
+      <button id="quizSubmitBtn" class="btn" type="button">Submit quiz</button>
+      <div id="quizResult" style="font-size:0.85rem; color:#374151;"></div>
+    </div>
+  `;
+
+  const quizForm = document.getElementById("quizForm");
+  quiz.forEach((q, idx) => {
+    const block = document.createElement("div");
+    block.style.border = "1px solid #e5e7eb";
+    block.style.borderRadius = "14px";
+    block.style.padding = "10px 12px";
+
+    const answers = (q.choices || []).map((c, i) => `
+      <label style="display:flex; gap:8px; align-items:center; margin-top:6px; cursor:pointer;">
+        <input type="radio" name="q${idx}" value="${i}" />
+        <span>${c}</span>
+      </label>
+    `).join("");
+
+    block.innerHTML = `
+      <div style="font-weight:800;">${idx + 1}) ${q.q}</div>
+      <div style="margin-top:6px;">${answers}</div>
+      <div id="qexp${idx}" style="display:none; margin-top:8px; font-size:0.8rem; color:#6b7280;"></div>
+    `;
+    quizForm.appendChild(block);
+  });
+
+  document.getElementById("quizSubmitBtn")?.addEventListener("click", () => {
+    let correct = 0;
+
+    quiz.forEach((q, idx) => {
+      const picked = quizForm.querySelector(`input[name="q${idx}"]:checked`);
+      const exp = document.getElementById(`qexp${idx}`);
+      const pickedIdx = picked ? Number(picked.value) : -1;
+
+      const ok = pickedIdx === q.a;
+      if (ok) correct++;
+
+      if (exp) {
+        exp.style.display = "block";
+        exp.textContent = ok
+          ? `✅ Correct. ${q.explain || ""}`
+          : `❌ Correct answer: ${(q.choices || [])[q.a] || "—"}. ${q.explain || ""}`;
+      }
+    });
+
+    const pct = Math.round((correct / quiz.length) * 100);
+    const res = document.getElementById("quizResult");
+    if (res) res.textContent = `Score: ${correct}/${quiz.length} (${pct}%).`;
+  });
+}
+
+/* ===================== TRAINING CHAT ===================== */
+
+function addChatMessage(text, from = "bot") {
+  if (!trainingChat) return;
+
+  const msg = document.createElement("div");
+  msg.className = `message ${from === "user" ? "msg-user" : "msg-bot"}`;
+  msg.innerHTML = `
+    <div class="bubble">${text}</div>
+    <div class="msg-meta">${from === "user" ? "You" : "McAssist"}</div>
+  `;
+  trainingChat.appendChild(msg);
+  trainingChat.scrollTop = trainingChat.scrollHeight;
+}
+
+let thinkingEl = null;
+function showThinking() {
+  if (!trainingChat) return;
+  if (thinkingEl) thinkingEl.remove();
+
+  thinkingEl = document.createElement("div");
+  thinkingEl.className = "message msg-bot thinking";
+  thinkingEl.innerHTML = `
+    <div class="bubble">
+      Thinking
+      <span class="thinking-dots">
+        <span class="thinking-dot"></span>
+        <span class="thinking-dot"></span>
+        <span class="thinking-dot"></span>
+      </span>
+    </div>
+    <div class="msg-meta">McAssist</div>
+  `;
+  trainingChat.appendChild(thinkingEl);
+  trainingChat.scrollTop = trainingChat.scrollHeight;
+}
+function hideThinking() {
+  if (thinkingEl) thinkingEl.remove();
+  thinkingEl = null;
+}
+
+/**
+ * Instant open handler:
+ * - catches "open ___ module" / "open ___ training"
+ */
+function tryInstantOpenFromText(text) {
+  const t = normalise(text);
+
+  // basic patterns
+  const patterns = [
+    /^open\s+(.+?)\s+training\s+module$/,
+    /^open\s+(.+?)\s+module$/,
+    /^open\s+(.+?)\s+training$/,
+    /^start\s+(.+?)\s+training\s+module$/,
+    /^show\s+(.+?)\s+module$/
+  ];
+
+  let topic = null;
+  for (const p of patterns) {
+    const m = t.match(p);
+    if (m && m[1]) { topic = m[1]; break; }
+  }
+
+  if (!topic) return false;
+
+  const best = findBestModule(topic);
+  if (!best) {
+    addChatMessage(`I couldn’t find a module for “${topic}”. Try: grill, fries, food safety, drive-thru, front counter…`, "bot");
+    return true;
+  }
+
+  openModuleById(best.id);
+  addChatMessage(`Opening **${best.title}** now ✅`, "bot");
+  return true;
+}
+
+/**
+ * Lightweight retrieval: pick top modules relevant to the question
+ * and send only those to the backend so the AI can answer accurately.
+ */
+function getRelevantModuleContext(question, topK = 2) {
+  const scored = MODULES
+    .map((m) => ({ m, s: scoreModule(m, question) }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, topK)
+    .filter((x) => x.s > 0)
+    .map((x) => x.m);
+
+  const payload = scored.map((m) => ({
+    id: m.id,
+    title: m.title,
+    tags: m.tags,
+    minutes: m.minutes,
+    text: (m.sections || []).map((s) => [s.h, s.p, ...(s.bullets || [])].join("\n")).join("\n\n"),
+    quiz: (m.quiz || []).map((q) => ({ q: q.q, choices: q.choices, answerIndex: q.a, explain: q.explain }))
+  }));
+
+  return payload;
+}
+
+async function sendTrainingMessage(text) {
+  if (!text || !text.trim()) return;
+  if (!sessionUser) return;
+
+  const cleanText = text.trim();
+  addChatMessage(cleanText, "user");
+  if (trainingAiInput) trainingAiInput.value = "";
+  if (trainingAiSend) trainingAiSend.disabled = true;
+
+  // instant open without waiting for AI
+  if (tryInstantOpenFromText(cleanText)) {
+    if (trainingAiSend) trainingAiSend.disabled = false;
+    return;
+  }
+
+  showThinking();
+
+  try {
+    const relevant = getRelevantModuleContext(cleanText, 2);
+
+    // if user asks to "quiz me on X", we can instantly open that module + quiz
+    const t = normalise(cleanText);
+    if (t.startsWith("quiz me on") || t.startsWith("start quiz on") || t.startsWith("quiz on")) {
+      const topic = cleanText.replace(/^(quiz me on|start quiz on|quiz on)\s+/i, "");
+      const best = findBestModule(topic);
+      if (best) {
+        openModuleById(best.id);
+        renderQuiz(best, best.quiz || []);
+        hideThinking();
+        addChatMessage(`Quiz started for **${best.title}** 🧠`, "bot");
+        if (trainingAiSend) trainingAiSend.disabled = false;
+        return;
+      }
+    }
+
+    // send to your existing Vercel endpoint
+    const res = await fetch("/api/mcassist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: cleanText,
+        user: sessionUser,
+        contextData: {
+          page: "training",
+          storeId,
+          activeModule: activeModule ? { id: activeModule.id, title: activeModule.title } : null,
+          relevantModules: relevant,
+          allModuleTitles: MODULES.map((m) => ({ id: m.id, title: m.title, tags: m.tags }))
+        }
+      })
+    });
+
+    let data = {};
+    try { data = await res.json(); } catch { data = {}; }
+
+    hideThinking();
+
+    // Optional: allow backend to tell the client to open a module/quiz
+    // If your backend returns: { reply, action:{type:'openModule', id:'grill-101'} }
+    if (data?.action?.type === "openModule" && data?.action?.id) {
+      openModuleById(data.action.id);
+    }
+    if (data?.action?.type === "startQuiz" && data?.action?.id) {
+      openModuleById(data.action.id);
+      const mod = MODULES.find((m) => m.id === data.action.id);
+      if (mod) renderQuiz(mod, mod.quiz || []);
+    }
+
+    addChatMessage(data.reply || "I’m not sure — try asking in a different way.", "bot");
+  } catch (err) {
+    console.error("[Training] McAssist error:", err);
+    hideThinking();
+    addChatMessage("Sorry, something went wrong with training AI.", "bot");
+  }
+
+  if (trainingAiSend) trainingAiSend.disabled = false;
+}
+
+/* ===================== UI EVENTS ===================== */
+
+trainingSearchBtn?.addEventListener("click", () => {
+  const q = trainingSearch?.value || "";
+  if (!q.trim()) return renderModules(MODULES);
+  const filtered = MODULES
+    .map((m) => ({ m, s: scoreModule(m, q) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.m);
+  renderModules(filtered.length ? filtered : MODULES);
+});
+
+trainingSearch?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    trainingSearchBtn?.click();
+  }
+});
+
+trainingAiForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  sendTrainingMessage(trainingAiInput?.value || "");
+});
+
+closeModuleBtn?.addEventListener("click", closeModule);
+moduleOverlay?.addEventListener("click", (e) => {
+  if (e.target === moduleOverlay) closeModule();
+});
+
+startQuizBtn?.addEventListener("click", () => {
+  if (!activeModule) return;
+  renderQuiz(activeModule, activeModule.quiz || []);
+});
+
+/* Quick chips */
+function renderQuickChips() {
+  if (!trainingQuickChips) return;
+  trainingQuickChips.innerHTML = "";
+  const chips = [
+    "Open grill training module",
+    "Open food safety module",
+    "Quiz me on fries",
+    "What’s the most common grill mistake?",
+    "How do I handle an allergen request?"
+  ];
+  chips.forEach((t) => {
+    const b = document.createElement("button");
+    b.className = "suggestion-chip";
+    b.textContent = t;
+    b.type = "button";
+    b.onclick = () => sendTrainingMessage(t);
+    trainingQuickChips.appendChild(b);
+  });
+}
+
+/* ===================== AUTH INIT ===================== */
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -567,34 +660,41 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   sessionUser =
-    loadSession() || {
+    loadSessionUser() || {
       id: user.uid,
       role: "crew",
-      name: user.displayName || user.email || "User"
+      name: user.displayName || user.email || "User",
+      storeId: "store001"
     };
 
-  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
-  if (sidebarUserRole) {
-    sidebarUserRole.textContent =
-      sessionUser.role === "manager" ? "Restaurant Manager" : "Crew Member";
+  const userDoc = await ensureUserDoc(user);
+
+  sessionUser.id = user.uid;
+  sessionUser.role = userDoc.role || sessionUser.role;
+  sessionUser.storeId = userDoc.storeId || sessionUser.storeId;
+  sessionUser.name = userDoc.name || sessionUser.name;
+  saveSessionUser(sessionUser);
+
+  storeId = sessionUser.storeId || "store001";
+
+  // initial render
+  renderModules(MODULES);
+  renderQuickChips();
+
+  if (trainingAiSubtitle) {
+    trainingAiSubtitle.textContent =
+      "Ask anything about any module, or say: “open grill training module” / “quiz me on fries”.";
   }
 
-  await loadTrainingState(sessionUser.id);
-  updateHeaderXP();
-  renderPathRail();
-
-  // auto-select first module if none selected
-  if (modules.length) {
-    selectModule(modules[0].id);
+  if (trainingChat) {
+    trainingChat.innerHTML = "";
+    addChatMessage(`Hi ${String(sessionUser.name).split(" ")[0]} 👋 What do you want to train on today?`, "bot");
   }
 });
 
-/* ---------- Logout ---------- */
-
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", async () => {
-    await signOut(auth);
-    localStorage.removeItem("mc_session_user");
-    window.location.href = "index.html";
-  });
-}
+/* Logout if button exists */
+logoutBtn?.addEventListener("click", async () => {
+  await signOut(auth);
+  localStorage.removeItem("mc_session_user");
+  window.location.href = "index.html";
+});
