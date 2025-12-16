@@ -6,8 +6,23 @@
     "start": "vercel dev",
     "dev": "vercel dev"
   },
-  "dependencies": {},
   "devDependencies": {
-    "vercel": "^34.0.0"
-  }
+    "vercel": "^50.0.1"
+  },
+  "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cosmin1234x/CCCS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cosmin1234x/CCCS/issues"
+  },
+  "homepage": "https://github.com/cosmin1234x/CCCS#readme",
+  "dependencies": {
+    "firebase-admin": "^13.6.0"
+  },
+  "description": ""
 }
