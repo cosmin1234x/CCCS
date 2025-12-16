@@ -11,168 +11,55 @@
       --mc-dark: #1a1a1a;
       --card-bg: rgba(255, 255, 255, 0.96);
     }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
       background: radial-gradient(circle at top, #ffd166, #ff9f1c, #d62828);
       color: #111;
-      padding: 18px;
     }
-
     .container {
-      width: 100%;
-      max-width: 460px;
-      background: var(--card-bg);
-      border-radius: 18px;
-      padding: 28px 26px 24px;
+      width: 100%; max-width: 460px; background: var(--card-bg);
+      border-radius: 18px; padding: 28px 26px 24px;
       box-shadow: 0 14px 35px rgba(0, 0, 0, 0.22);
     }
-
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
+    .header { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
     .logo-circle {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: var(--mc-red);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--mc-yellow);
-      font-size: 26px;
-      font-weight: 900;
+      width:44px; height:44px; border-radius:50%; background:var(--mc-red);
+      display:flex; align-items:center; justify-content:center;
+      color:var(--mc-yellow); font-size:26px; font-weight:900;
     }
-
-    h1 {
-      font-size: 1.2rem;
-      font-weight: 700;
+    h1 { font-size: 1.2rem; font-weight: 700; }
+    p.subtitle { font-size: 0.82rem; color: #555; }
+    form { margin-top: 8px; display:flex; flex-direction:column; gap:14px; }
+    label { font-size:0.8rem; font-weight:600; color:#333; display:block; margin-bottom:4px; }
+    input, select {
+      border-radius: 999px; border: 1px solid #ddd; padding: 9px 13px;
+      font-size: 0.88rem; outline:none; background:#fafafa;
+      transition: border 0.2s, box-shadow 0.2s, transform 0.1s; width:100%;
     }
-
-    p.subtitle {
-      font-size: 0.82rem;
-      color: #555;
-    }
-
-    form {
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #333;
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    input,
-    select {
-      border-radius: 999px;
-      border: 1px solid #ddd;
-      padding: 9px 13px;
-      font-size: 0.88rem;
-      outline: none;
-      background: #fafafa;
-      transition: border 0.2s, box-shadow 0.2s, transform 0.1s;
-      width: 100%;
-    }
-
-    input:focus,
-    select:focus {
+    input:focus, select:focus {
       border-color: var(--mc-red);
       box-shadow: 0 0 0 2px rgba(214, 40, 40, 0.15);
       transform: translateY(-1px);
       background: #fff;
     }
-
     .btn-primary {
-      border-radius: 999px;
-      border: none;
-      padding: 11px 16px;
-      font-size: 0.95rem;
-      font-weight: 700;
+      border-radius:999px; border:none; padding:11px 16px;
+      font-size:0.95rem; font-weight:700;
       background: linear-gradient(135deg, var(--mc-red), #a71d1d);
-      color: #fff;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
+      color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
       box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
       transition: transform 0.1s, box-shadow 0.1s, filter 0.1s;
     }
-
-    .btn-primary:hover {
-      filter: brightness(1.05);
-      transform: translateY(-1px);
-    }
-
-    .btn-primary:active {
-      transform: translateY(0);
-      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.22);
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-
-    .error {
-      margin-top: 8px;
-      font-size: 0.8rem;
-      color: #c1121f;
-      display: none;
-      line-height: 1.25;
-    }
-
-    .success {
-      margin-top: 8px;
-      font-size: 0.8rem;
-      color: #15803d;
-      display: none;
-      line-height: 1.25;
-    }
-
-    .link-row {
-      margin-top: 12px;
-      font-size: 0.8rem;
-      text-align: center;
-    }
-
-    .link-row a {
-      color: #b91c1c;
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    .link-row a:hover {
-      text-decoration: underline;
-    }
-
-    .hint {
-      margin-top: 6px;
-      font-size: 0.72rem;
-      color: #6b7280;
-      line-height: 1.3;
-    }
+    .btn-primary:hover { filter: brightness(1.05); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); box-shadow: 0 6px 10px rgba(0, 0, 0, 0.22); }
+    .btn-primary:disabled { opacity: 0.6; cursor: default; }
+    .error { margin-top:8px; font-size:0.8rem; color:#c1121f; }
+    .success { margin-top:8px; font-size:0.8rem; color:#15803d; }
+    .link-row { margin-top:12px; font-size:0.8rem; text-align:center; }
+    .link-row a { color:#b91c1c; text-decoration:none; font-weight:600; }
+    .link-row a:hover { text-decoration: underline; }
+    .hint { margin-top:6px; font-size:0.72rem; color:#6b7280; line-height:1.3; }
   </style>
 </head>
 <body>
@@ -209,16 +96,14 @@
           <option value="shiftCreator">Shift Creator (Scheduler)</option>
         </select>
         <div class="hint">
-          Note: In a client-only app, roles should be approved by an admin after signup.
+          Managers/Shift Creators are restricted to approved emails.
         </div>
       </div>
 
       <div>
         <label for="storeId">Store / Restaurant ID</label>
         <input id="storeId" type="text" placeholder="e.g. store001" />
-        <div class="hint">
-          Everyone must use the same Store ID (example: <b>store001</b>).
-        </div>
+        <div class="hint">Keep it consistent for everyone (example: store001).</div>
       </div>
 
       <button type="submit" class="btn-primary" id="signupBtn">
@@ -226,8 +111,8 @@
         <span>Create account</span>
       </button>
 
-      <div id="error" class="error"></div>
-      <div id="success" class="success"></div>
+      <div id="error" class="error" style="display:none;"></div>
+      <div id="success" class="success" style="display:none;"></div>
     </form>
 
     <div class="link-row">
@@ -252,22 +137,26 @@
     const successBox = document.getElementById("success");
     const signupBtn = document.getElementById("signupBtn");
 
+    // ✅ Put YOUR admin emails here
+    const ALLOWED_ADMIN_EMAILS = [
+      "you@example.com",
+      "owner@example.com"
+    ];
+
+    function normalizeEmail(e) {
+      return String(e || "").trim().toLowerCase();
+    }
+
     function showError(msg) {
       errorBox.textContent = msg;
       errorBox.style.display = "block";
       successBox.style.display = "none";
-      successBox.textContent = "";
     }
 
     function showSuccess(msg) {
       successBox.textContent = msg;
       successBox.style.display = "block";
       errorBox.style.display = "none";
-      errorBox.textContent = "";
-    }
-
-    function normalizeEmail(e) {
-      return String(e || "").trim().toLowerCase();
     }
 
     form.addEventListener("submit", async (e) => {
@@ -276,10 +165,7 @@
       const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
-
-      // User can "request" manager/shiftCreator, but we store them as crew until approved
       const requestedRole = document.getElementById("role").value;
-
       const storeId = document.getElementById("storeId").value.trim() || "store001";
 
       errorBox.style.display = "none";
@@ -297,46 +183,66 @@
       try {
         const emailNorm = normalizeEmail(email);
 
-        // ✅ IMPORTANT SECURITY: never let people self-assign manager roles client-side
-        // They can request it, but the real role starts as "crew".
-        const role = "crew";
+        // ✅ Restrict manager/shiftCreator to approved emails
+        let finalRole = requestedRole;
+        if ((requestedRole === "manager" || requestedRole === "shiftCreator") &&
+            !ALLOWED_ADMIN_EMAILS.map(normalizeEmail).includes(emailNorm)) {
+          finalRole = "crew";
+        }
 
         const cred = await createUserWithEmailAndPassword(auth, emailNorm, password);
         await updateProfile(cred.user, { displayName: name });
 
+        // 1) Create /users/{uid} (IMPORTANT for your rules)
         await setDoc(doc(db, "users", cred.user.uid), {
           name,
           email: emailNorm,
-
-          role,           // always crew at signup
-          requestedRole,  // what they selected (admin can approve later)
-
+          role: finalRole,
+          requestedRole,
           storeId,
           createdAt: serverTimestamp(),
 
-          // Optional fields used by your app
+          // defaults you can edit later
           maxHoursPerWeek: 40,
           skills: { grill:false, chicken:false, line:false, fries:false, front:false, drive:false },
-          availability: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] },
-
-          // For manager view (Option A crew list)
-          trainingStatus: "—",
-          badge: "—",
-          stars: 0
+          availability: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] }
         });
 
-        showSuccess("Account created! You can now log in.");
+        // 2) Auto-add into crewSummary (so manager dashboard always “syncs”)
+        //    (Rules allow user to create their own crewSummary doc)
+        await setDoc(doc(db, "stores", storeId, "crewSummary", cred.user.uid), {
+          name,
+          status: "New starter",
+          badge: "—",
+          stars: 0,
+          userId: cred.user.uid,
+          createdAt: Date.now()
+        });
+
+        // cache session (optional, helps UI on first load)
+        localStorage.setItem("mc_session_user", JSON.stringify({
+          id: cred.user.uid,
+          name,
+          role: finalRole,
+          storeId
+        }));
+
+        if (finalRole !== requestedRole) {
+          showSuccess("Account created as Crew (manager roles are restricted). You can now log in.");
+        } else {
+          showSuccess("Account created. You can now log in.");
+        }
+
         setTimeout(() => {
           window.location.href = "index.html";
         }, 900);
+
       } catch (err) {
         console.error(err);
         if (err.code === "auth/email-already-in-use") {
           showError("That email is already in use.");
         } else if (err.code === "auth/weak-password") {
           showError("Password is too weak (minimum 6 characters).");
-        } else if (err.code === "permission-denied") {
-          showError("Firestore permission denied. Check your Firestore rules for /users/{uid} create.");
         } else {
           showError(err.message || "Sign up failed.");
         }
