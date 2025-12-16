@@ -1,6 +1,9 @@
 // ========================================
 // training.js — FULL VERSION (AI + Modules + Quiz + Firestore Progress)
-// Matches the upgraded training.html I provided (Explorer + AI + Overlay)
+// ✅ FIXED: "Open" button works (event delegation)
+// ✅ FIXED: imports are at the VERY TOP (required for <script type="module">)
+// Matches your upgraded training.html (Explorer + AI + Overlay)
+//
 // Firestore:
 //  users/{uid}
 //    - trainingXP (number)
@@ -8,25 +11,10 @@
 //    - trainingProgress (map)
 //        trainingProgress[moduleId] = { completed: boolean, completedAt, reflection, xpEarned }
 // ========================================
-let moduleGridBound = false;
 
-function bindModuleGridClicks() {
-  if (!trainingModuleGrid || moduleGridBound) return;
-
-  trainingModuleGrid.addEventListener("click", (e) => {
-    const btn = e.target.closest(".open-module-btn");
-    if (!btn) return;
-
-    const id = btn.dataset.id;
-    if (!id) return;
-
-    openModuleOverlay(id);
-  });
-
-  moduleGridBound = true;
-}
-
-
+/* =========================
+   IMPORTS (MUST BE FIRST)
+========================= */
 import { auth, db } from "./firebase-init.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -94,9 +82,30 @@ const startQuizBtn = document.getElementById("startQuizBtn");
 const quizArea = document.getElementById("quizArea");
 
 /* =========================
+   "OPEN" BUTTON FIX (EVENT DELEGATION)
+   - Works even after re-rendering grid
+========================= */
+let moduleGridBound = false;
+
+function bindModuleGridClicks() {
+  if (!trainingModuleGrid || moduleGridBound) return;
+
+  trainingModuleGrid.addEventListener("click", (e) => {
+    const btn = e.target.closest(".open-module-btn");
+    if (!btn) return;
+
+    const id = btn.dataset.id;
+    if (!id) return;
+
+    openModuleOverlay(id);
+  });
+
+  moduleGridBound = true;
+}
+
+/* =========================
    STATE
 ========================= */
-
 let sessionUser = null;
 let selectedModuleId = null;
 let userDocCache = null;
@@ -109,13 +118,10 @@ let quizLocked = false;
 
 /* =========================
    MODULE LIBRARY (UK-focused training style)
-   Edit these freely to match your store’s build cards.
+   Edit these to match your store build cards.
 ========================= */
-
 const MODULES = [
-  // =========================
   // FOOD SAFETY
-  // =========================
   {
     id: "food_safety_basics",
     title: "Food Safety Basics",
@@ -162,9 +168,7 @@ const MODULES = [
     ]
   },
 
-  // =========================
   // KITCHEN — GRILL / FRY
-  // =========================
   {
     id: "grill_station",
     title: "Grill Station – Core",
@@ -239,10 +243,7 @@ const MODULES = [
     ]
   },
 
-  // =========================
-  // UK PRODUCT BUILD — TRAINING STYLE
-  // (Adjust steps to match your store cards)
-  // =========================
+  // UK PRODUCT BUILD (adjust to your build cards)
   {
     id: "uk_build_big_mac",
     title: "Build – Big Mac (UK training)",
@@ -361,9 +362,7 @@ const MODULES = [
     ]
   },
 
-  // =========================
   // FRONT COUNTER / DRIVE THRU / CUSTOMER
-  // =========================
   {
     id: "front_counter_greeting",
     title: "Front Counter – Greeting & Order Accuracy",
@@ -440,7 +439,6 @@ const MODULES = [
 /* =========================
    HELPERS
 ========================= */
-
 function showToast(msg) {
   if (!toastEl) return;
   toastEl.textContent = msg;
@@ -454,7 +452,6 @@ function safeText(x, fallback = "") {
 }
 
 function calcLevelFromXP(xp) {
-  // simple curve: 0-199 = L1, 200-449 = L2, 450-799 = L3, etc.
   xp = Number(xp) || 0;
   if (xp < 200) return 1;
   if (xp < 450) return 2;
@@ -491,7 +488,6 @@ function findBestModuleByText(text) {
     const hay = `${m.title} ${m.tag} ${(m.keywords || []).join(" ")} ${m.summary || ""}`.toLowerCase();
     let score = 0;
 
-    // word scoring
     q.split(/\s+/).forEach(w => {
       if (!w) return;
       if (hay.includes(w)) score += 2;
@@ -499,7 +495,6 @@ function findBestModuleByText(text) {
       if (normalize(m.tag).includes(w)) score += 2;
     });
 
-    // phrase bonus
     if (normalize(m.title).includes(q)) score += 8;
     return { m, score };
   }).sort((a, b) => b.score - a.score);
@@ -563,7 +558,6 @@ function buildChecklist(m) {
 /* =========================
    AUTH + USER DOC
 ========================= */
-
 function loadSessionUser() {
   try {
     return JSON.parse(localStorage.getItem("mc_session_user"));
@@ -589,7 +583,6 @@ async function ensureUserDoc(firebaseUser) {
     storeId: cached.storeId || "store001",
     createdAt: serverTimestamp(),
 
-    // training fields
     trainingXP: 0,
     trainingLevel: 1,
     trainingProgress: {}
@@ -610,14 +603,12 @@ function startRealtime(uid) {
     if (!snap.exists()) return;
     userDocCache = snap.data() || {};
 
-    // header UI
     const xp = Number(userDocCache.trainingXP) || 0;
     const lvl = Number(userDocCache.trainingLevel) || calcLevelFromXP(xp);
 
     if (headerXP) headerXP.textContent = `${xp} XP total`;
     if (headerLevel) headerLevel.textContent = String(lvl);
 
-    // keep level consistent (best effort)
     const computed = calcLevelFromXP(xp);
     if (computed !== lvl) {
       updateDoc(doc(db, "users", uid), { trainingLevel: computed }).catch(() => {});
@@ -632,7 +623,6 @@ function startRealtime(uid) {
 /* =========================
    PROGRESS PANEL
 ========================= */
-
 function refreshProgressPanel() {
   const m = selectedModuleId ? MODULES.find(x => x.id === selectedModuleId) : null;
 
@@ -658,7 +648,6 @@ function refreshProgressPanel() {
   if (completeModuleBtn) completeModuleBtn.disabled = completed;
   if (resetModuleBtn) resetModuleBtn.disabled = !completed;
 
-  // restore reflection if saved
   const prog = getProgressMap()[m.id];
   if (reflectionInput) reflectionInput.value = prog?.reflection || "";
 }
@@ -666,7 +655,6 @@ function refreshProgressPanel() {
 /* =========================
    RENDER: PATH + LESSON
 ========================= */
-
 function renderPathRail() {
   if (!pathList) return;
 
@@ -713,7 +701,6 @@ function openModuleInLesson(moduleId) {
   if (lessonTitle) lessonTitle.textContent = m.title;
   if (lessonSubtitle) lessonSubtitle.textContent = safeText(m.summary, "Training module");
   if (lessonTag) lessonTag.textContent = m.tag || "Module";
-
   if (lessonContent) lessonContent.innerHTML = buildModuleHTML(m);
 
   buildChecklist(m);
@@ -724,7 +711,6 @@ function openModuleInLesson(moduleId) {
 /* =========================
    MODULE GRID
 ========================= */
-
 function renderModuleGrid(filterText = "") {
   if (!trainingModuleGrid) return;
 
@@ -764,30 +750,25 @@ function renderModuleGrid(filterText = "") {
         `;
       }).join("")
     : `<div style="font-size:0.82rem; color:#6b7280;">No modules match that search.</div>`;
-
-  
 }
 
 /* =========================
    MODULE OVERLAY + QUIZ
 ========================= */
-
 function openModuleOverlay(moduleId) {
   const m = MODULES.find(x => x.id === moduleId);
   if (!m) return;
 
-  // Always open in lesson view (instant)
+  // always sync lesson view
   openModuleInLesson(moduleId);
 
-  // If overlay doesn't exist in HTML, fallback (button still works)
+  // fallback if overlay missing
   if (!moduleOverlay) {
-    showToast("Opened module in lesson view ✅ (overlay not found)");
-    // optional: scroll to lesson panel
+    showToast("Opened module in lesson view ✅");
     document.getElementById("lessonPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
 
-  // Overlay exists → show it
   if (moduleTitle) moduleTitle.textContent = m.title;
   if (moduleMeta) moduleMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
   if (moduleBody) moduleBody.innerHTML = buildModuleHTML(m);
@@ -795,7 +776,6 @@ function openModuleOverlay(moduleId) {
   hideQuiz();
   moduleOverlay.classList.add("show");
 }
-
 
 function closeModuleOverlay() {
   moduleOverlay?.classList.remove("show");
@@ -814,12 +794,11 @@ function hideQuiz() {
 function buildQuizFromModule(m) {
   const base = Array.isArray(m.quiz) ? m.quiz : [];
 
-  // If no predefined quiz, generate simple multiple choice from steps/checklist
   if (!base.length) {
     const items = [...(m.steps || []), ...(m.checklist || [])].filter(Boolean);
     const pick = items.slice(0, 6);
 
-    const generated = pick.slice(0, 3).map((t, idx) => {
+    return pick.slice(0, 3).map((t, idx) => {
       const correct = t;
       const wrong1 = items[(idx + 2) % items.length] || "Do nothing";
       const wrong2 = items[(idx + 3) % items.length] || "Skip the timer";
@@ -831,11 +810,8 @@ function buildQuizFromModule(m) {
         explain: "This comes directly from the module’s key steps."
       };
     });
-
-    return generated;
   }
 
-  // randomize
   const shuffled = [...base].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, Math.min(5, shuffled.length));
 }
@@ -859,9 +835,7 @@ function renderQuizQuestion() {
 
     document.getElementById("quizCloseBtn")?.addEventListener("click", hideQuiz);
     document.getElementById("quizRetryBtn")?.addEventListener("click", () => {
-      const m = MODULES.find(x => x.id === activeQuiz.moduleId);
-      if (!m) return;
-      startQuizForModule(m.id);
+      startQuizForModule(activeQuiz.moduleId);
     });
     return;
   }
@@ -943,11 +917,9 @@ function startQuizForModule(moduleId) {
   const m = MODULES.find(x => x.id === moduleId);
   if (!m || !quizArea) return;
 
-  const questions = buildQuizFromModule(m);
-
   activeQuiz = {
     moduleId: m.id,
-    questions,
+    questions: buildQuizFromModule(m),
     index: 0,
     score: 0
   };
@@ -959,7 +931,6 @@ function startQuizForModule(moduleId) {
 /* =========================
    PROGRESS SAVE (complete/reset)
 ========================= */
-
 async function markModuleComplete() {
   if (!sessionUser || !selectedModuleId) return;
   const m = MODULES.find(x => x.id === selectedModuleId);
@@ -1032,7 +1003,6 @@ async function resetModule() {
 /* =========================
    AI CHAT (open module + quiz + ask)
 ========================= */
-
 function addChatMessage(text, from = "bot") {
   if (!trainingChat) return;
   const div = document.createElement("div");
@@ -1078,7 +1048,6 @@ function renderAIChips() {
 function parseAICommand(text) {
   const t = normalize(text);
 
-  // open module
   if (t.startsWith("open ") || t.includes(" open ")) {
     const cleaned = t
       .replace("training module", "")
@@ -1090,7 +1059,6 @@ function parseAICommand(text) {
     return { type: "open", query: cleaned || t };
   }
 
-  // quiz command
   const isQuiz =
     t.startsWith("quiz") ||
     t.includes("quiz me") ||
@@ -1123,7 +1091,7 @@ async function handleTrainingAI(text) {
 
   const cmd = parseAICommand(clean);
 
-  // 1) OPEN MODULE
+  // OPEN
   if (cmd.type === "open") {
     const best = findBestModuleByText(cmd.query);
     if (!best) {
@@ -1138,7 +1106,7 @@ async function handleTrainingAI(text) {
     return;
   }
 
-  // 2) QUIZ
+  // QUIZ
   if (cmd.type === "quiz") {
     const best = findBestModuleByText(cmd.query || selectedModuleId || "");
     if (!best) {
@@ -1151,7 +1119,7 @@ async function handleTrainingAI(text) {
     return;
   }
 
-  // 3) ASK QUESTION (send to backend with module context)
+  // ASK (backend)
   const chosenModule = selectedModuleId ? MODULES.find(m => m.id === selectedModuleId) : null;
 
   const contextData = {
@@ -1177,7 +1145,6 @@ async function handleTrainingAI(text) {
     }))
   };
 
-  // local answer: list modules
   const lower = normalize(clean);
   if (lower.includes("what modules") || lower.includes("list modules")) {
     const list = MODULES.map(m => `• ${m.title} (${m.tag})`).join("<br>");
@@ -1188,7 +1155,6 @@ async function handleTrainingAI(text) {
   try {
     if (trainingAiSend) trainingAiSend.disabled = true;
 
-    // thinking bubble
     addChatMessage(`<span style="opacity:0.7;">Thinking…</span>`, "bot");
 
     const res = await fetch("/api/mcassist", {
@@ -1204,7 +1170,7 @@ async function handleTrainingAI(text) {
     let data = {};
     try { data = await res.json(); } catch { data = {}; }
 
-    // remove last "Thinking…" message (best-effort)
+    // remove last thinking bubble (best-effort)
     if (trainingChat && trainingChat.lastElementChild) {
       const html = trainingChat.lastElementChild.innerHTML || "";
       if (html.includes("Thinking")) trainingChat.lastElementChild.remove();
@@ -1214,7 +1180,6 @@ async function handleTrainingAI(text) {
   } catch (e) {
     console.error("Training AI error:", e);
 
-    // remove last thinking bubble (best-effort)
     if (trainingChat && trainingChat.lastElementChild) {
       const html = trainingChat.lastElementChild.innerHTML || "";
       if (html.includes("Thinking")) trainingChat.lastElementChild.remove();
@@ -1229,7 +1194,6 @@ async function handleTrainingAI(text) {
 /* =========================
    EVENTS
 ========================= */
-
 if (logoutBtn) {
   logoutBtn.addEventListener("click", async () => {
     stopRealtime();
@@ -1277,7 +1241,6 @@ trainingAiForm?.addEventListener("submit", (e) => {
 /* =========================
    INIT
 ========================= */
-
 function seedTrainingChat() {
   if (!trainingChat) return;
   trainingChat.innerHTML = "";
@@ -1288,7 +1251,7 @@ function seedTrainingChat() {
 }
 
 function initialRender() {
-  bindModuleGridClicks();     // ✅ add this
+  bindModuleGridClicks(); // ✅ THIS is what makes the Open buttons work forever
   renderPathRail();
   renderModuleGrid("");
   renderAIChips();
@@ -1314,7 +1277,6 @@ onAuthStateChanged(auth, async (user) => {
     storeId: "store001"
   };
 
-  // ensure user doc exists
   const d = await ensureUserDoc(user);
 
   sessionUser.id = user.uid;
