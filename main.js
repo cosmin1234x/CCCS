@@ -1,17 +1,14 @@
 // ================================
-// main.js – FULL VERSION (Vercel) — WORKING + PERMISSIONS FIX
+// main.js – FULL VERSION (Vercel) — OPTION A (crew list from /users)
 // Uses Firestore paths:
 //   users/{uid}
 //   stores/{storeId}
 //   stores/{storeId}/Shifts   (capital S)
-//   stores/{storeId}/crewSummary
+// ✅ NO crewSummary collection anymore (auto-sync because we read crew from users)
 // ================================
 
 import { auth, db } from "./firebase-init.js";
-import {
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 import {
   doc,
@@ -20,7 +17,9 @@ import {
   collection,
   getDocs,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ============================================================
@@ -71,7 +70,7 @@ const managerDataDefault = {
   trainingGaps: 0,
   potentialOvertime: 0,
   foodWasteByDay: [],
-  crewTrainingSummary: []
+  crewTrainingSummary: [] // ✅ now comes from users
 };
 
 let managerData = JSON.parse(JSON.stringify(managerDataDefault));
@@ -179,7 +178,7 @@ function calculateBreakMinutes(hours) {
 
 /* ============================================================
    IMPORTANT FIX: Ensure /users/{uid} exists
-   Otherwise your Firestore rules will block store reads.
+   Otherwise your Firestore rules may block store reads.
 ============================================================ */
 
 async function ensureUserDoc(firebaseUser) {
@@ -187,14 +186,18 @@ async function ensureUserDoc(firebaseUser) {
   const snap = await getDoc(userRef);
   if (snap.exists()) return snap.data();
 
-  // If missing, create minimal profile so rules allow store reads.
   const cached = loadSessionUser() || {};
   const payload = {
     name: cached.name || firebaseUser.displayName || firebaseUser.email || "User",
     email: String(firebaseUser.email || "").toLowerCase(),
     role: cached.role || "crew",
     storeId: cached.storeId || "store001",
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
+
+    // optional defaults
+    trainingStatus: "—",
+    badge: "—",
+    stars: 0
   };
 
   await setDoc(userRef, payload);
@@ -239,14 +242,20 @@ async function loadStoreAndShiftsFromFirestore() {
   try {
     const storeRef = doc(db, "stores", storeId);
 
-    const [storeSnap, shiftsSnap, crewSnap] = await Promise.all([
+    // ✅ Crew list now comes from /users filtered by storeId + role
+    const crewUsersQuery = query(
+      collection(db, "users"),
+      where("storeId", "==", storeId),
+      where("role", "==", "crew")
+    );
+
+    const [storeSnap, shiftsSnap, crewUsersSnap] = await Promise.all([
       getDoc(storeRef),
-      // ✅ IMPORTANT: match schedule.js ("Shifts" capital S)
-      getDocs(collection(db, "stores", storeId, "Shifts")),
-      getDocs(collection(db, "stores", storeId, "crewSummary"))
+      getDocs(collection(db, "stores", storeId, "Shifts")), // schedule.js uses "Shifts"
+      getDocs(crewUsersQuery)
     ]);
 
-    // Store doc is optional — fallback if missing
+    // Store doc optional
     if (storeSnap.exists()) {
       Object.assign(managerData, managerDataDefault, storeSnap.data());
       if (typeof managerData.staffNeeded !== "number") managerData.staffNeeded = 10;
@@ -280,19 +289,22 @@ async function loadStoreAndShiftsFromFirestore() {
     computeManagerMetrics();
     if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
 
-    // Crew Summary
+    // ✅ Crew summary from users
     const list = [];
-    crewSnap.forEach((snap) => {
+    crewUsersSnap.forEach((snap) => {
       const d = snap.data();
       list.push({
-        id: snap.id,
+        id: snap.id, // uid
         name: d.name || "Crew",
-        status: d.status || "—",
+        status: d.trainingStatus || "—",
         badge: d.badge || "—",
         stars: typeof d.stars === "number" ? d.stars : 0
       });
     });
-    managerData.crewTrainingSummary = list;
+
+    managerData.crewTrainingSummary = list.sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "")
+    );
   } catch (err) {
     console.error("[Store] Firestore load error:", err);
   }
@@ -350,7 +362,9 @@ function computeCrewMetrics(myShifts) {
     });
 
   crewData.hoursThisWeek = Number(totalPaid.toFixed(2));
-  crewData.estimatedPayThisWeek = Number((crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2));
+  crewData.estimatedPayThisWeek = Number(
+    (crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2)
+  );
 
   if (nextShiftObj) {
     const dt = nextShiftObj._dt;
@@ -377,15 +391,15 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  // load session (if exists) then ensure Firestore user doc exists
-  sessionUser = loadSessionUser() || {
-    id: user.uid,
-    role: "crew",
-    name: user.displayName || user.email || "User",
-    storeId: "store001"
-  };
+  sessionUser =
+    loadSessionUser() || {
+      id: user.uid,
+      role: "crew",
+      name: user.displayName || user.email || "User",
+      storeId: "store001"
+    };
 
-  // ✅ Create missing users/{uid} if needed (fixes permissions)
+  // Ensure user doc exists (fixes permissions in rules setups that depend on it)
   const userDoc = await ensureUserDoc(user);
 
   // sync session with Firestore
@@ -397,10 +411,7 @@ onAuthStateChanged(auth, async (user) => {
 
   try {
     if (sessionUser.role === "crew") {
-      await Promise.all([
-        loadCrewUserFromFirestore(),
-        loadStoreAndShiftsFromFirestore()
-      ]);
+      await Promise.all([loadCrewUserFromFirestore(), loadStoreAndShiftsFromFirestore()]);
     } else {
       await loadStoreAndShiftsFromFirestore();
     }
@@ -439,11 +450,8 @@ function initialiseDashboard() {
   }
 
   if (roleBadge) {
-    roleBadge.textContent = isCrew
-      ? "CREW"
-      : sessionUser.role === "shiftCreator"
-      ? "SHIFT CREATOR"
-      : "MANAGER";
+    roleBadge.textContent =
+      isCrew ? "CREW" : sessionUser.role === "shiftCreator" ? "SHIFT CREATOR" : "MANAGER";
   }
 
   if (avatarCircle) avatarCircle.textContent = (sessionUser.name || "U").charAt(0).toUpperCase();
@@ -494,15 +502,30 @@ function renderTopCards(isCrew, profile) {
         : "No shifts";
 
     const cards = [
-      { title: "This Week’s Hours", icon: "⏱️", main: `${profile.hoursThisWeek.toFixed(2)} hrs`, sub: `Next shift: ${nextLabel}` },
-      { title: "Estimated Pay", icon: "💷", main: `£${profile.estimatedPayThisWeek.toFixed(2)}`, sub: `£${profile.hourlyRate.toFixed(2)}/hr` },
+      {
+        title: "This Week’s Hours",
+        icon: "⏱️",
+        main: `${profile.hoursThisWeek.toFixed(2)} hrs`,
+        sub: `Next shift: ${nextLabel}`
+      },
+      {
+        title: "Estimated Pay",
+        icon: "💷",
+        main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
+        sub: `£${profile.hourlyRate.toFixed(2)}/hr`
+      },
       {
         title: "Stations",
         icon: "🍔",
         main: profile.certifications.length ? profile.certifications.join(", ") : "No certifications yet",
         sub: profile.trainingTodo[0] || ""
       },
-      { title: "Achievements", icon: "🏅", main: `${profile.achievements.length} badges`, sub: profile.achievements[0]?.title || "Do something great to earn a badge!" }
+      {
+        title: "Achievements",
+        icon: "🏅",
+        main: `${profile.achievements.length} badges`,
+        sub: profile.achievements[0]?.title || "Do something great to earn a badge!"
+      }
     ];
 
     cards.forEach((c) => {
@@ -652,8 +675,9 @@ function attachCrewListHandlers() {
       newStars = Math.max(0, Math.min(3, newStars));
 
       try {
-        await updateDoc(doc(db, "stores", sessionUser.storeId || "store001", "crewSummary", id), {
-          status: newStatus,
+        // ✅ OPTION A: update user doc directly
+        await updateDoc(doc(db, "users", id), {
+          trainingStatus: newStatus,
           badge: newBadge,
           stars: newStars
         });

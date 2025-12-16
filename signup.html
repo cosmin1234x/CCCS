@@ -26,6 +26,7 @@
       justify-content: center;
       background: radial-gradient(circle at top, #ffd166, #ff9f1c, #d62828);
       color: #111;
+      padding: 18px;
     }
 
     .container {
@@ -138,12 +139,16 @@
       margin-top: 8px;
       font-size: 0.8rem;
       color: #c1121f;
+      display: none;
+      line-height: 1.25;
     }
 
     .success {
       margin-top: 8px;
       font-size: 0.8rem;
       color: #15803d;
+      display: none;
+      line-height: 1.25;
     }
 
     .link-row {
@@ -203,14 +208,17 @@
           <option value="manager">Manager</option>
           <option value="shiftCreator">Shift Creator (Scheduler)</option>
         </select>
-        <div class="hint">Managers/Shift Creators are restricted to approved emails.</div>
+        <div class="hint">
+          Note: In a client-only app, roles should be approved by an admin after signup.
+        </div>
       </div>
 
-      <!-- NOTE: This field is now a NAME, not the real storeId -->
       <div>
-        <label for="storeId">Store / Restaurant name</label>
-        <input id="storeId" type="text" placeholder="e.g. High Street Restaurant" />
-        <div class="hint">Type your restaurant name. The system still uses store001 internally.</div>
+        <label for="storeId">Store / Restaurant ID</label>
+        <input id="storeId" type="text" placeholder="e.g. store001" />
+        <div class="hint">
+          Everyone must use the same Store ID (example: <b>store001</b>).
+        </div>
       </div>
 
       <button type="submit" class="btn-primary" id="signupBtn">
@@ -218,8 +226,8 @@
         <span>Create account</span>
       </button>
 
-      <div id="error" class="error" style="display:none;"></div>
-      <div id="success" class="success" style="display:none;"></div>
+      <div id="error" class="error"></div>
+      <div id="success" class="success"></div>
     </form>
 
     <div class="link-row">
@@ -244,16 +252,6 @@
     const successBox = document.getElementById("success");
     const signupBtn = document.getElementById("signupBtn");
 
-    // ✅ Put your email + owner email(s) here
-    const ALLOWED_ADMIN_EMAILS = [
-      "you@example.com",
-      "owner@example.com"
-    ];
-
-    function normalizeEmail(e) {
-      return String(e || "").trim().toLowerCase();
-    }
-
     function showError(msg) {
       errorBox.textContent = msg;
       errorBox.style.display = "block";
@@ -268,26 +266,28 @@
       errorBox.textContent = "";
     }
 
+    function normalizeEmail(e) {
+      return String(e || "").trim().toLowerCase();
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const name = document.getElementById("name").value.trim();
-      const emailRaw = document.getElementById("email").value.trim();
+      const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
+
+      // User can "request" manager/shiftCreator, but we store them as crew until approved
       const requestedRole = document.getElementById("role").value;
 
-      // ✅ IMPORTANT CHANGE:
-      // - storeId is fixed (so your app + rules stay consistent)
-      // - storeName is what they type
-      const storeId = "store001";
-      const storeName = document.getElementById("storeId").value.trim() || "Store 001";
+      const storeId = document.getElementById("storeId").value.trim() || "store001";
 
       errorBox.style.display = "none";
       successBox.style.display = "none";
       errorBox.textContent = "";
       successBox.textContent = "";
 
-      if (!name || !emailRaw || !password) {
+      if (!name || !email || !password) {
         showError("Please fill in all required fields.");
         return;
       }
@@ -295,54 +295,48 @@
       signupBtn.disabled = true;
 
       try {
-        const email = normalizeEmail(emailRaw);
+        const emailNorm = normalizeEmail(email);
 
-        // ✅ Restrict manager/shiftCreator to approved emails
-        let finalRole = requestedRole;
-        const requestedAdmin = requestedRole === "manager" || requestedRole === "shiftCreator";
-        if (requestedAdmin && !ALLOWED_ADMIN_EMAILS.map(normalizeEmail).includes(email)) {
-          finalRole = "crew";
-        }
+        // ✅ IMPORTANT SECURITY: never let people self-assign manager roles client-side
+        // They can request it, but the real role starts as "crew".
+        const role = "crew";
 
-        // Create Auth account
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const cred = await createUserWithEmailAndPassword(auth, emailNorm, password);
         await updateProfile(cred.user, { displayName: name });
 
-        // Create Firestore user doc
         await setDoc(doc(db, "users", cred.user.uid), {
           name,
-          email,
-          role: finalRole,
-          requestedRole,      // keep what they selected (useful for review)
-          storeId,            // fixed store ID
-          storeName,          // user typed
-          createdAt: serverTimestamp(),
-          profileComplete: false,
+          email: emailNorm,
 
-          // Defaults you can manage later
+          role,           // always crew at signup
+          requestedRole,  // what they selected (admin can approve later)
+
+          storeId,
+          createdAt: serverTimestamp(),
+
+          // Optional fields used by your app
           maxHoursPerWeek: 40,
           skills: { grill:false, chicken:false, line:false, fries:false, front:false, drive:false },
-          availability: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] }
+          availability: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] },
+
+          // For manager view (Option A crew list)
+          trainingStatus: "—",
+          badge: "—",
+          stars: 0
         });
 
-        if (finalRole !== requestedRole) {
-          showSuccess("Account created as Crew (manager roles are restricted). You can now log in.");
-        } else {
-          showSuccess("Account created. You can now log in.");
-        }
-
+        showSuccess("Account created! You can now log in.");
         setTimeout(() => {
           window.location.href = "index.html";
         }, 900);
       } catch (err) {
         console.error(err);
-
         if (err.code === "auth/email-already-in-use") {
           showError("That email is already in use.");
         } else if (err.code === "auth/weak-password") {
           showError("Password is too weak (minimum 6 characters).");
         } else if (err.code === "permission-denied") {
-          showError("Firestore permission denied. Check your Firestore rules.");
+          showError("Firestore permission denied. Check your Firestore rules for /users/{uid} create.");
         } else {
           showError(err.message || "Sign up failed.");
         }
