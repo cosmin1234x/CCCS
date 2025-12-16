@@ -1,10 +1,18 @@
 // ================================
 // main.js – FULL VERSION (Vercel) — OPTION A (crew list from /users)
-// Uses Firestore paths:
+// ✅ FIXED: Live syncing (onSnapshot) for:
+//    - stores/{storeId}
+//    - stores/{storeId}/Shifts   (capital S)
+//    - users (crew list for this store)
+// ✅ FIXED: Staffing updates instantly when shifts are added
+// ✅ FIXED: Training status changes show instantly (because crew list comes from users)
+// ✅ FIXED: Training Gaps is calculated from users.trainingStatus
+// ✅ FIXED: store numeric fields safely coerced to numbers
+//
+// Firestore paths used:
 //   users/{uid}
 //   stores/{storeId}
-//   stores/{storeId}/Shifts   (capital S)
-// ✅ NO crewSummary collection anymore (auto-sync because we read crew from users)
+//   stores/{storeId}/Shifts
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -15,11 +23,11 @@ import {
   getDoc,
   setDoc,
   collection,
-  getDocs,
   updateDoc,
   serverTimestamp,
   query,
-  where
+  where,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ============================================================
@@ -178,7 +186,6 @@ function calculateBreakMinutes(hours) {
 
 /* ============================================================
    IMPORTANT FIX: Ensure /users/{uid} exists
-   Otherwise your Firestore rules may block store reads.
 ============================================================ */
 
 async function ensureUserDoc(firebaseUser) {
@@ -194,7 +201,7 @@ async function ensureUserDoc(firebaseUser) {
     storeId: cached.storeId || "store001",
     createdAt: serverTimestamp(),
 
-    // optional defaults
+    // option A fields (manager dashboard reads these from users)
     trainingStatus: "—",
     badge: "—",
     stars: 0
@@ -205,7 +212,127 @@ async function ensureUserDoc(firebaseUser) {
 }
 
 /* ============================================================
-   FIRESTORE LOADERS
+   REALTIME LISTENERS (FIXES SYNC ISSUES)
+============================================================ */
+
+let unsubStore = null;
+let unsubShifts = null;
+let unsubCrewUsers = null;
+
+function stopRealtime() {
+  try { unsubStore?.(); } catch {}
+  try { unsubShifts?.(); } catch {}
+  try { unsubCrewUsers?.(); } catch {}
+  unsubStore = unsubShifts = unsubCrewUsers = null;
+}
+
+function coerceStoreNumbers() {
+  managerData.todaySales = Number(managerData.todaySales || 0);
+  managerData.weekSales = Number(managerData.weekSales || 0);
+
+  // allow legacy field names if you used them before
+  const wasteValueCandidate =
+    managerData.todayWasteValue ?? managerData.foodwaste ?? managerData.foodWaste ?? 0;
+
+  managerData.todayWasteValue = Number(wasteValueCandidate || 0);
+  managerData.todayWastePct = Number(managerData.todayWastePct || 0);
+  managerData.staffNeeded = Number(managerData.staffNeeded || 10);
+  managerData.potentialOvertime = Number(managerData.potentialOvertime || 0);
+}
+
+function startRealtimeForStore() {
+  if (!sessionUser) return;
+  const storeId = sessionUser.storeId || "store001";
+
+  stopRealtime();
+
+  // 1) Store doc
+  unsubStore = onSnapshot(
+    doc(db, "stores", storeId),
+    (snap) => {
+      if (snap.exists()) {
+        Object.assign(managerData, managerDataDefault, snap.data());
+      } else {
+        Object.assign(managerData, managerDataDefault, { storeName: storeId });
+      }
+
+      coerceStoreNumbers();
+      computeManagerMetrics();
+      initialiseDashboard(); // re-render cards + lists
+    },
+    (err) => console.error("[Store] Store listener error:", err)
+  );
+
+  // 2) Shifts (capital S)
+  unsubShifts = onSnapshot(
+    collection(db, "stores", storeId, "Shifts"),
+    (qs) => {
+      allShifts = [];
+      qs.forEach((docSnap) => {
+        const d = docSnap.data();
+        if (!d.date || !d.start || !d.end || !d.userId) return;
+
+        allShifts.push({
+          id: docSnap.id,
+          date: d.date,
+          start: d.start,
+          end: d.end,
+          userId: d.userId,
+          userName: d.userName || "Unknown",
+          station: d.station || "",
+          role: d.role || "crew",
+          isShiftManager: !!d.isShiftManager,
+          generatedByAI: !!d.generatedByAI
+        });
+      });
+
+      // keep crew dashboard data updated
+      const myShifts = allShifts.filter((s) => s.userId === sessionUser.id);
+      window.loadedShiftsForCrew = myShifts;
+
+      computeManagerMetrics();
+      if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
+
+      initialiseDashboard();
+    },
+    (err) => console.error("[Store] Shifts listener error:", err)
+  );
+
+  // 3) Crew list from users (Option A)
+  const crewUsersQuery = query(
+    collection(db, "users"),
+    where("storeId", "==", storeId),
+    where("role", "==", "crew")
+  );
+
+  unsubCrewUsers = onSnapshot(
+    crewUsersQuery,
+    (qs) => {
+      const list = [];
+      qs.forEach((snap) => {
+        const d = snap.data() || {};
+        list.push({
+          id: snap.id,
+          name: d.name || d.email || "Crew",
+          status: d.trainingStatus || "—",
+          badge: d.badge || "—",
+          stars: typeof d.stars === "number" ? d.stars : 0
+        });
+      });
+
+      managerData.crewTrainingSummary = list.sort((a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
+
+      computeManagerMetrics();
+      initialiseDashboard();
+    },
+    (err) => console.error("[Store] Crew users listener error:", err)
+  );
+}
+
+/* ============================================================
+   FIRESTORE LOADERS (still used for crew self fields / first boot)
 ============================================================ */
 
 async function loadCrewUserFromFirestore() {
@@ -234,90 +361,22 @@ async function loadCrewUserFromFirestore() {
   }
 }
 
-async function loadStoreAndShiftsFromFirestore() {
-  if (!sessionUser) return;
-
-  const storeId = sessionUser.storeId || "store001";
-
-  try {
-    const storeRef = doc(db, "stores", storeId);
-
-    // ✅ Crew list now comes from /users filtered by storeId + role
-    const crewUsersQuery = query(
-      collection(db, "users"),
-      where("storeId", "==", storeId),
-      where("role", "==", "crew")
-    );
-
-    const [storeSnap, shiftsSnap, crewUsersSnap] = await Promise.all([
-      getDoc(storeRef),
-      getDocs(collection(db, "stores", storeId, "Shifts")), // schedule.js uses "Shifts"
-      getDocs(crewUsersQuery)
-    ]);
-
-    // Store doc optional
-    if (storeSnap.exists()) {
-      Object.assign(managerData, managerDataDefault, storeSnap.data());
-      if (typeof managerData.staffNeeded !== "number") managerData.staffNeeded = 10;
-    } else {
-      Object.assign(managerData, managerDataDefault, { storeName: storeId });
-    }
-
-    // Shifts
-    allShifts = [];
-    shiftsSnap.forEach((docSnap) => {
-      const d = docSnap.data();
-      if (!d.date || !d.start || !d.end || !d.userId) return;
-
-      allShifts.push({
-        id: docSnap.id,
-        date: d.date,
-        start: d.start,
-        end: d.end,
-        userId: d.userId,
-        userName: d.userName || "Unknown",
-        station: d.station || "",
-        role: d.role || "crew",
-        isShiftManager: !!d.isShiftManager,
-        generatedByAI: !!d.generatedByAI
-      });
-    });
-
-    const myShifts = allShifts.filter((s) => s.userId === sessionUser.id);
-    window.loadedShiftsForCrew = myShifts;
-
-    computeManagerMetrics();
-    if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
-
-    // ✅ Crew summary from users
-    const list = [];
-    crewUsersSnap.forEach((snap) => {
-      const d = snap.data();
-      list.push({
-        id: snap.id, // uid
-        name: d.name || "Crew",
-        status: d.trainingStatus || "—",
-        badge: d.badge || "—",
-        stars: typeof d.stars === "number" ? d.stars : 0
-      });
-    });
-
-    managerData.crewTrainingSummary = list.sort((a, b) =>
-      (a.name || "").localeCompare(b.name || "")
-    );
-  } catch (err) {
-    console.error("[Store] Firestore load error:", err);
-  }
-}
-
 /* ============================================================
-   METRIC CALCULATIONS
+   METRIC CALCULATIONS (FIXED)
 ============================================================ */
 
 function computeManagerMetrics() {
+  // staffing = today's shifts
   const todayISO = toISODateString(new Date());
   const todays = allShifts.filter((s) => s.date === todayISO);
   managerData.staffOnShift = todays.length;
+
+  // training gaps = crew where trainingStatus isn't "Training completed"
+  const crew = Array.isArray(managerData.crewTrainingSummary) ? managerData.crewTrainingSummary : [];
+  managerData.trainingGaps = crew.filter((c) => {
+    const st = String(c.status || "").trim().toLowerCase();
+    return st !== "training completed";
+  }).length;
 }
 
 function computeCrewMetrics(myShifts) {
@@ -362,9 +421,7 @@ function computeCrewMetrics(myShifts) {
     });
 
   crewData.hoursThisWeek = Number(totalPaid.toFixed(2));
-  crewData.estimatedPayThisWeek = Number(
-    (crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2)
-  );
+  crewData.estimatedPayThisWeek = Number((crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2));
 
   if (nextShiftObj) {
     const dt = nextShiftObj._dt;
@@ -386,6 +443,7 @@ function computeCrewMetrics(myShifts) {
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    stopRealtime();
     localStorage.removeItem("mc_session_user");
     window.location.href = "index.html";
     return;
@@ -399,7 +457,7 @@ onAuthStateChanged(auth, async (user) => {
       storeId: "store001"
     };
 
-  // Ensure user doc exists (fixes permissions in rules setups that depend on it)
+  // Ensure user doc exists
   const userDoc = await ensureUserDoc(user);
 
   // sync session with Firestore
@@ -409,22 +467,24 @@ onAuthStateChanged(auth, async (user) => {
   sessionUser.name = userDoc.name || sessionUser.name;
   saveSessionUser(sessionUser);
 
+  // Load optional crew self fields once (still useful)
   try {
-    if (sessionUser.role === "crew") {
-      await Promise.all([loadCrewUserFromFirestore(), loadStoreAndShiftsFromFirestore()]);
-    } else {
-      await loadStoreAndShiftsFromFirestore();
-    }
+    await loadCrewUserFromFirestore();
   } catch (err) {
-    console.error("[Main] init load error:", err);
+    console.error("[Main] load crew user error:", err);
   }
 
+  // ✅ Start realtime listeners (THIS fixes sync problems)
+  startRealtimeForStore();
+
+  // render immediately
   initialiseDashboard();
 });
 
 /* Logout */
 if (logoutBtn) {
   logoutBtn.addEventListener("click", async () => {
+    stopRealtime();
     await signOut(auth);
     localStorage.removeItem("mc_session_user");
     window.location.href = "index.html";
@@ -543,15 +603,15 @@ function renderTopCards(isCrew, profile) {
     });
   } else {
     const cards = [
-      { title: "Today's Sales", icon: "💰", main: `£${managerData.todaySales}`, sub: `Week: £${managerData.weekSales}` },
-      { title: "Food Waste", icon: "♻️", main: `£${managerData.todayWasteValue}`, sub: `${Number(managerData.todayWastePct || 0).toFixed(1)}%` },
+      { title: "Today's Sales", icon: "💰", main: `£${Number(managerData.todaySales || 0)}`, sub: `Week: £${Number(managerData.weekSales || 0)}` },
+      { title: "Food Waste", icon: "♻️", main: `£${Number(managerData.todayWasteValue || 0)}`, sub: `${Number(managerData.todayWastePct || 0).toFixed(1)}%` },
       {
         title: "Staffing",
         icon: "👥",
-        main: `${managerData.staffOnShift}/${managerData.staffNeeded}`,
-        sub: managerData.staffNeeded - managerData.staffOnShift > 0 ? "Short on shift" : "Good coverage"
+        main: `${Number(managerData.staffOnShift || 0)}/${Number(managerData.staffNeeded || 10)}`,
+        sub: Number(managerData.staffNeeded || 10) - Number(managerData.staffOnShift || 0) > 0 ? "Short on shift" : "Good coverage"
       },
-      { title: "Training Gaps", icon: "📚", main: `${managerData.trainingGaps}`, sub: `${managerData.potentialOvertime} near overtime` }
+      { title: "Training Gaps", icon: "📚", main: `${Number(managerData.trainingGaps || 0)}`, sub: `${Number(managerData.potentialOvertime || 0)} near overtime` }
     ];
 
     cards.forEach((c) => {
@@ -642,7 +702,7 @@ function renderBottomSection(isCrew, profile) {
 }
 
 /* ============================================================
-   CREW PROFILES + EDITING
+   CREW PROFILES + EDITING (Option A = update users doc)
 ============================================================ */
 
 function describeStars(n) {
@@ -675,7 +735,6 @@ function attachCrewListHandlers() {
       newStars = Math.max(0, Math.min(3, newStars));
 
       try {
-        // ✅ OPTION A: update user doc directly
         await updateDoc(doc(db, "users", id), {
           trainingStatus: newStatus,
           badge: newBadge,
@@ -684,12 +743,6 @@ function attachCrewListHandlers() {
       } catch (e) {
         console.error("Update crew fields error:", e);
       }
-
-      crew.status = newStatus;
-      crew.badge = newBadge;
-      crew.stars = newStars;
-
-      renderBottomSection(false, managerData);
     };
   });
 }
@@ -832,7 +885,6 @@ function seedIntroMessages(isCrew) {
 
 /* ============================================================
    SEND MESSAGE TO BACKEND (McAssist on VERCEL)
-   IMPORTANT: uses /api/mcassist
 ============================================================ */
 
 async function sendUserMessage(text) {
@@ -969,9 +1021,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
   micBtn.onclick = () => {
     if (listening) {
-      try {
-        recognition.stop();
-      } catch {}
+      try { recognition.stop(); } catch {}
     } else {
       overlay.classList.add("active");
       overlayText.textContent = "Ask me anything";
@@ -981,9 +1031,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
   overlayMic.onclick = () => {
     listening = false;
-    try {
-      recognition.stop();
-    } catch {}
+    try { recognition.stop(); } catch {}
     overlay.classList.remove("active");
   };
 
@@ -1059,9 +1107,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
         if (conf > 0.25 && HEY_AMY_VARIANTS.some((w) => text.includes(w))) {
           console.log("[Wake] Triggered:", text);
 
-          try {
-            wakeRecognition.stop();
-          } catch {}
+          try { wakeRecognition.stop(); } catch {}
           wakeRunning = false;
 
           overlay.classList.add("active");
@@ -1082,9 +1128,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
   }
 
   function stopWakeListener() {
-    try {
-      wakeRecognition?.stop();
-    } catch {}
+    try { wakeRecognition?.stop(); } catch {}
     wakeRunning = false;
   }
 
