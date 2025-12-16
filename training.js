@@ -1,7 +1,6 @@
 // ========================================
 // training.js — FULL VERSION (AI + Modules + Quiz + Firestore Progress)
-// Works with the training.html I provided.
-//
+// Matches the upgraded training.html I provided (Explorer + AI + Overlay)
 // Firestore:
 //  users/{uid}
 //    - trainingXP (number)
@@ -55,7 +54,7 @@ const resetModuleBtn = document.getElementById("resetModuleBtn");
 // toast
 const toastEl = document.getElementById("toast");
 
-// new module explorer
+// module explorer
 const trainingSearch = document.getElementById("trainingSearch");
 const trainingSearchBtn = document.getElementById("trainingSearchBtn");
 const trainingModuleGrid = document.getElementById("trainingModuleGrid");
@@ -87,15 +86,18 @@ let userDocCache = null;
 let unsubUser = null;
 
 // quiz state
-let activeQuiz = null; // { moduleId, questions: [{q, options, answer, explain}], index, score }
+let activeQuiz = null; // { moduleId, questions, index, score }
 let quizLocked = false;
 
 /* =========================
-   MODULE LIBRARY (edit freely)
+   MODULE LIBRARY (UK-focused training style)
+   Edit these freely to match your store’s build cards.
 ========================= */
 
 const MODULES = [
+  // =========================
   // FOOD SAFETY
+  // =========================
   {
     id: "food_safety_basics",
     title: "Food Safety Basics",
@@ -103,35 +105,35 @@ const MODULES = [
     level: 1,
     xp: 40,
     durationMins: 8,
-    keywords: ["food safety", "hygiene", "contamination", "temps", "temperature", "handwash", "allergens"],
-    summary: "Prevent contamination, follow temp rules, and protect customers.",
+    keywords: ["food safety", "hygiene", "contamination", "temps", "temperature", "handwash", "allergens", "uk"],
+    summary: "Prevent contamination, follow time/temp rules, and protect customers (UK focus).",
     steps: [
-      "Wash hands properly: 20 seconds, warm water, soap, dry fully.",
-      "Avoid cross-contamination: raw vs cooked separation.",
-      "Follow time/temp rules: hot holding, chilling, reheating.",
-      "Clean-as-you-go: sanitize surfaces and tools.",
-      "Allergens: prevent contact and label correctly."
+      "Wash hands properly: warm water + soap, scrub all areas, dry fully.",
+      "Avoid cross-contamination: separate raw vs ready-to-eat items and tools.",
+      "Follow time/temp rules for holding, chilling, and reheating (use store equipment + logs).",
+      "Clean-as-you-go: sanitise surfaces and tools using approved solution.",
+      "Allergens: treat requests seriously, avoid contact, and follow store allergen process."
     ],
     doDont: {
-      do: ["Use separate tongs for raw/cooked", "Change gloves between tasks", "Check holding temps regularly"],
-      dont: ["Reuse wiping cloths without sanitizer", "Store raw above cooked", "Ignore allergen requests"]
+      do: ["Change gloves between tasks", "Use separate tools for raw/cooked", "Use sanitiser correctly"],
+      dont: ["Store raw above cooked", "Ignore allergen requests", "Reuse dirty cloths without sanitiser"]
     },
     scenario: {
-      title: "Rush hour spill",
-      text: "A raw chicken tray leaks in the fridge. What do you do immediately and what do you check after cleaning?"
+      title: "Rush spill",
+      text: "Raw product leaks in the fridge. What do you do immediately, and what do you check after cleaning?"
     },
     checklist: [
       "I know the handwash steps",
       "I can explain cross-contamination",
-      "I know where the sanitizer is and how to use it",
+      "I know where sanitiser is and how to use it",
       "I understand allergen prevention basics"
     ],
     quiz: [
       {
         q: "What’s the best way to prevent cross-contamination?",
-        options: ["Use the same tools for speed", "Separate raw and cooked items + tools", "Only wipe surfaces at end of shift"],
+        options: ["Use the same tools for speed", "Separate raw and ready-to-eat items + tools", "Only wipe surfaces at end of shift"],
         answer: 1,
-        explain: "Separation of raw/cooked food and tools is key."
+        explain: "Separation prevents bacteria/allergens spreading."
       },
       {
         q: "When should you change gloves?",
@@ -142,7 +144,9 @@ const MODULES = [
     ]
   },
 
-  // KITCHEN
+  // =========================
+  // KITCHEN — GRILL / FRY
+  // =========================
   {
     id: "grill_station",
     title: "Grill Station – Core",
@@ -150,70 +154,198 @@ const MODULES = [
     level: 1,
     xp: 55,
     durationMins: 10,
-    keywords: ["grill", "meat", "burger", "cook", "temps", "timers", "clamshell", "seasoning"],
-    summary: "Cook safely, keep timing consistent, and avoid quality drops.",
+    keywords: ["grill", "meat", "burger", "cook", "timers", "clamshell", "seasoning", "uk"],
+    summary: "Cook safely, use timers, and keep quality consistent during rush.",
     steps: [
-      "Pre-shift: check grill temp, scrape + sanitize tools, set timers.",
-      "Load patties evenly, avoid overcrowding, use correct cycle.",
-      "Season correctly (if your store uses seasoning).",
-      "Remove on time, stack correctly, follow holding rules.",
-      "Clean between rushes: quick scrape + wipe with approved cloth."
+      "Pre-shift: confirm grill is ready, tools are clean, timers are working.",
+      "Load patties evenly; don’t overcrowd.",
+      "Use the correct cook cycle/timer every time (no guessing).",
+      "Hold product correctly and rotate (first-in-first-out).",
+      "Between rushes: quick scrape/clean using approved method."
     ],
     doDont: {
-      do: ["Use timers every time", "Keep raw/cooked tools separate", "Communicate 'down' counts"],
-      dont: ["Guess cook time", "Leave product outside holding rules", "Mix old/new product without rotation"]
+      do: ["Use timers every cook", "Call out product levels", "Rotate held product"],
+      dont: ["Guess cook time", "Mix old/new without rotation", "Ignore holding rules"]
     },
     scenario: {
-      title: "Quality check",
-      text: "A burger looks overcooked. What’s the fastest way to prevent it happening again during rush?"
+      title: "Quality drop",
+      text: "Burgers are coming out dry. What’s the quickest change to make during rush?"
     },
     checklist: [
-      "I know the pre-shift grill setup steps",
+      "I know the pre-shift setup steps",
       "I use timers every cook",
       "I can explain holding/rotation",
-      "I keep tools separated (raw/cooked)"
+      "I keep raw/cooked tools separated"
     ],
     quiz: [
       {
-        q: "What’s the best habit to stop over/under cooking?",
-        options: ["Cook by eye", "Use timers consistently", "Flip burgers early"],
+        q: "What habit prevents over/under cooking best?",
+        options: ["Cook by eye", "Use timers consistently", "Flip early"],
         answer: 1,
         explain: "Timers remove guessing and keep results consistent."
       },
       {
         q: "Why is rotation important in holding?",
-        options: ["It looks nicer", "It prevents old product being served", "It speeds up cooking"],
+        options: ["It looks nicer", "It reduces risk of serving old product", "It speeds up cooking"],
         answer: 1,
-        explain: "Rotation ensures customers don’t get old product."
+        explain: "Rotation helps ensure product served is within holding quality window."
       }
     ]
   },
 
   {
     id: "fryer_station",
-    title: "Fry Station – Quality & Speed",
+    title: "Fry Station – Quality & Safety",
     tag: "Kitchen",
     level: 1,
     xp: 50,
     durationMins: 9,
-    keywords: ["fryer", "fries", "oil", "salt", "timers", "basket", "burns"],
-    summary: "Crisp fries, safe oil handling, and fast rush rhythm.",
+    keywords: ["fryer", "fries", "oil", "salt", "timers", "burns", "holding", "uk"],
+    summary: "Crisp fries, safe oil handling, and fast rhythm without burns.",
     steps: [
-      "Check oil level + filter status (per store process).",
-      "Use basket fill guidelines to avoid soggy fries.",
-      "Use timers and shake basket (if required by your process).",
-      "Salt immediately after dumping (as per store standard).",
-      "Keep heat-safe zone: protect from burns and spills."
+      "Check fryer is operating normally and baskets are safe to use.",
+      "Use the correct basket fill guideline to prevent soggy fries.",
+      "Use the timer for every drop; shake as per store practice.",
+      "Season consistently (if your store uses salting station).",
+      "Hold correctly, rotate, and keep the station tidy."
     ],
+    doDont: {
+      do: ["Use timer every drop", "Keep area dry to prevent slips", "Rotate fries properly"],
+      dont: ["Overfill baskets", "Rush and splash oil", "Serve fries that are out of quality window"]
+    },
     checklist: [
-      "I know basket fill guidelines",
+      "I follow fill guidelines",
       "I use timers for every drop",
-      "I salt correctly and consistently",
-      "I know how to reduce burn risk"
+      "I understand basic fry holding/rotation",
+      "I work safely around hot oil"
     ]
   },
 
-  // FRONT COUNTER
+  // =========================
+  // UK PRODUCT BUILD — TRAINING STYLE
+  // (Adjust steps to match your store cards)
+  // =========================
+  {
+    id: "uk_build_big_mac",
+    title: "Build – Big Mac (UK training)",
+    tag: "Product build",
+    level: 2,
+    xp: 70,
+    durationMins: 10,
+    keywords: ["big mac", "build", "uk", "assemble", "sandwich", "kitchen"],
+    summary: "Build a Big Mac cleanly and consistently using your store’s build card order.",
+    steps: [
+      "Prep area: clean gloves/hands, correct packaging ready.",
+      "Use the correct bun set (top/middle/bottom) and toast per store process.",
+      "Apply the correct sauce/condiments amounts (follow your store build card).",
+      "Add salad/pickles in the correct order for even coverage.",
+      "Add patties using correct tools; keep the build neat and stable.",
+      "Close, wrap/box, and present with label if required."
+    ],
+    doDont: {
+      do: ["Follow the build card order", "Keep ingredients centered", "Wipe spills immediately"],
+      dont: ["Guess sauce amounts", "Over-stack and crush the build", "Cross-contaminate tools"]
+    },
+    scenario: {
+      title: "Messy build",
+      text: "Big Macs are sliding/tilting in the box during rush. What do you change first?"
+    },
+    checklist: [
+      "I can name the bun pieces used",
+      "I follow a consistent build order",
+      "I keep the build neat/centered",
+      "I close and package correctly"
+    ],
+    quiz: [
+      {
+        q: "What matters most for consistency on builds?",
+        options: ["Going fast only", "Following the build card order + portions", "Adding extra sauce automatically"],
+        answer: 1,
+        explain: "Order + correct portions = consistent results."
+      }
+    ]
+  },
+
+  {
+    id: "uk_build_cheeseburger",
+    title: "Build – Cheeseburger (UK training)",
+    tag: "Product build",
+    level: 1,
+    xp: 55,
+    durationMins: 8,
+    keywords: ["cheeseburger", "build", "uk", "assemble", "sandwich"],
+    summary: "Quick and accurate cheeseburger build with clean presentation.",
+    steps: [
+      "Toast bun per store process and stage wrapper.",
+      "Apply condiments to the correct bun face (use store build card).",
+      "Add pickles/onion as per build card (portion matters).",
+      "Add cooked patty with correct tool and place cheese correctly.",
+      "Close, wrap, and ensure it’s labeled/served correctly."
+    ],
+    checklist: [
+      "I keep portions consistent",
+      "I keep the wrapper clean",
+      "I can finish the build quickly without rushing mistakes"
+    ]
+  },
+
+  {
+    id: "uk_build_quarter_pounder",
+    title: "Build – Quarter Pounder (UK training)",
+    tag: "Product build",
+    level: 2,
+    xp: 70,
+    durationMins: 10,
+    keywords: ["quarter pounder", "build", "uk", "assemble", "sandwich"],
+    summary: "Assemble neatly with correct order, portions, and packaging.",
+    steps: [
+      "Prepare packaging and toasted bun set per store process.",
+      "Apply sauces/condiments in the correct order (use build card).",
+      "Add onions/pickles/salad as per store standard and portion guides.",
+      "Add patty with correct tool; keep build centered and stable.",
+      "Close and box/wrap cleanly; check for obvious errors."
+    ],
+    checklist: [
+      "I follow the build card order",
+      "I portion correctly",
+      "I package neatly and consistently"
+    ]
+  },
+
+  {
+    id: "uk_fries_holding",
+    title: "Fries – Holding, Rotation & Presentation (UK training)",
+    tag: "Kitchen",
+    level: 2,
+    xp: 60,
+    durationMins: 9,
+    keywords: ["fries", "holding", "rotation", "presentation", "uk", "quality"],
+    summary: "Keep fries within quality window, rotate properly, and present cleanly.",
+    steps: [
+      "Hold fries in the correct area and avoid mixing old/new product.",
+      "Rotate using first-in-first-out and discard when out of quality window.",
+      "Keep the scoop/utensils clean and use correct portions for boxes/bags.",
+      "Avoid overfilling and keep packaging clean for presentation.",
+      "Communicate levels to prevent running out mid-rush."
+    ],
+    checklist: [
+      "I rotate fries properly",
+      "I don’t mix old and new",
+      "I serve clean portions and tidy packaging"
+    ],
+    quiz: [
+      {
+        q: "What’s the biggest quality mistake with fries?",
+        options: ["Serving quickly", "Mixing old fries with new", "Using a scoop"],
+        answer: 1,
+        explain: "Mixing old and new makes rotation impossible and hurts quality."
+      }
+    ]
+  },
+
+  // =========================
+  // FRONT COUNTER / DRIVE THRU / CUSTOMER
+  // =========================
   {
     id: "front_counter_greeting",
     title: "Front Counter – Greeting & Order Accuracy",
@@ -221,24 +353,23 @@ const MODULES = [
     level: 1,
     xp: 45,
     durationMins: 8,
-    keywords: ["front counter", "greeting", "order", "accuracy", "upsell", "customer"],
-    summary: "Friendly greeting, correct orders, and calm under pressure.",
+    keywords: ["front counter", "greeting", "order", "accuracy", "customer", "uk"],
+    summary: "Friendly greeting, correct orders, calm under pressure.",
     steps: [
-      "Greet within 5 seconds with a smile and eye contact.",
-      "Repeat the order back to confirm accuracy.",
-      "Clarify customizations (no pickles, extra sauce, etc.).",
-      "Handle payment smoothly, offer receipt.",
-      "Thank the customer and direct them clearly."
+      "Greet quickly and clearly; keep friendly tone.",
+      "Repeat order back to confirm accuracy.",
+      "Clarify customisations (no pickles, extra sauce, etc.).",
+      "Handle payment smoothly and follow receipt guidance.",
+      "Thank the customer and direct them clearly (collection point/table service)."
     ],
     checklist: [
-      "I greet within 5 seconds",
+      "I greet quickly",
       "I repeat orders back",
       "I clarify custom items",
       "I stay calm during rush"
     ]
   },
 
-  // DRIVE THRU
   {
     id: "drive_thru_speed",
     title: "Drive-thru – Speed & Clarity",
@@ -246,24 +377,23 @@ const MODULES = [
     level: 2,
     xp: 60,
     durationMins: 10,
-    keywords: ["drive thru", "drive-thru", "speed", "window", "headset", "timer"],
+    keywords: ["drive thru", "drive-thru", "speed", "window", "headset", "park", "uk"],
     summary: "Clear communication and fast workflow without mistakes.",
     steps: [
-      "Confirm greeting script and speak clearly.",
-      "Repeat key items + drinks to reduce errors.",
-      "Use 'park' smartly when needed (per store rules).",
-      "Prep condiments/napkins during payment moment.",
-      "Hand-off with a final confirmation."
+      "Speak clearly on headset and confirm key items/drinks.",
+      "Use a calm pace; accuracy beats redoing orders.",
+      "Use 'park' when needed based on your store’s process and manager guidance.",
+      "Prep condiments/napkins while payment happens.",
+      "Hand-off with a final confirmation: “That’s your …”"
     ],
     checklist: [
       "I speak clearly on headset",
-      "I repeat the order back",
+      "I repeat order back",
       "I understand when to park",
       "I confirm at hand-off"
     ]
   },
 
-  // CUSTOMER EXPERIENCE
   {
     id: "customer_recovery",
     title: "Customer Recovery – Fixing Mistakes",
@@ -271,19 +401,19 @@ const MODULES = [
     level: 2,
     xp: 55,
     durationMins: 9,
-    keywords: ["complaint", "refund", "apology", "replacement", "customer recovery"],
-    summary: "Own the issue, fix it fast, and keep the customer calm.",
+    keywords: ["complaint", "refund", "apology", "replacement", "customer recovery", "uk"],
+    summary: "Own the issue, fix it fast, keep the customer calm.",
     steps: [
       "Listen without interrupting.",
-      "Apologize and acknowledge the issue.",
-      "Offer the correct fix (replace/remake/manager).",
+      "Apologise and acknowledge the issue.",
+      "Offer the correct fix (replace/remake/manager support).",
       "Thank them for telling you.",
-      "Share the learning with the team."
+      "Share the learning with the team to prevent repeats."
     ],
     checklist: [
-      "I can stay calm with complaints",
+      "I stay calm with complaints",
       "I know the apology + fix flow",
-      "I can get help quickly if needed",
+      "I can get help quickly",
       "I share learnings with team"
     ]
   }
@@ -338,12 +468,12 @@ function findBestModuleByText(text) {
   const exact = MODULES.find(m => normalize(m.id) === q);
   if (exact) return exact;
 
-  // contains title/tag
+  // scoring
   const scored = MODULES.map(m => {
     const hay = `${m.title} ${m.tag} ${(m.keywords || []).join(" ")} ${m.summary || ""}`.toLowerCase();
     let score = 0;
 
-    // strong match by words
+    // word scoring
     q.split(/\s+/).forEach(w => {
       if (!w) return;
       if (hay.includes(w)) score += 2;
@@ -351,10 +481,10 @@ function findBestModuleByText(text) {
       if (normalize(m.tag).includes(w)) score += 2;
     });
 
-    // extra for direct phrase in title
+    // phrase bonus
     if (normalize(m.title).includes(q)) score += 8;
     return { m, score };
-  }).sort((a,b) => b.score - a.score);
+  }).sort((a, b) => b.score - a.score);
 
   if (!scored.length || scored[0].score <= 0) return null;
   return scored[0].m;
@@ -469,22 +599,25 @@ function startRealtime(uid) {
     if (headerXP) headerXP.textContent = `${xp} XP total`;
     if (headerLevel) headerLevel.textContent = String(lvl);
 
-    // keep level consistent
+    // keep level consistent (best effort)
     const computed = calcLevelFromXP(xp);
     if (computed !== lvl) {
-      // best-effort fix (don’t block UI)
       updateDoc(doc(db, "users", uid), { trainingLevel: computed }).catch(() => {});
     }
 
-    // re-render completion styles
     renderPathRail();
     renderModuleGrid(trainingSearch?.value || "");
     refreshProgressPanel();
   });
 }
 
+/* =========================
+   PROGRESS PANEL
+========================= */
+
 function refreshProgressPanel() {
   const m = selectedModuleId ? MODULES.find(x => x.id === selectedModuleId) : null;
+
   if (!m) {
     if (statusPill) statusPill.textContent = "No module selected";
     if (moduleXPInfo) moduleXPInfo.textContent = "Select a module to see its XP value.";
@@ -495,6 +628,7 @@ function refreshProgressPanel() {
   }
 
   const completed = isCompleted(m.id);
+
   if (statusPill) {
     statusPill.textContent = completed ? "Completed" : "In progress";
     statusPill.classList.toggle("completed", completed);
@@ -503,8 +637,8 @@ function refreshProgressPanel() {
   if (moduleXPInfo) moduleXPInfo.textContent = `${m.xp || 0} XP • ~${m.durationMins || 8} min • ${m.tag || "Module"}`;
   if (moduleXpFill) moduleXpFill.style.width = completed ? "100%" : "35%";
 
-  if (completeModuleBtn) completeModuleBtn.disabled = completed ? true : false;
-  if (resetModuleBtn) resetModuleBtn.disabled = completed ? false : true;
+  if (completeModuleBtn) completeModuleBtn.disabled = completed;
+  if (resetModuleBtn) resetModuleBtn.disabled = !completed;
 
   // restore reflection if saved
   const prog = getProgressMap()[m.id];
@@ -519,7 +653,6 @@ function renderPathRail() {
   if (!pathList) return;
 
   const progress = getProgressMap();
-
   const sorted = [...MODULES].sort((a, b) => {
     const la = Number(a.level) || 1;
     const lb = Number(b.level) || 1;
@@ -530,6 +663,7 @@ function renderPathRail() {
   pathList.innerHTML = sorted.map((m, idx) => {
     const completed = !!progress[m.id]?.completed;
     const active = selectedModuleId === m.id;
+
     return `
       <li class="path-item ${completed ? "completed" : ""} ${active ? "active" : ""}" data-id="${m.id}">
         <div class="path-step">${completed ? "✓" : (idx + 1)}</div>
@@ -562,14 +696,16 @@ function openModuleInLesson(moduleId) {
   if (lessonSubtitle) lessonSubtitle.textContent = safeText(m.summary, "Training module");
   if (lessonTag) lessonTag.textContent = m.tag || "Module";
 
-  if (lessonContent) {
-    lessonContent.innerHTML = buildModuleHTML(m);
-  }
+  if (lessonContent) lessonContent.innerHTML = buildModuleHTML(m);
 
   buildChecklist(m);
   refreshProgressPanel();
   renderPathRail();
 }
+
+/* =========================
+   MODULE GRID
+========================= */
 
 function renderModuleGrid(filterText = "") {
   if (!trainingModuleGrid) return;
@@ -631,12 +767,10 @@ function openModuleOverlay(moduleId) {
   if (moduleMeta) moduleMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
   if (moduleBody) moduleBody.innerHTML = buildModuleHTML(m);
 
-  // also sync the main lesson view
+  // also sync main lesson
   openModuleInLesson(moduleId);
 
-  // reset quiz UI
   hideQuiz();
-
   moduleOverlay.classList.add("show");
 }
 
@@ -678,7 +812,7 @@ function buildQuizFromModule(m) {
     return generated;
   }
 
-  // randomize a bit
+  // randomize
   const shuffled = [...base].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, Math.min(5, shuffled.length));
 }
@@ -687,8 +821,8 @@ function renderQuizQuestion() {
   if (!activeQuiz || !quizArea) return;
 
   const qObj = activeQuiz.questions[activeQuiz.index];
+
   if (!qObj) {
-    // finished
     quizArea.innerHTML = `
       <div style="font-weight:900; font-size:0.95rem;">Quiz complete ✅</div>
       <div style="margin-top:6px; font-size:0.82rem; color:#374151;">
@@ -706,18 +840,14 @@ function renderQuizQuestion() {
       if (!m) return;
       startQuizForModule(m.id);
     });
-
     return;
   }
 
-  const opts = (qObj.options || []).map((t, idx) => {
-    return `
-      <button class="btn-ghost quiz-opt" data-idx="${idx}" type="button"
-        style="justify-content:flex-start; width:100%;">
-        ${String.fromCharCode(65 + idx)}. ${t}
-      </button>
-    `;
-  }).join("");
+  const opts = (qObj.options || []).map((t, idx) => `
+    <button class="btn-ghost quiz-opt" data-idx="${idx}" type="button" style="justify-content:flex-start; width:100%;">
+      ${String.fromCharCode(65 + idx)}. ${t}
+    </button>
+  `).join("");
 
   quizArea.innerHTML = `
     <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
@@ -733,7 +863,7 @@ function renderQuizQuestion() {
       ${opts}
     </div>
 
-    <div id="quizExplain" style="display:none; margin-top:10px; padding:10px; border-radius:12px; border:1px solid #e5e7eb; background:#f9fafb;"></div>
+    <div id="quizExplain" style="display:none; margin-top:10px; padding:10px; border-radius:12px; border:1px solid #e5e7eb; background:#ffffff;"></div>
 
     <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
       <button id="quizNextBtn" class="btn-main" type="button" disabled>Next</button>
@@ -754,7 +884,6 @@ function renderQuizQuestion() {
       const chosen = Number(btn.dataset.idx);
       const correct = Number(qObj.answer);
 
-      // mark buttons
       quizArea.querySelectorAll(".quiz-opt").forEach(b => {
         const idx = Number(b.dataset.idx);
         const isCorrect = idx === correct;
@@ -817,8 +946,8 @@ async function markModuleComplete() {
   if (progress[m.id]?.completed) return;
 
   const reflection = reflectionInput ? reflectionInput.value.trim() : "";
-
   const xpEarn = Number(m.xp) || 0;
+
   const currentXP = Number(userDocCache?.trainingXP) || 0;
   const nextXP = currentXP + xpEarn;
   const nextLevel = calcLevelFromXP(nextXP);
@@ -878,7 +1007,7 @@ async function resetModule() {
 }
 
 /* =========================
-   AI CHAT (open module + answer questions + quiz)
+   AI CHAT (open module + quiz + ask)
 ========================= */
 
 function addChatMessage(text, from = "bot") {
@@ -909,32 +1038,25 @@ function renderAIChips() {
   if (!trainingQuickChips) return;
   const chips = [
     "Open grill training module",
+    "Open Big Mac UK build module",
     "Quiz me on food safety",
-    "What are the key steps for drive-thru speed?",
-    "Explain cross-contamination",
-    "Make me a 5 question quiz about fry station"
+    "Quiz me on fries holding",
+    "What are the key steps for drive-thru speed?"
   ];
   trainingQuickChips.innerHTML = chips.map(t => `
     <button class="suggestion-chip" type="button">${t}</button>
   `).join("");
 
   trainingQuickChips.querySelectorAll("button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      handleTrainingAI(btn.textContent);
-    });
+    btn.addEventListener("click", () => handleTrainingAI(btn.textContent));
   });
 }
 
-// detect commands
 function parseAICommand(text) {
   const t = normalize(text);
 
-  // open module command
+  // open module
   if (t.startsWith("open ") || t.includes(" open ")) {
-    // try to extract module phrase
-    // examples:
-    // "open grill training module"
-    // "open the fry station module"
     const cleaned = t
       .replace("training module", "")
       .replace("module", "")
@@ -946,8 +1068,13 @@ function parseAICommand(text) {
   }
 
   // quiz command
-  if (t.startsWith("quiz") || t.includes("quiz me") || t.includes("start quiz") || t.includes("make me a") && t.includes("quiz")) {
-    // pick module mentioned
+  const isQuiz =
+    t.startsWith("quiz") ||
+    t.includes("quiz me") ||
+    t.includes("start quiz") ||
+    (t.includes("make me") && t.includes("quiz"));
+
+  if (isQuiz) {
     const cleaned = t
       .replace("quiz me on", "")
       .replace("quiz me", "")
@@ -977,10 +1104,12 @@ async function handleTrainingAI(text) {
   if (cmd.type === "open") {
     const best = findBestModuleByText(cmd.query);
     if (!best) {
-      addChatMessage("I couldn’t find that module. Try: Grill, Fry Station, Food Safety, Front Counter, Drive-thru, Customer Recovery.", "bot");
+      addChatMessage(
+        "I couldn’t find that module. Try: Grill, Fry Station, Big Mac build, Food Safety, Front Counter, Drive-thru.",
+        "bot"
+      );
       return;
     }
-
     addChatMessage(`Opening: <strong>${best.title}</strong> ✅`, "bot");
     openModuleOverlay(best.id);
     return;
@@ -988,19 +1117,18 @@ async function handleTrainingAI(text) {
 
   // 2) QUIZ
   if (cmd.type === "quiz") {
-    const best = findBestModuleByText(cmd.query);
+    const best = findBestModuleByText(cmd.query || selectedModuleId || "");
     if (!best) {
       addChatMessage("Which module do you want a quiz on? Example: “Quiz me on grill station”.", "bot");
       return;
     }
-
     addChatMessage(`Starting a quiz for <strong>${best.title}</strong> 🧠`, "bot");
     openModuleOverlay(best.id);
     startQuizForModule(best.id);
     return;
   }
 
-  // 3) ASK QUESTION (send to your backend with module context)
+  // 3) ASK QUESTION (send to backend with module context)
   const chosenModule = selectedModuleId ? MODULES.find(m => m.id === selectedModuleId) : null;
 
   const contextData = {
@@ -1026,7 +1154,7 @@ async function handleTrainingAI(text) {
     }))
   };
 
-  // simple local answer if question is basically "what modules exist"
+  // local answer: list modules
   const lower = normalize(clean);
   if (lower.includes("what modules") || lower.includes("list modules")) {
     const list = MODULES.map(m => `• ${m.title} (${m.tag})`).join("<br>");
@@ -1037,7 +1165,7 @@ async function handleTrainingAI(text) {
   try {
     if (trainingAiSend) trainingAiSend.disabled = true;
 
-    // show a small "thinking"
+    // thinking bubble
     addChatMessage(`<span style="opacity:0.7;">Thinking…</span>`, "bot");
 
     const res = await fetch("/api/mcassist", {
@@ -1063,7 +1191,7 @@ async function handleTrainingAI(text) {
   } catch (e) {
     console.error("Training AI error:", e);
 
-    // remove last "Thinking…" message (best-effort)
+    // remove last thinking bubble (best-effort)
     if (trainingChat && trainingChat.lastElementChild) {
       const html = trainingChat.lastElementChild.innerHTML || "";
       if (html.includes("Thinking")) trainingChat.lastElementChild.remove();
@@ -1130,7 +1258,10 @@ trainingAiForm?.addEventListener("submit", (e) => {
 function seedTrainingChat() {
   if (!trainingChat) return;
   trainingChat.innerHTML = "";
-  addChatMessage("Hi 👋 Ask me anything about training. Try: <strong>“open grill training module”</strong> or <strong>“quiz me on food safety”</strong>.", "bot");
+  addChatMessage(
+    "Hi 👋 Ask me anything about training. Try: <strong>“open grill training module”</strong>, <strong>“open Big Mac UK build module”</strong>, or <strong>“quiz me on food safety”</strong>.",
+    "bot"
+  );
 }
 
 function initialRender() {
@@ -1139,7 +1270,7 @@ function initialRender() {
   renderAIChips();
   refreshProgressPanel();
 
-  // pick a default module for first-time feel
+  // default select first module
   if (!selectedModuleId && MODULES.length) {
     openModuleInLesson(MODULES[0].id);
   }
