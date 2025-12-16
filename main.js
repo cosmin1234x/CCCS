@@ -1,15 +1,26 @@
 // ================================
-// main.js – FULL VERSION (Vercel) — FIXED (Shifts vs shifts)
+// main.js – FULL VERSION (Vercel) — WORKING + PERMISSIONS FIX
+// Uses Firestore paths:
+//   users/{uid}
+//   stores/{storeId}
+//   stores/{storeId}/Shifts   (capital S)
+//   stores/{storeId}/crewSummary
 // ================================
 
 import { auth, db } from "./firebase-init.js";
-import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
 import {
   doc,
   getDoc,
+  setDoc,
   collection,
   getDocs,
-  updateDoc
+  updateDoc,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ============================================================
@@ -75,14 +86,17 @@ const welcomeTitle = document.getElementById("welcomeTitle");
 const welcomeSubtitle = document.getElementById("welcomeSubtitle");
 const roleBadge = document.getElementById("roleBadge");
 const avatarCircle = document.getElementById("avatarCircle");
+
 const topCards = document.getElementById("topCards");
 const bottomSection = document.getElementById("bottomSection");
+
 const aiSubtitle = document.getElementById("aiSubtitle");
 const aiSuggestions = document.getElementById("aiSuggestions");
 const aiChat = document.getElementById("aiChat");
 const aiForm = document.getElementById("aiForm");
 const aiInput = document.getElementById("aiInput");
 const aiSendBtn = document.getElementById("aiSendBtn");
+
 const logoutBtn = document.getElementById("logoutBtn");
 const navShiftCreator = document.getElementById("navShiftCreator");
 const myProfileBtn = document.getElementById("myProfileBtn");
@@ -94,7 +108,7 @@ const overlayText = document.getElementById("overlayText");
 const overlayMic = document.getElementById("overlayMic");
 const wakeToggle = document.getElementById("wakeToggle");
 
-// Crew Profile
+// Crew Profile Overlay
 const crewProfileOverlay = document.getElementById("crewProfileOverlay");
 const crewProfileClose = document.getElementById("crewProfileClose");
 const crewProfileName = document.getElementById("crewProfileName");
@@ -154,9 +168,6 @@ function parseShiftHours(startHHMM, endHHMM) {
 
 /* ============================================================
    UK BREAK RULES
-   - Under 5h  → 15 min
-   - 5–8h      → 30 min
-   - Over 8h   → 45 min
 ============================================================ */
 
 function calculateBreakMinutes(hours) {
@@ -164,6 +175,30 @@ function calculateBreakMinutes(hours) {
   if (hours < 5) return 15;
   if (hours < 8) return 30;
   return 45;
+}
+
+/* ============================================================
+   IMPORTANT FIX: Ensure /users/{uid} exists
+   Otherwise your Firestore rules will block store reads.
+============================================================ */
+
+async function ensureUserDoc(firebaseUser) {
+  const userRef = doc(db, "users", firebaseUser.uid);
+  const snap = await getDoc(userRef);
+  if (snap.exists()) return snap.data();
+
+  // If missing, create minimal profile so rules allow store reads.
+  const cached = loadSessionUser() || {};
+  const payload = {
+    name: cached.name || firebaseUser.displayName || firebaseUser.email || "User",
+    email: String(firebaseUser.email || "").toLowerCase(),
+    role: cached.role || "crew",
+    storeId: cached.storeId || "store001",
+    createdAt: serverTimestamp()
+  };
+
+  await setDoc(userRef, payload);
+  return payload;
 }
 
 /* ============================================================
@@ -180,12 +215,12 @@ async function loadCrewUserFromFirestore() {
 
     const d = snap.data();
 
-    // Update session with role & storeId if present
     if (d.role && d.role !== sessionUser.role) sessionUser.role = d.role;
     if (d.storeId && d.storeId !== sessionUser.storeId) sessionUser.storeId = d.storeId;
+    if (d.name && d.name !== sessionUser.name) sessionUser.name = d.name;
     saveSessionUser(sessionUser);
 
-    // Crew-specific data
+    // optional crew fields
     if (typeof d.position === "string") crewData.position = d.position;
     if (typeof d.hourlyRate === "number") crewData.hourlyRate = d.hourlyRate;
     if (Array.isArray(d.certifications)) crewData.certifications = d.certifications;
@@ -206,20 +241,20 @@ async function loadStoreAndShiftsFromFirestore() {
 
     const [storeSnap, shiftsSnap, crewSnap] = await Promise.all([
       getDoc(storeRef),
-
-      // ✅ IMPORTANT FIX: Your schedule.js uses "Shifts" (capital S)
+      // ✅ IMPORTANT: match schedule.js ("Shifts" capital S)
       getDocs(collection(db, "stores", storeId, "Shifts")),
-
       getDocs(collection(db, "stores", storeId, "crewSummary"))
     ]);
 
-    // ---------- Store Data ----------
+    // Store doc is optional — fallback if missing
     if (storeSnap.exists()) {
       Object.assign(managerData, managerDataDefault, storeSnap.data());
       if (typeof managerData.staffNeeded !== "number") managerData.staffNeeded = 10;
+    } else {
+      Object.assign(managerData, managerDataDefault, { storeName: storeId });
     }
 
-    // ---------- Shifts ----------
+    // Shifts
     allShifts = [];
     shiftsSnap.forEach((docSnap) => {
       const d = docSnap.data();
@@ -239,22 +274,21 @@ async function loadStoreAndShiftsFromFirestore() {
       });
     });
 
-    // your own shifts (for AI + crew dashboard)
     const myShifts = allShifts.filter((s) => s.userId === sessionUser.id);
     window.loadedShiftsForCrew = myShifts;
 
     computeManagerMetrics();
     if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
 
-    // ---------- Crew Summary ----------
+    // Crew Summary
     const list = [];
     crewSnap.forEach((snap) => {
       const d = snap.data();
       list.push({
         id: snap.id,
-        name: d.name,
-        status: d.status,
-        badge: d.badge,
+        name: d.name || "Crew",
+        status: d.status || "—",
+        badge: d.badge || "—",
         stars: typeof d.stars === "number" ? d.stars : 0
       });
     });
@@ -343,21 +377,30 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  sessionUser = loadSessionUser();
+  // load session (if exists) then ensure Firestore user doc exists
+  sessionUser = loadSessionUser() || {
+    id: user.uid,
+    role: "crew",
+    name: user.displayName || user.email || "User",
+    storeId: "store001"
+  };
 
-  if (!sessionUser) {
-    sessionUser = {
-      id: user.uid,
-      role: "crew",
-      name: user.displayName || user.email || "User",
-      storeId: "store001"
-    };
-    saveSessionUser(sessionUser);
-  }
+  // ✅ Create missing users/{uid} if needed (fixes permissions)
+  const userDoc = await ensureUserDoc(user);
+
+  // sync session with Firestore
+  sessionUser.id = user.uid;
+  sessionUser.role = userDoc.role || sessionUser.role;
+  sessionUser.storeId = userDoc.storeId || sessionUser.storeId;
+  sessionUser.name = userDoc.name || sessionUser.name;
+  saveSessionUser(sessionUser);
 
   try {
     if (sessionUser.role === "crew") {
-      await Promise.all([loadCrewUserFromFirestore(), loadStoreAndShiftsFromFirestore()]);
+      await Promise.all([
+        loadCrewUserFromFirestore(),
+        loadStoreAndShiftsFromFirestore()
+      ]);
     } else {
       await loadStoreAndShiftsFromFirestore();
     }
@@ -396,21 +439,31 @@ function initialiseDashboard() {
   }
 
   if (roleBadge) {
-    roleBadge.textContent = isCrew ? "CREW" : sessionUser.role === "shiftCreator" ? "SHIFT CREATOR" : "MANAGER";
+    roleBadge.textContent = isCrew
+      ? "CREW"
+      : sessionUser.role === "shiftCreator"
+      ? "SHIFT CREATOR"
+      : "MANAGER";
   }
 
   if (avatarCircle) avatarCircle.textContent = (sessionUser.name || "U").charAt(0).toUpperCase();
 
   if (welcomeTitle) {
-    welcomeTitle.textContent = isCrew ? `Welcome back, ${sessionUser.name.split(" ")[0]}` : `Good shift, ${sessionUser.name.split(" ")[0]}`;
+    welcomeTitle.textContent = isCrew
+      ? `Welcome back, ${String(sessionUser.name).split(" ")[0]}`
+      : `Good shift, ${String(sessionUser.name).split(" ")[0]}`;
   }
 
   if (welcomeSubtitle) {
-    welcomeSubtitle.textContent = isCrew ? "Here’s your week at a glance." : `Live store view for ${managerData.storeName || "your restaurant"}.`;
+    welcomeSubtitle.textContent = isCrew
+      ? "Here’s your week at a glance."
+      : `Live store view for ${managerData.storeName || "your restaurant"}.`;
   }
 
   if (aiSubtitle) {
-    aiSubtitle.textContent = isCrew ? "Ask about hours, pay, breaks and shifts." : "Ask about waste, sales, staffing and crew info.";
+    aiSubtitle.textContent = isCrew
+      ? "Ask about hours, pay, breaks and shifts."
+      : "Ask about waste, sales, staffing and crew info.";
   }
 
   if (navShiftCreator) navShiftCreator.style.display = sessionUser.role === "shiftCreator" ? "" : "none";
@@ -642,14 +695,14 @@ function openSelfProfile() {
 
   crewProfileOverlay.classList.add("show");
 
-  const firstName = sessionUser.name.split(" ")[0];
+  const firstName = String(sessionUser.name || "Crew").split(" ")[0];
 
   crewProfileName.textContent = sessionUser.name;
   crewProfileRole.textContent = crewData.position || "Crew Member";
   crewProfileStore.textContent = managerData.storeName || sessionUser.storeId || "Restaurant";
   crewProfileStatus.textContent = crewData.trainingTodo.length ? "Training in progress" : "All required training complete";
   crewProfileBadge.textContent = crewData.achievements[0]?.title || "No badge assigned yet";
-  crewProfileAvatar.textContent = sessionUser.name.charAt(0).toUpperCase();
+  crewProfileAvatar.textContent = String(sessionUser.name || "U").charAt(0).toUpperCase();
   crewProfileStars.textContent = describeStars(crewData.achievements.length);
 
   if (crewData.nextShift && crewData.nextShift.start) {
@@ -747,8 +800,8 @@ function seedIntroMessages(isCrew) {
   aiChat.innerHTML = "";
 
   const first = isCrew
-    ? `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with hours, pay, breaks and shifts.`
-    : `Hi ${sessionUser.name.split(" ")[0]} 👋 I can help with waste, sales, staffing and crew info.`;
+    ? `Hi ${String(sessionUser.name).split(" ")[0]} 👋 I can help with hours, pay, breaks and shifts.`
+    : `Hi ${String(sessionUser.name).split(" ")[0]} 👋 I can help with waste, sales, staffing and crew info.`;
 
   addMessage(first, "bot");
 }
@@ -1025,11 +1078,8 @@ if (micBtn && overlay && hasSpeechSupport()) {
   }
 
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      stopWakeListener();
-    } else if (wakeEnabled) {
-      startWakeListener();
-    }
+    if (document.hidden) stopWakeListener();
+    else if (wakeEnabled) startWakeListener();
   });
 } else {
   if (micBtn) micBtn.style.display = "none";
