@@ -8,6 +8,24 @@
 //    - trainingProgress (map)
 //        trainingProgress[moduleId] = { completed: boolean, completedAt, reflection, xpEarned }
 // ========================================
+let moduleGridBound = false;
+
+function bindModuleGridClicks() {
+  if (!trainingModuleGrid || moduleGridBound) return;
+
+  trainingModuleGrid.addEventListener("click", (e) => {
+    const btn = e.target.closest(".open-module-btn");
+    if (!btn) return;
+
+    const id = btn.dataset.id;
+    if (!id) return;
+
+    openModuleOverlay(id);
+  });
+
+  moduleGridBound = true;
+}
+
 
 import { auth, db } from "./firebase-init.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -761,18 +779,28 @@ function renderModuleGrid(filterText = "") {
 
 function openModuleOverlay(moduleId) {
   const m = MODULES.find(x => x.id === moduleId);
-  if (!m || !moduleOverlay) return;
+  if (!m) return;
 
+  // Always open in lesson view (instant)
+  openModuleInLesson(moduleId);
+
+  // If overlay doesn't exist in HTML, fallback (button still works)
+  if (!moduleOverlay) {
+    showToast("Opened module in lesson view ✅ (overlay not found)");
+    // optional: scroll to lesson panel
+    document.getElementById("lessonPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  // Overlay exists → show it
   if (moduleTitle) moduleTitle.textContent = m.title;
   if (moduleMeta) moduleMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
   if (moduleBody) moduleBody.innerHTML = buildModuleHTML(m);
 
-  // also sync main lesson
-  openModuleInLesson(moduleId);
-
   hideQuiz();
   moduleOverlay.classList.add("show");
 }
+
 
 function closeModuleOverlay() {
   moduleOverlay?.classList.remove("show");
@@ -1265,12 +1293,12 @@ function seedTrainingChat() {
 }
 
 function initialRender() {
+  bindModuleGridClicks();     // ✅ add this
   renderPathRail();
   renderModuleGrid("");
   renderAIChips();
   refreshProgressPanel();
 
-  // default select first module
   if (!selectedModuleId && MODULES.length) {
     openModuleInLesson(MODULES[0].id);
   }
