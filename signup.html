@@ -203,17 +203,14 @@
           <option value="manager">Manager</option>
           <option value="shiftCreator">Shift Creator (Scheduler)</option>
         </select>
-        <div class="hint">
-          Managers/Shift Creators are restricted to approved emails.
-        </div>
+        <div class="hint">Managers/Shift Creators are restricted to approved emails.</div>
       </div>
 
+      <!-- NOTE: This field is now a NAME, not the real storeId -->
       <div>
-        <label for="storeId">Store / Restaurant ID</label>
-        <input id="storeId" type="text" placeholder="e.g. store001" />
-        <div class="hint">
-          Keep it consistent for everyone (example: store001).
-        </div>
+        <label for="storeId">Store / Restaurant name</label>
+        <input id="storeId" type="text" placeholder="e.g. High Street Restaurant" />
+        <div class="hint">Type your restaurant name. The system still uses store001 internally.</div>
       </div>
 
       <button type="submit" class="btn-primary" id="signupBtn">
@@ -257,21 +254,40 @@
       return String(e || "").trim().toLowerCase();
     }
 
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = "block";
+      successBox.style.display = "none";
+      successBox.textContent = "";
+    }
+
+    function showSuccess(msg) {
+      successBox.textContent = msg;
+      successBox.style.display = "block";
+      errorBox.style.display = "none";
+      errorBox.textContent = "";
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const name = document.getElementById("name").value.trim();
-      const email = document.getElementById("email").value.trim();
+      const emailRaw = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
       const requestedRole = document.getElementById("role").value;
-      const storeId = document.getElementById("storeId").value.trim() || "store001";
+
+      // ✅ IMPORTANT CHANGE:
+      // - storeId is fixed (so your app + rules stay consistent)
+      // - storeName is what they type
+      const storeId = "store001";
+      const storeName = document.getElementById("storeId").value.trim() || "Store 001";
 
       errorBox.style.display = "none";
       successBox.style.display = "none";
       errorBox.textContent = "";
       successBox.textContent = "";
 
-      if (!name || !email || !password) {
+      if (!name || !emailRaw || !password) {
         showError("Please fill in all required fields.");
         return;
       }
@@ -279,29 +295,31 @@
       signupBtn.disabled = true;
 
       try {
-        const emailNorm = normalizeEmail(email);
+        const email = normalizeEmail(emailRaw);
 
         // ✅ Restrict manager/shiftCreator to approved emails
         let finalRole = requestedRole;
-        if ((requestedRole === "manager" || requestedRole === "shiftCreator") &&
-            !ALLOWED_ADMIN_EMAILS.map(normalizeEmail).includes(emailNorm)) {
+        const requestedAdmin = requestedRole === "manager" || requestedRole === "shiftCreator";
+        if (requestedAdmin && !ALLOWED_ADMIN_EMAILS.map(normalizeEmail).includes(email)) {
           finalRole = "crew";
         }
 
+        // Create Auth account
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: name });
 
-        // Create user profile doc
+        // Create Firestore user doc
         await setDoc(doc(db, "users", cred.user.uid), {
           name,
-          email: emailNorm,
+          email,
           role: finalRole,
-          requestedRole,  // keep what they selected (useful for review)
-          storeId,
+          requestedRole,      // keep what they selected (useful for review)
+          storeId,            // fixed store ID
+          storeName,          // user typed
           createdAt: serverTimestamp(),
           profileComplete: false,
 
-          // Defaults you can edit later
+          // Defaults you can manage later
           maxHoursPerWeek: 40,
           skills: { grill:false, chicken:false, line:false, fries:false, front:false, drive:false },
           availability: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] }
@@ -318,10 +336,13 @@
         }, 900);
       } catch (err) {
         console.error(err);
+
         if (err.code === "auth/email-already-in-use") {
           showError("That email is already in use.");
         } else if (err.code === "auth/weak-password") {
           showError("Password is too weak (minimum 6 characters).");
+        } else if (err.code === "permission-denied") {
+          showError("Firestore permission denied. Check your Firestore rules.");
         } else {
           showError(err.message || "Sign up failed.");
         }
@@ -329,16 +350,6 @@
         signupBtn.disabled = false;
       }
     });
-
-    function showError(msg) {
-      errorBox.textContent = msg;
-      errorBox.style.display = "block";
-    }
-
-    function showSuccess(msg) {
-      successBox.textContent = msg;
-      successBox.style.display = "block";
-    }
   </script>
 </body>
 </html>
