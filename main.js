@@ -1,12 +1,9 @@
 // ================================
-// main.js – FULL VERSION (Vercel)
+// main.js – FULL VERSION (Vercel) — FIXED (Shifts vs shifts)
 // ================================
 
 import { auth, db } from "./firebase-init.js";
-import {
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   doc,
   getDoc,
@@ -184,12 +181,8 @@ async function loadCrewUserFromFirestore() {
     const d = snap.data();
 
     // Update session with role & storeId if present
-    if (d.role && d.role !== sessionUser.role) {
-      sessionUser.role = d.role;
-    }
-    if (d.storeId && d.storeId !== sessionUser.storeId) {
-      sessionUser.storeId = d.storeId;
-    }
+    if (d.role && d.role !== sessionUser.role) sessionUser.role = d.role;
+    if (d.storeId && d.storeId !== sessionUser.storeId) sessionUser.storeId = d.storeId;
     saveSessionUser(sessionUser);
 
     // Crew-specific data
@@ -198,7 +191,6 @@ async function loadCrewUserFromFirestore() {
     if (Array.isArray(d.certifications)) crewData.certifications = d.certifications;
     if (Array.isArray(d.trainingTodo)) crewData.trainingTodo = d.trainingTodo;
     if (Array.isArray(d.achievements)) crewData.achievements = d.achievements;
-
   } catch (err) {
     console.error("[Crew] Firestore load error:", err);
   }
@@ -214,16 +206,17 @@ async function loadStoreAndShiftsFromFirestore() {
 
     const [storeSnap, shiftsSnap, crewSnap] = await Promise.all([
       getDoc(storeRef),
-      getDocs(collection(db, "stores", storeId, "shifts")),
+
+      // ✅ IMPORTANT FIX: Your schedule.js uses "Shifts" (capital S)
+      getDocs(collection(db, "stores", storeId, "Shifts")),
+
       getDocs(collection(db, "stores", storeId, "crewSummary"))
     ]);
 
     // ---------- Store Data ----------
     if (storeSnap.exists()) {
       Object.assign(managerData, managerDataDefault, storeSnap.data());
-      if (typeof managerData.staffNeeded !== "number") {
-        managerData.staffNeeded = 10;
-      }
+      if (typeof managerData.staffNeeded !== "number") managerData.staffNeeded = 10;
     }
 
     // ---------- Shifts ----------
@@ -241,7 +234,8 @@ async function loadStoreAndShiftsFromFirestore() {
         userName: d.userName || "Unknown",
         station: d.station || "",
         role: d.role || "crew",
-        isShiftManager: !!d.isShiftManager
+        isShiftManager: !!d.isShiftManager,
+        generatedByAI: !!d.generatedByAI
       });
     });
 
@@ -250,9 +244,7 @@ async function loadStoreAndShiftsFromFirestore() {
     window.loadedShiftsForCrew = myShifts;
 
     computeManagerMetrics();
-    if (sessionUser.role === "crew") {
-      computeCrewMetrics(myShifts);
-    }
+    if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
 
     // ---------- Crew Summary ----------
     const list = [];
@@ -288,7 +280,6 @@ function computeCrewMetrics(myShifts) {
   const { start, end } = getWeekRange(0);
   const weekStart = toISODateString(start);
   const weekEnd = toISODateString(end);
-
   const now = new Date();
 
   let totalPaid = 0;
@@ -300,20 +291,15 @@ function computeCrewMetrics(myShifts) {
     const breakMin = calculateBreakMinutes(rawHours);
     const paid = rawHours - breakMin / 60;
 
-    // save break minutes on the shift (used by AI etc.)
     s.breakMinutes = breakMin;
 
-    // ----- THIS WEEK HOURS -----
     if (s.date >= weekStart && s.date <= weekEnd) {
       totalPaid += paid;
-
       if (!scheduleMap[s.date]) scheduleMap[s.date] = [];
       scheduleMap[s.date].push(`${s.start}–${s.end} (Break ${breakMin}m)`);
     }
 
-    // ----- NEXT FUTURE SHIFT -----
     const shiftDateTime = new Date(`${s.date}T${s.start || "00:00"}:00`);
-
     if (shiftDateTime > now) {
       if (!nextShiftObj || shiftDateTime < nextShiftObj._dt) {
         nextShiftObj = { _dt: shiftDateTime, ...s };
@@ -321,7 +307,6 @@ function computeCrewMetrics(myShifts) {
     }
   });
 
-  // Convert schedule map → list for the bottom section
   crewData.schedule = Object.entries(scheduleMap)
     .sort(([a], [b]) => (a > b ? 1 : -1))
     .map(([date, times]) => {
@@ -331,11 +316,8 @@ function computeCrewMetrics(myShifts) {
     });
 
   crewData.hoursThisWeek = Number(totalPaid.toFixed(2));
-  crewData.estimatedPayThisWeek = Number(
-    (crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2)
-  );
+  crewData.estimatedPayThisWeek = Number((crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2));
 
-  // ----- WRITE NEXT SHIFT INTO crewData -----
   if (nextShiftObj) {
     const dt = nextShiftObj._dt;
     const dn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dt.getDay()];
@@ -346,10 +328,10 @@ function computeCrewMetrics(myShifts) {
       end: nextShiftObj.end
     };
   } else {
-    // no future shifts at all
     crewData.nextShift = { day: "-", date: "", start: "", end: "" };
   }
 }
+
 /* ============================================================
    AUTH INIT
 ============================================================ */
@@ -375,10 +357,7 @@ onAuthStateChanged(auth, async (user) => {
 
   try {
     if (sessionUser.role === "crew") {
-      await Promise.all([
-        loadCrewUserFromFirestore(),
-        loadStoreAndShiftsFromFirestore()
-      ]);
+      await Promise.all([loadCrewUserFromFirestore(), loadStoreAndShiftsFromFirestore()]);
     } else {
       await loadStoreAndShiftsFromFirestore();
     }
@@ -406,12 +385,8 @@ function initialiseDashboard() {
   if (!sessionUser) return;
 
   const isCrew = sessionUser.role === "crew";
-  const isManagerLike =
-    sessionUser.role === "manager" || sessionUser.role === "shiftCreator";
-
   const profile = isCrew ? crewData : managerData;
 
-  // Sidebar info
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name || "User";
 
   if (sidebarUserRole) {
@@ -421,46 +396,28 @@ function initialiseDashboard() {
   }
 
   if (roleBadge) {
-    roleBadge.textContent = isCrew
-      ? "CREW"
-      : sessionUser.role === "shiftCreator"
-      ? "SHIFT CREATOR"
-      : "MANAGER";
+    roleBadge.textContent = isCrew ? "CREW" : sessionUser.role === "shiftCreator" ? "SHIFT CREATOR" : "MANAGER";
   }
 
-  if (avatarCircle) {
-    avatarCircle.textContent = (sessionUser.name || "U").charAt(0).toUpperCase();
-  }
+  if (avatarCircle) avatarCircle.textContent = (sessionUser.name || "U").charAt(0).toUpperCase();
 
   if (welcomeTitle) {
-    welcomeTitle.textContent = isCrew
-      ? `Welcome back, ${sessionUser.name.split(" ")[0]}`
-      : `Good shift, ${sessionUser.name.split(" ")[0]}`;
+    welcomeTitle.textContent = isCrew ? `Welcome back, ${sessionUser.name.split(" ")[0]}` : `Good shift, ${sessionUser.name.split(" ")[0]}`;
   }
 
   if (welcomeSubtitle) {
-    welcomeSubtitle.textContent = isCrew
-      ? "Here’s your week at a glance."
-      : `Live store view for ${managerData.storeName || "your restaurant"}.`;
+    welcomeSubtitle.textContent = isCrew ? "Here’s your week at a glance." : `Live store view for ${managerData.storeName || "your restaurant"}.`;
   }
 
   if (aiSubtitle) {
-    aiSubtitle.textContent = isCrew
-      ? "Ask about hours, pay, shifts and training."
-      : "Ask about waste, sales and crew levels.";
+    aiSubtitle.textContent = isCrew ? "Ask about hours, pay, breaks and shifts." : "Ask about waste, sales, staffing and crew info.";
   }
 
-  // Show / hide Shift creator nav
-  if (navShiftCreator) {
-    navShiftCreator.style.display = sessionUser.role === "shiftCreator" ? "" : "none";
-  }
+  if (navShiftCreator) navShiftCreator.style.display = sessionUser.role === "shiftCreator" ? "" : "none";
 
-  // show "My profile" for crew
   if (myProfileBtn) {
     myProfileBtn.style.display = isCrew ? "" : "none";
-    if (isCrew) {
-      myProfileBtn.onclick = () => openSelfProfile();
-    }
+    if (isCrew) myProfileBtn.onclick = () => openSelfProfile();
   }
 
   renderTopCards(isCrew, profile);
@@ -484,32 +441,15 @@ function renderTopCards(isCrew, profile) {
         : "No shifts";
 
     const cards = [
-      {
-        title: "This Week’s Hours",
-        icon: "⏱️",
-        main: `${profile.hoursThisWeek.toFixed(2)} hrs`,
-        sub: `Next shift: ${nextLabel}`
-      },
-      {
-        title: "Estimated Pay",
-        icon: "💷",
-        main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
-        sub: `£${profile.hourlyRate.toFixed(2)}/hr`
-      },
+      { title: "This Week’s Hours", icon: "⏱️", main: `${profile.hoursThisWeek.toFixed(2)} hrs`, sub: `Next shift: ${nextLabel}` },
+      { title: "Estimated Pay", icon: "💷", main: `£${profile.estimatedPayThisWeek.toFixed(2)}`, sub: `£${profile.hourlyRate.toFixed(2)}/hr` },
       {
         title: "Stations",
         icon: "🍔",
-        main: profile.certifications.length
-          ? profile.certifications.join(", ")
-          : "No certifications yet",
+        main: profile.certifications.length ? profile.certifications.join(", ") : "No certifications yet",
         sub: profile.trainingTodo[0] || ""
       },
-      {
-        title: "Achievements",
-        icon: "🏅",
-        main: `${profile.achievements.length} badges`,
-        sub: profile.achievements[0]?.title || "Do something great to earn a badge!"
-      }
+      { title: "Achievements", icon: "🏅", main: `${profile.achievements.length} badges`, sub: profile.achievements[0]?.title || "Do something great to earn a badge!" }
     ];
 
     cards.forEach((c) => {
@@ -527,33 +467,15 @@ function renderTopCards(isCrew, profile) {
     });
   } else {
     const cards = [
-      {
-        title: "Today's Sales",
-        icon: "💰",
-        main: `£${managerData.todaySales}`,
-        sub: `Week: £${managerData.weekSales}`
-      },
-      {
-        title: "Food Waste",
-        icon: "♻️",
-        main: `£${managerData.todayWasteValue}`,
-        sub: `${Number(managerData.todayWastePct || 0).toFixed(1)}%`
-      },
+      { title: "Today's Sales", icon: "💰", main: `£${managerData.todaySales}`, sub: `Week: £${managerData.weekSales}` },
+      { title: "Food Waste", icon: "♻️", main: `£${managerData.todayWasteValue}`, sub: `${Number(managerData.todayWastePct || 0).toFixed(1)}%` },
       {
         title: "Staffing",
         icon: "👥",
         main: `${managerData.staffOnShift}/${managerData.staffNeeded}`,
-        sub:
-          managerData.staffNeeded - managerData.staffOnShift > 0
-            ? "Short on shift"
-            : "Good coverage"
+        sub: managerData.staffNeeded - managerData.staffOnShift > 0 ? "Short on shift" : "Good coverage"
       },
-      {
-        title: "Training Gaps",
-        icon: "📚",
-        main: `${managerData.trainingGaps}`,
-        sub: `${managerData.potentialOvertime} near overtime`
-      }
+      { title: "Training Gaps", icon: "📚", main: `${managerData.trainingGaps}`, sub: `${managerData.potentialOvertime} near overtime` }
     ];
 
     cards.forEach((c) => {
@@ -677,14 +599,11 @@ function attachCrewListHandlers() {
       newStars = Math.max(0, Math.min(3, newStars));
 
       try {
-        await updateDoc(
-          doc(db, "stores", sessionUser.storeId || "store001", "crewSummary", id),
-          {
-            status: newStatus,
-            badge: newBadge,
-            stars: newStars
-          }
-        );
+        await updateDoc(doc(db, "stores", sessionUser.storeId || "store001", "crewSummary", id), {
+          status: newStatus,
+          badge: newBadge,
+          stars: newStars
+        });
       } catch (e) {
         console.error("Update crew fields error:", e);
       }
@@ -701,15 +620,13 @@ function attachCrewListHandlers() {
 function openCrewProfile(id) {
   const crew = managerData.crewTrainingSummary.find((x) => x.id === id);
   if (!crew) return;
-
   if (!crewProfileOverlay) return;
 
   crewProfileOverlay.classList.add("show");
 
   crewProfileName.textContent = crew.name;
   crewProfileRole.textContent = "Crew Member";
-  crewProfileStore.textContent =
-    managerData.storeName || sessionUser.storeId || "Restaurant";
+  crewProfileStore.textContent = managerData.storeName || sessionUser.storeId || "Restaurant";
   crewProfileStatus.textContent = crew.status;
   crewProfileBadge.textContent = crew.badge;
   crewProfileAvatar.textContent = crew.name.charAt(0).toUpperCase();
@@ -720,7 +637,6 @@ function openCrewProfile(id) {
   crewProfileNotes.textContent = `${crew.name.split(" ")[0]} is progressing well.`;
 }
 
-// self profile for crew
 function openSelfProfile() {
   if (!crewProfileOverlay || !sessionUser) return;
 
@@ -730,13 +646,9 @@ function openSelfProfile() {
 
   crewProfileName.textContent = sessionUser.name;
   crewProfileRole.textContent = crewData.position || "Crew Member";
-  crewProfileStore.textContent =
-    managerData.storeName || sessionUser.storeId || "Restaurant";
-  crewProfileStatus.textContent = crewData.trainingTodo.length
-    ? "Training in progress"
-    : "All required training complete";
-  crewProfileBadge.textContent =
-    crewData.achievements[0]?.title || "No badge assigned yet";
+  crewProfileStore.textContent = managerData.storeName || sessionUser.storeId || "Restaurant";
+  crewProfileStatus.textContent = crewData.trainingTodo.length ? "Training in progress" : "All required training complete";
+  crewProfileBadge.textContent = crewData.achievements[0]?.title || "No badge assigned yet";
   crewProfileAvatar.textContent = sessionUser.name.charAt(0).toUpperCase();
   crewProfileStars.textContent = describeStars(crewData.achievements.length);
 
@@ -746,18 +658,14 @@ function openSelfProfile() {
     crewProfileNextShift.textContent = "No upcoming shift on file.";
   }
 
-  crewProfileStations.textContent =
-    crewData.certifications.join(" · ") || "No stations assigned yet.";
+  crewProfileStations.textContent = crewData.certifications.join(" · ") || "No stations assigned yet.";
   crewProfileNotes.textContent = `${firstName} is doing well. Keep building skills and McStars.`;
 }
 
-// close profile overlay
 if (crewProfileOverlay && crewProfileClose) {
   crewProfileClose.onclick = () => crewProfileOverlay.classList.remove("show");
   crewProfileOverlay.addEventListener("click", (e) => {
-    if (e.target === crewProfileOverlay) {
-      crewProfileOverlay.classList.remove("show");
-    }
+    if (e.target === crewProfileOverlay) crewProfileOverlay.classList.remove("show");
   });
 }
 
@@ -770,18 +678,8 @@ function renderSuggestions(isCrew) {
   aiSuggestions.innerHTML = "";
 
   const suggestions = isCrew
-    ? [
-        "How many hours do I work this week?",
-        "How much will I earn?",
-        "When is my next shift?",
-        "What training do I need?"
-      ]
-    : [
-        "Show me today’s waste.",
-        "Which crew need training?",
-        "Who are my top performers?",
-        "How many staff are working today?"
-      ];
+    ? ["How many hours do I work this week?", "How much will I earn?", "When is my next shift?", "What training do I need?"]
+    : ["Show me today’s waste.", "Which crew need training?", "Who are my top performers?", "How many staff are working today?"];
 
   suggestions.forEach((text) => {
     const chip = document.createElement("button");
@@ -857,7 +755,7 @@ function seedIntroMessages(isCrew) {
 
 /* ============================================================
    SEND MESSAGE TO BACKEND (McAssist on VERCEL)
-//   IMPORTANT: uses /api/mcassist
+   IMPORTANT: uses /api/mcassist
 ============================================================ */
 
 async function sendUserMessage(text) {
@@ -881,9 +779,7 @@ async function sendUserMessage(text) {
       crewData: isCrew
         ? {
             ...crewData,
-            realShifts: Array.isArray(window.loadedShiftsForCrew)
-              ? window.loadedShiftsForCrew
-              : []
+            realShifts: Array.isArray(window.loadedShiftsForCrew) ? window.loadedShiftsForCrew : []
           }
         : undefined,
       managerData: !isCrew ? managerData : undefined
@@ -1046,15 +942,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
   let wakeEnabled = false;
   let wakeRunning = false;
 
-  const HEY_AMY_VARIANTS = [
-    "hey amy",
-    "hey ami",
-    "hey amie",
-    "hey emmy",
-    "hey ammy",
-    "ok amy",
-    "okay amy"
-  ];
+  const HEY_AMY_VARIANTS = ["hey amy", "hey ami", "hey amie", "hey emmy", "hey ammy", "ok amy", "okay amy"];
 
   function startWakeListener() {
     if (!wakeEnabled || wakeRunning || !hasSpeechSupport()) return;
@@ -1078,16 +966,12 @@ if (micBtn && overlay && hasSpeechSupport()) {
         return;
       }
       wakeRunning = false;
-      if (wakeEnabled && !document.hidden) {
-        setTimeout(startWakeListener, 700);
-      }
+      if (wakeEnabled && !document.hidden) setTimeout(startWakeListener, 700);
     };
 
     wakeRecognition.onend = () => {
       wakeRunning = false;
-      if (wakeEnabled && !document.hidden) {
-        setTimeout(startWakeListener, 400);
-      }
+      if (wakeEnabled && !document.hidden) setTimeout(startWakeListener, 400);
     };
 
     wakeRecognition.onresult = (event) => {
