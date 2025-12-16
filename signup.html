@@ -11,55 +11,167 @@
       --mc-dark: #1a1a1a;
       --card-bg: rgba(255, 255, 255, 0.96);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
     body {
-      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: radial-gradient(circle at top, #ffd166, #ff9f1c, #d62828);
       color: #111;
+      padding: 18px;
     }
+
     .container {
-      width: 100%; max-width: 460px; background: var(--card-bg);
-      border-radius: 18px; padding: 28px 26px 24px;
+      width: 100%;
+      max-width: 460px;
+      background: var(--card-bg);
+      border-radius: 18px;
+      padding: 28px 26px 24px;
       box-shadow: 0 14px 35px rgba(0, 0, 0, 0.22);
     }
-    .header { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
     .logo-circle {
-      width:44px; height:44px; border-radius:50%; background:var(--mc-red);
-      display:flex; align-items:center; justify-content:center;
-      color:var(--mc-yellow); font-size:26px; font-weight:900;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--mc-red);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--mc-yellow);
+      font-size: 26px;
+      font-weight: 900;
     }
-    h1 { font-size: 1.2rem; font-weight: 700; }
-    p.subtitle { font-size: 0.82rem; color: #555; }
-    form { margin-top: 8px; display:flex; flex-direction:column; gap:14px; }
-    label { font-size:0.8rem; font-weight:600; color:#333; display:block; margin-bottom:4px; }
+
+    h1 {
+      font-size: 1.2rem;
+      font-weight: 800;
+    }
+
+    p.subtitle {
+      font-size: 0.82rem;
+      color: #555;
+      margin-top: 2px;
+    }
+
+    form {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 650;
+      color: #333;
+      display: block;
+      margin-bottom: 4px;
+    }
+
     input, select {
-      border-radius: 999px; border: 1px solid #ddd; padding: 9px 13px;
-      font-size: 0.88rem; outline:none; background:#fafafa;
-      transition: border 0.2s, box-shadow 0.2s, transform 0.1s; width:100%;
+      border-radius: 999px;
+      border: 1px solid #ddd;
+      padding: 10px 14px;
+      font-size: 0.9rem;
+      outline: none;
+      background: #fafafa;
+      transition: border 0.2s, box-shadow 0.2s, transform 0.1s;
+      width: 100%;
     }
+
     input:focus, select:focus {
       border-color: var(--mc-red);
       box-shadow: 0 0 0 2px rgba(214, 40, 40, 0.15);
       transform: translateY(-1px);
       background: #fff;
     }
+
     .btn-primary {
-      border-radius:999px; border:none; padding:11px 16px;
-      font-size:0.95rem; font-weight:700;
+      border-radius: 999px;
+      border: none;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      font-weight: 800;
       background: linear-gradient(135deg, var(--mc-red), #a71d1d);
-      color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
       transition: transform 0.1s, box-shadow 0.1s, filter 0.1s;
     }
-    .btn-primary:hover { filter: brightness(1.05); transform: translateY(-1px); }
-    .btn-primary:active { transform: translateY(0); box-shadow: 0 6px 10px rgba(0, 0, 0, 0.22); }
-    .btn-primary:disabled { opacity: 0.6; cursor: default; }
-    .error { margin-top:8px; font-size:0.8rem; color:#c1121f; }
-    .success { margin-top:8px; font-size:0.8rem; color:#15803d; }
-    .link-row { margin-top:12px; font-size:0.8rem; text-align:center; }
-    .link-row a { color:#b91c1c; text-decoration:none; font-weight:600; }
-    .link-row a:hover { text-decoration: underline; }
-    .hint { margin-top:6px; font-size:0.72rem; color:#6b7280; line-height:1.3; }
+
+    .btn-primary:hover {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.22);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .error {
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: #c1121f;
+      line-height: 1.35;
+      white-space: pre-line;
+    }
+
+    .success {
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: #15803d;
+      line-height: 1.35;
+      white-space: pre-line;
+    }
+
+    .link-row {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      text-align: center;
+    }
+
+    .link-row a {
+      color: #b91c1c;
+      text-decoration: none;
+      font-weight: 650;
+    }
+
+    .link-row a:hover {
+      text-decoration: underline;
+    }
+
+    .hint {
+      margin-top: 6px;
+      font-size: 0.72rem;
+      color: #6b7280;
+      line-height: 1.3;
+    }
   </style>
 </head>
 <body>
@@ -86,6 +198,7 @@
       <div>
         <label for="password">Password</label>
         <input id="password" type="password" placeholder="At least 6 characters" required />
+        <div class="hint">Minimum is 6 characters.</div>
       </div>
 
       <div>
@@ -96,14 +209,14 @@
           <option value="shiftCreator">Shift Creator (Scheduler)</option>
         </select>
         <div class="hint">
-          Managers/Shift Creators are restricted to approved emails.
+          If you restrict manager emails, unauthorized emails can be forced back to Crew.
         </div>
       </div>
 
       <div>
         <label for="storeId">Store / Restaurant ID</label>
         <input id="storeId" type="text" placeholder="e.g. store001" />
-        <div class="hint">Keep it consistent for everyone (example: store001).</div>
+        <div class="hint">Everyone in the same restaurant must use the same storeId.</div>
       </div>
 
       <button type="submit" class="btn-primary" id="signupBtn">
@@ -126,9 +239,10 @@
       createUserWithEmailAndPassword,
       updateProfile
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
     import {
       doc,
-      setDoc,
+      writeBatch,
       serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -137,10 +251,13 @@
     const successBox = document.getElementById("success");
     const signupBtn = document.getElementById("signupBtn");
 
-    // ✅ Put YOUR admin emails here
+    // OPTIONAL: restrict manager-like roles to approved emails
+    // If you don't want restrictions, set RESTRICT_MANAGER_ROLES = false.
+    const RESTRICT_MANAGER_ROLES = false;
+
     const ALLOWED_ADMIN_EMAILS = [
-      "you@example.com",
-      "owner@example.com"
+      // "cosmin@yourdomain.com",
+      // "owner@yourdomain.com"
     ];
 
     function normalizeEmail(e) {
@@ -151,50 +268,64 @@
       errorBox.textContent = msg;
       errorBox.style.display = "block";
       successBox.style.display = "none";
+      successBox.textContent = "";
     }
 
     function showSuccess(msg) {
       successBox.textContent = msg;
       successBox.style.display = "block";
       errorBox.style.display = "none";
+      errorBox.textContent = "";
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const name = document.getElementById("name").value.trim();
-      const email = document.getElementById("email").value.trim();
+      const emailRaw = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
-      const requestedRole = document.getElementById("role").value;
+      const requestedRole = document.getElementById("role").value; // crew/manager/shiftCreator
       const storeId = document.getElementById("storeId").value.trim() || "store001";
 
-      errorBox.style.display = "none";
-      successBox.style.display = "none";
-      errorBox.textContent = "";
-      successBox.textContent = "";
-
-      if (!name || !email || !password) {
+      if (!name || !emailRaw || !password) {
         showError("Please fill in all required fields.");
+        return;
+      }
+      if (password.length < 6) {
+        showError("Password is too short. Minimum is 6 characters.");
         return;
       }
 
       signupBtn.disabled = true;
 
       try {
-        const emailNorm = normalizeEmail(email);
+        const emailNorm = normalizeEmail(emailRaw);
 
-        // ✅ Restrict manager/shiftCreator to approved emails
+        // role enforcement (optional)
         let finalRole = requestedRole;
-        if ((requestedRole === "manager" || requestedRole === "shiftCreator") &&
-            !ALLOWED_ADMIN_EMAILS.map(normalizeEmail).includes(emailNorm)) {
-          finalRole = "crew";
+        if (
+          RESTRICT_MANAGER_ROLES &&
+          (requestedRole === "manager" || requestedRole === "shiftCreator")
+        ) {
+          const allowed = ALLOWED_ADMIN_EMAILS.map(normalizeEmail).includes(emailNorm);
+          if (!allowed) finalRole = "crew";
         }
 
+        // 1) Create Auth account
         const cred = await createUserWithEmailAndPassword(auth, emailNorm, password);
+
+        // 2) Update display name
         await updateProfile(cred.user, { displayName: name });
 
-        // 1) Create /users/{uid} (IMPORTANT for your rules)
-        await setDoc(doc(db, "users", cred.user.uid), {
+        const uid = cred.user.uid;
+
+        // 3) Create Firestore docs atomically (avoids rules race conditions)
+        const batch = writeBatch(db);
+
+        const userRef = doc(db, "users", uid);
+        const crewRef = doc(db, "stores", storeId, "crewSummary", uid);
+
+        batch.set(userRef, {
           name,
           email: emailNorm,
           role: finalRole,
@@ -208,29 +339,22 @@
           availability: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] }
         });
 
-        // 2) Auto-add into crewSummary (so manager dashboard always “syncs”)
-        //    (Rules allow user to create their own crewSummary doc)
-        await setDoc(doc(db, "stores", storeId, "crewSummary", cred.user.uid), {
+        // ✅ auto-add to crewSummary
+        batch.set(crewRef, {
+          userId: uid,
           name,
           status: "New starter",
           badge: "—",
           stars: 0,
-          userId: cred.user.uid,
-          createdAt: Date.now()
+          createdAt: serverTimestamp()
         });
 
-        // cache session (optional, helps UI on first load)
-        localStorage.setItem("mc_session_user", JSON.stringify({
-          id: cred.user.uid,
-          name,
-          role: finalRole,
-          storeId
-        }));
+        await batch.commit();
 
         if (finalRole !== requestedRole) {
-          showSuccess("Account created as Crew (manager roles are restricted). You can now log in.");
+          showSuccess("Account created ✅\n(Manager roles are restricted, so you were created as Crew.)\nYou can now log in.");
         } else {
-          showSuccess("Account created. You can now log in.");
+          showSuccess("Account created ✅\nYou can now log in.");
         }
 
         setTimeout(() => {
@@ -239,12 +363,25 @@
 
       } catch (err) {
         console.error(err);
-        if (err.code === "auth/email-already-in-use") {
-          showError("That email is already in use.");
-        } else if (err.code === "auth/weak-password") {
+
+        // Auth errors
+        if (err?.code === "auth/email-already-in-use") {
+          showError("That email is already in use.\nTry logging in, or use a different email.");
+        } else if (err?.code === "auth/invalid-email") {
+          showError("That email address is invalid.");
+        } else if (err?.code === "auth/weak-password") {
           showError("Password is too weak (minimum 6 characters).");
+        } else if (String(err?.message || "").includes("Missing or insufficient permissions")) {
+          showError(
+            "Firestore permissions blocked the profile write.\n\n" +
+            "Check:\n" +
+            "1) You published the latest Firestore rules\n" +
+            "2) Your rules allow users/{uid} create for signed-in user\n" +
+            "3) Your store rules allow writing crewSummary only after users/{uid} exists\n\n" +
+            "This page uses a batch to avoid the usual race condition."
+          );
         } else {
-          showError(err.message || "Sign up failed.");
+          showError(err?.message || "Sign up failed.");
         }
       } finally {
         signupBtn.disabled = false;
