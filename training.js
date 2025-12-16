@@ -1,25 +1,429 @@
-// ================================================
-// training.js — Training Page Upgrade (Instant Open + Q&A + Quizzes)
-// ✅ Local module library (no Firestore needed)
-// ✅ "open grill training module" instantly opens best match
-// ✅ AI answers from relevant modules (lightweight local retrieval)
-// ✅ Quiz UI runs locally; AI can also generate quiz variants
-// ================================================
+// ========================================
+// training.js — FULL VERSION (AI + Modules + Quiz + Firestore Progress)
+// Works with the training.html I provided.
+//
+// Firestore:
+//  users/{uid}
+//    - trainingXP (number)
+//    - trainingLevel (number)
+//    - trainingProgress (map)
+//        trainingProgress[moduleId] = { completed: boolean, completedAt, reflection, xpEarned }
+// ========================================
 
 import { auth, db } from "./firebase-init.js";
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   doc,
   getDoc,
   setDoc,
-  serverTimestamp
+  updateDoc,
+  serverTimestamp,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* ===================== OPTIONAL USER DOC ENSURE ===================== */
+/* =========================
+   DOM
+========================= */
+
+// sidebar
+const sidebarUserName = document.getElementById("sidebarUserName");
+const sidebarUserRole = document.getElementById("sidebarUserRole");
+const logoutBtn = document.getElementById("logoutBtn");
+const sidebar = document.querySelector(".sidebar");
+const sidebarToggle = document.getElementById("sidebarToggle");
+
+// header
+const headerLevel = document.getElementById("headerLevel");
+const headerXP = document.getElementById("headerXP");
+
+// path + lesson panel
+const pathList = document.getElementById("pathList");
+const lessonTitle = document.getElementById("lessonTitle");
+const lessonSubtitle = document.getElementById("lessonSubtitle");
+const lessonTag = document.getElementById("lessonTag");
+const lessonContent = document.getElementById("lessonContent");
+
+// progress panel
+const statusPill = document.getElementById("statusPill");
+const moduleXPInfo = document.getElementById("moduleXPInfo");
+const moduleXpFill = document.getElementById("moduleXpFill");
+const checklistEl = document.getElementById("checklist");
+const reflectionInput = document.getElementById("reflectionInput");
+const completeModuleBtn = document.getElementById("completeModuleBtn");
+const resetModuleBtn = document.getElementById("resetModuleBtn");
+
+// toast
+const toastEl = document.getElementById("toast");
+
+// new module explorer
+const trainingSearch = document.getElementById("trainingSearch");
+const trainingSearchBtn = document.getElementById("trainingSearchBtn");
+const trainingModuleGrid = document.getElementById("trainingModuleGrid");
+
+// ai
+const trainingChat = document.getElementById("trainingChat");
+const trainingAiForm = document.getElementById("trainingAiForm");
+const trainingAiInput = document.getElementById("trainingAiInput");
+const trainingAiSend = document.getElementById("trainingAiSend");
+const trainingQuickChips = document.getElementById("trainingQuickChips");
+
+// overlay
+const moduleOverlay = document.getElementById("moduleOverlay");
+const moduleTitle = document.getElementById("moduleTitle");
+const moduleMeta = document.getElementById("moduleMeta");
+const moduleBody = document.getElementById("moduleBody");
+const closeModuleBtn = document.getElementById("closeModuleBtn");
+const startQuizBtn = document.getElementById("startQuizBtn");
+const quizArea = document.getElementById("quizArea");
+
+/* =========================
+   STATE
+========================= */
+
+let sessionUser = null;
+let selectedModuleId = null;
+let userDocCache = null;
+
+let unsubUser = null;
+
+// quiz state
+let activeQuiz = null; // { moduleId, questions: [{q, options, answer, explain}], index, score }
+let quizLocked = false;
+
+/* =========================
+   MODULE LIBRARY (edit freely)
+========================= */
+
+const MODULES = [
+  // FOOD SAFETY
+  {
+    id: "food_safety_basics",
+    title: "Food Safety Basics",
+    tag: "Food safety",
+    level: 1,
+    xp: 40,
+    durationMins: 8,
+    keywords: ["food safety", "hygiene", "contamination", "temps", "temperature", "handwash", "allergens"],
+    summary: "Prevent contamination, follow temp rules, and protect customers.",
+    steps: [
+      "Wash hands properly: 20 seconds, warm water, soap, dry fully.",
+      "Avoid cross-contamination: raw vs cooked separation.",
+      "Follow time/temp rules: hot holding, chilling, reheating.",
+      "Clean-as-you-go: sanitize surfaces and tools.",
+      "Allergens: prevent contact and label correctly."
+    ],
+    doDont: {
+      do: ["Use separate tongs for raw/cooked", "Change gloves between tasks", "Check holding temps regularly"],
+      dont: ["Reuse wiping cloths without sanitizer", "Store raw above cooked", "Ignore allergen requests"]
+    },
+    scenario: {
+      title: "Rush hour spill",
+      text: "A raw chicken tray leaks in the fridge. What do you do immediately and what do you check after cleaning?"
+    },
+    checklist: [
+      "I know the handwash steps",
+      "I can explain cross-contamination",
+      "I know where the sanitizer is and how to use it",
+      "I understand allergen prevention basics"
+    ],
+    quiz: [
+      {
+        q: "What’s the best way to prevent cross-contamination?",
+        options: ["Use the same tools for speed", "Separate raw and cooked items + tools", "Only wipe surfaces at end of shift"],
+        answer: 1,
+        explain: "Separation of raw/cooked food and tools is key."
+      },
+      {
+        q: "When should you change gloves?",
+        options: ["Only if ripped", "Between different tasks/foods", "Once per hour"],
+        answer: 1,
+        explain: "Change gloves between tasks to stop transferring bacteria/allergens."
+      }
+    ]
+  },
+
+  // KITCHEN
+  {
+    id: "grill_station",
+    title: "Grill Station – Core",
+    tag: "Kitchen",
+    level: 1,
+    xp: 55,
+    durationMins: 10,
+    keywords: ["grill", "meat", "burger", "cook", "temps", "timers", "clamshell", "seasoning"],
+    summary: "Cook safely, keep timing consistent, and avoid quality drops.",
+    steps: [
+      "Pre-shift: check grill temp, scrape + sanitize tools, set timers.",
+      "Load patties evenly, avoid overcrowding, use correct cycle.",
+      "Season correctly (if your store uses seasoning).",
+      "Remove on time, stack correctly, follow holding rules.",
+      "Clean between rushes: quick scrape + wipe with approved cloth."
+    ],
+    doDont: {
+      do: ["Use timers every time", "Keep raw/cooked tools separate", "Communicate 'down' counts"],
+      dont: ["Guess cook time", "Leave product outside holding rules", "Mix old/new product without rotation"]
+    },
+    scenario: {
+      title: "Quality check",
+      text: "A burger looks overcooked. What’s the fastest way to prevent it happening again during rush?"
+    },
+    checklist: [
+      "I know the pre-shift grill setup steps",
+      "I use timers every cook",
+      "I can explain holding/rotation",
+      "I keep tools separated (raw/cooked)"
+    ],
+    quiz: [
+      {
+        q: "What’s the best habit to stop over/under cooking?",
+        options: ["Cook by eye", "Use timers consistently", "Flip burgers early"],
+        answer: 1,
+        explain: "Timers remove guessing and keep results consistent."
+      },
+      {
+        q: "Why is rotation important in holding?",
+        options: ["It looks nicer", "It prevents old product being served", "It speeds up cooking"],
+        answer: 1,
+        explain: "Rotation ensures customers don’t get old product."
+      }
+    ]
+  },
+
+  {
+    id: "fryer_station",
+    title: "Fry Station – Quality & Speed",
+    tag: "Kitchen",
+    level: 1,
+    xp: 50,
+    durationMins: 9,
+    keywords: ["fryer", "fries", "oil", "salt", "timers", "basket", "burns"],
+    summary: "Crisp fries, safe oil handling, and fast rush rhythm.",
+    steps: [
+      "Check oil level + filter status (per store process).",
+      "Use basket fill guidelines to avoid soggy fries.",
+      "Use timers and shake basket (if required by your process).",
+      "Salt immediately after dumping (as per store standard).",
+      "Keep heat-safe zone: protect from burns and spills."
+    ],
+    checklist: [
+      "I know basket fill guidelines",
+      "I use timers for every drop",
+      "I salt correctly and consistently",
+      "I know how to reduce burn risk"
+    ]
+  },
+
+  // FRONT COUNTER
+  {
+    id: "front_counter_greeting",
+    title: "Front Counter – Greeting & Order Accuracy",
+    tag: "Front counter",
+    level: 1,
+    xp: 45,
+    durationMins: 8,
+    keywords: ["front counter", "greeting", "order", "accuracy", "upsell", "customer"],
+    summary: "Friendly greeting, correct orders, and calm under pressure.",
+    steps: [
+      "Greet within 5 seconds with a smile and eye contact.",
+      "Repeat the order back to confirm accuracy.",
+      "Clarify customizations (no pickles, extra sauce, etc.).",
+      "Handle payment smoothly, offer receipt.",
+      "Thank the customer and direct them clearly."
+    ],
+    checklist: [
+      "I greet within 5 seconds",
+      "I repeat orders back",
+      "I clarify custom items",
+      "I stay calm during rush"
+    ]
+  },
+
+  // DRIVE THRU
+  {
+    id: "drive_thru_speed",
+    title: "Drive-thru – Speed & Clarity",
+    tag: "Drive-thru",
+    level: 2,
+    xp: 60,
+    durationMins: 10,
+    keywords: ["drive thru", "drive-thru", "speed", "window", "headset", "timer"],
+    summary: "Clear communication and fast workflow without mistakes.",
+    steps: [
+      "Confirm greeting script and speak clearly.",
+      "Repeat key items + drinks to reduce errors.",
+      "Use 'park' smartly when needed (per store rules).",
+      "Prep condiments/napkins during payment moment.",
+      "Hand-off with a final confirmation."
+    ],
+    checklist: [
+      "I speak clearly on headset",
+      "I repeat the order back",
+      "I understand when to park",
+      "I confirm at hand-off"
+    ]
+  },
+
+  // CUSTOMER EXPERIENCE
+  {
+    id: "customer_recovery",
+    title: "Customer Recovery – Fixing Mistakes",
+    tag: "Customer experience",
+    level: 2,
+    xp: 55,
+    durationMins: 9,
+    keywords: ["complaint", "refund", "apology", "replacement", "customer recovery"],
+    summary: "Own the issue, fix it fast, and keep the customer calm.",
+    steps: [
+      "Listen without interrupting.",
+      "Apologize and acknowledge the issue.",
+      "Offer the correct fix (replace/remake/manager).",
+      "Thank them for telling you.",
+      "Share the learning with the team."
+    ],
+    checklist: [
+      "I can stay calm with complaints",
+      "I know the apology + fix flow",
+      "I can get help quickly if needed",
+      "I share learnings with team"
+    ]
+  }
+];
+
+/* =========================
+   HELPERS
+========================= */
+
+function showToast(msg) {
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  setTimeout(() => toastEl.classList.remove("show"), 2200);
+}
+
+function safeText(x, fallback = "") {
+  if (typeof x === "string") return x;
+  return fallback;
+}
+
+function calcLevelFromXP(xp) {
+  // simple curve: 0-199 = L1, 200-449 = L2, 450-799 = L3, etc.
+  xp = Number(xp) || 0;
+  if (xp < 200) return 1;
+  if (xp < 450) return 2;
+  if (xp < 800) return 3;
+  if (xp < 1250) return 4;
+  return 5;
+}
+
+function getProgressMap() {
+  return (userDocCache && userDocCache.trainingProgress && typeof userDocCache.trainingProgress === "object")
+    ? userDocCache.trainingProgress
+    : {};
+}
+
+function isCompleted(moduleId) {
+  const prog = getProgressMap()[moduleId];
+  return !!(prog && prog.completed);
+}
+
+function normalize(s) {
+  return String(s || "").toLowerCase().trim();
+}
+
+function findBestModuleByText(text) {
+  const q = normalize(text);
+  if (!q) return null;
+
+  // exact id
+  const exact = MODULES.find(m => normalize(m.id) === q);
+  if (exact) return exact;
+
+  // contains title/tag
+  const scored = MODULES.map(m => {
+    const hay = `${m.title} ${m.tag} ${(m.keywords || []).join(" ")} ${m.summary || ""}`.toLowerCase();
+    let score = 0;
+
+    // strong match by words
+    q.split(/\s+/).forEach(w => {
+      if (!w) return;
+      if (hay.includes(w)) score += 2;
+      if (normalize(m.title).includes(w)) score += 3;
+      if (normalize(m.tag).includes(w)) score += 2;
+    });
+
+    // extra for direct phrase in title
+    if (normalize(m.title).includes(q)) score += 8;
+    return { m, score };
+  }).sort((a,b) => b.score - a.score);
+
+  if (!scored.length || scored[0].score <= 0) return null;
+  return scored[0].m;
+}
+
+function buildModuleHTML(m) {
+  const steps = (m.steps || []).map(s => `<li>${s}</li>`).join("");
+  const doList = (m.doDont?.do || []).map(s => `<li>${s}</li>`).join("");
+  const dontList = (m.doDont?.dont || []).map(s => `<li>${s}</li>`).join("");
+
+  const scenario = m.scenario
+    ? `<div class="lesson-scenario"><strong>${safeText(m.scenario.title)}</strong>${safeText(m.scenario.text)}</div>`
+    : "";
+
+  const highlight = m.summary
+    ? `<div class="lesson-highlight"><strong>Focus:</strong> ${safeText(m.summary)}</div>`
+    : "";
+
+  return `
+    <div class="lesson-section">
+      <h4>Key steps</h4>
+      <ul>${steps || "<li>No steps added yet.</li>"}</ul>
+    </div>
+
+    <div class="lesson-section">
+      <h4>Do / Don’t</h4>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div style="background:#ecfdf5; border:1px solid #bbf7d0; padding:10px; border-radius:12px;">
+          <strong style="font-size:0.8rem; color:#166534;">Do</strong>
+          <ul style="margin-top:6px;">${doList || "<li>—</li>"}</ul>
+        </div>
+        <div style="background:#fef2f2; border:1px solid #fecaca; padding:10px; border-radius:12px;">
+          <strong style="font-size:0.8rem; color:#991b1b;">Don’t</strong>
+          <ul style="margin-top:6px;">${dontList || "<li>—</li>"}</ul>
+        </div>
+      </div>
+    </div>
+
+    ${scenario}
+    ${highlight}
+  `;
+}
+
+function buildChecklist(m) {
+  const items = Array.isArray(m.checklist) ? m.checklist : [];
+  if (!checklistEl) return;
+
+  checklistEl.innerHTML = items.length
+    ? items.map((t, idx) => `
+        <li class="check-item">
+          <input type="checkbox" id="chk_${idx}" />
+          <span>${t}</span>
+        </li>
+      `).join("")
+    : `<li class="check-item"><span>No checklist items yet.</span></li>`;
+}
+
+/* =========================
+   AUTH + USER DOC
+========================= */
 
 function loadSessionUser() {
-  try { return JSON.parse(localStorage.getItem("mc_session_user")); } catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem("mc_session_user"));
+  } catch {
+    return null;
+  }
 }
+
 function saveSessionUser(u) {
   localStorage.setItem("mc_session_user", JSON.stringify(u));
 }
@@ -36,665 +440,739 @@ async function ensureUserDoc(firebaseUser) {
     role: cached.role || "crew",
     storeId: cached.storeId || "store001",
     createdAt: serverTimestamp(),
-    trainingStatus: "—",
-    badge: "—",
-    stars: 0
+
+    // training fields
+    trainingXP: 0,
+    trainingLevel: 1,
+    trainingProgress: {}
   };
+
   await setDoc(userRef, payload);
   return payload;
 }
 
-/* ===================== DOM ===================== */
-
-const trainingSearch = document.getElementById("trainingSearch");
-const trainingSearchBtn = document.getElementById("trainingSearchBtn");
-const trainingModuleGrid = document.getElementById("trainingModuleGrid");
-
-const trainingChat = document.getElementById("trainingChat");
-const trainingAiForm = document.getElementById("trainingAiForm");
-const trainingAiInput = document.getElementById("trainingAiInput");
-const trainingAiSend = document.getElementById("trainingAiSend");
-const trainingQuickChips = document.getElementById("trainingQuickChips");
-const trainingAiSubtitle = document.getElementById("trainingAiSubtitle");
-
-const moduleOverlay = document.getElementById("moduleOverlay");
-const moduleTitle = document.getElementById("moduleTitle");
-const moduleMeta = document.getElementById("moduleMeta");
-const moduleBody = document.getElementById("moduleBody");
-const closeModuleBtn = document.getElementById("closeModuleBtn");
-const startQuizBtn = document.getElementById("startQuizBtn");
-const quizArea = document.getElementById("quizArea");
-
-// Optional: if you have logout button on training page
-const logoutBtn = document.getElementById("logoutBtn");
-
-/* ===================== STATE ===================== */
-
-let sessionUser = null;
-let storeId = "store001";
-let activeModule = null;
-
-/* ===================== MODULE LIBRARY ===================== */
-/**
- * Write your modules here. Keep them short & practical.
- * If you want, I can also convert these into Firestore later.
- */
-const MODULES = [
-  {
-    id: "grill-101",
-    title: "Grill Training 101",
-    tags: ["grill", "kitchen", "beef", "temperature", "timers", "safety"],
-    minutes: 12,
-    sections: [
-      { h: "Goal", p: "Cook safe, consistent patties using timers, correct placement, and clean working habits." },
-      { h: "Core steps", bullets: [
-        "Wash hands, glove up, check grill area is clean and clear.",
-        "Confirm correct product and correct timer program.",
-        "Place patties evenly; avoid stacking or overlapping.",
-        "Close grill properly; start correct timer.",
-        "When timer ends: remove, stage correctly, and follow holding-time rules."
-      ]},
-      { h: "Safety & quality checks", bullets: [
-        "Never guess cook times—use the correct timer.",
-        "Keep raw and cooked tools separate.",
-        "If anything looks wrong (undercooked, off smell), stop and tell a manager."
-      ]},
-      { h: "Common mistakes", bullets: [
-        "Wrong timer program.",
-        "Crowding the grill.",
-        "Not cleaning between runs.",
-        "Cross-contamination with raw tools."
-      ]}
-    ],
-    quiz: [
-      { q: "What should you use to ensure correct cook time?", choices: ["A stopwatch", "The correct grill timer/program", "Guess based on experience"], a: 1, explain: "Use the correct programmed timer for consistent safe cooking." },
-      { q: "Why should patties not overlap?", choices: ["It wastes space", "It can cook unevenly", "It makes them taste better"], a: 1, explain: "Overlapping can cause uneven cooking and safety issues." },
-      { q: "What do you do if a batch looks undercooked?", choices: ["Serve it anyway", "Throw it away silently", "Stop and tell a manager / follow procedure"], a: 2, explain: "Escalate and follow food safety procedure." }
-    ]
-  },
-  {
-    id: "fries-station",
-    title: "Fries Station Basics",
-    tags: ["fries", "oil", "salt", "holding", "portion"],
-    minutes: 10,
-    sections: [
-      { h: "Goal", p: "Fast, consistent fries with correct salt, portioning, and holding time." },
-      { h: "Core steps", bullets: [
-        "Check oil level/temperature and basket condition.",
-        "Cook correct batch size; shake basket if required by your process.",
-        "Drain properly; salt evenly; portion correctly.",
-        "Respect holding time—rotate stock, don’t top-up old fries."
-      ]},
-      { h: "Quality checks", bullets: [
-        "Color: golden, not pale or burnt.",
-        "Texture: crisp outside, soft inside.",
-        "Portion: consistent scoops."
-      ]}
-    ],
-    quiz: [
-      { q: "What’s the best way to handle old fries nearing holding time?", choices: ["Top-up with new fries", "Serve them first no matter what", "Replace/rotate following holding-time rules"], a: 2, explain: "Rotate stock and follow holding-time rules to maintain quality." }
-    ]
-  },
-  {
-    id: "front-counter",
-    title: "Front Counter Customer Service",
-    tags: ["front", "counter", "service", "orders", "smile"],
-    minutes: 8,
-    sections: [
-      { h: "Goal", p: "Accurate orders, friendly service, and quick recovery when something goes wrong." },
-      { h: "Service basics", bullets: [
-        "Greet, confirm order, repeat key items.",
-        "Keep eye contact, speak clearly, stay calm.",
-        "If an issue happens: apologise, fix, and escalate if needed."
-      ]},
-      { h: "Accuracy habits", bullets: [
-        "Read back order.",
-        "Double-check drinks/sides.",
-        "Label or separate special requests."
-      ]}
-    ],
-    quiz: [
-      { q: "Best first step if a customer says their order is wrong?", choices: ["Argue back", "Apologise and check the receipt/order", "Ignore it"], a: 1, explain: "Acknowledge and verify, then fix quickly." }
-    ]
-  },
-  {
-    id: "drive-thru",
-    title: "Drive-Thru Flow & Accuracy",
-    tags: ["drive", "drivethru", "headset", "accuracy", "speed"],
-    minutes: 10,
-    sections: [
-      { h: "Goal", p: "Keep the line moving while maintaining order accuracy." },
-      { h: "Core steps", bullets: [
-        "Confirm each order clearly.",
-        "Repeat total and key items.",
-        "Coordinate with runners/kitchen.",
-        "Handle changes politely and quickly."
-      ]},
-      { h: "Speed tips", bullets: [
-        "Use short, clear phrases.",
-        "If it’s busy, suggest quick add-ons once, not repeatedly."
-      ]}
-    ],
-    quiz: [
-      { q: "Why repeat the key items back to the customer?", choices: ["It’s annoying", "It improves accuracy", "It wastes time"], a: 1, explain: "Repeating reduces mistakes and remakes." }
-    ]
-  },
-  {
-    id: "food-safety",
-    title: "Food Safety & Hygiene Essentials",
-    tags: ["hygiene", "safety", "handwashing", "cross contamination", "allergens"],
-    minutes: 12,
-    sections: [
-      { h: "Goal", p: "Prevent contamination and keep food safe every shift." },
-      { h: "Non-negotiables", bullets: [
-        "Wash hands properly and often.",
-        "Separate raw and cooked tools/areas.",
-        "Keep surfaces sanitised.",
-        "Follow holding times and temperature checks."
-      ]},
-      { h: "Allergens", bullets: [
-        "Take allergen requests seriously—use the correct process.",
-        "If unsure, stop and ask a manager."
-      ]}
-    ],
-    quiz: [
-      { q: "If you’re unsure about an allergen request, what do you do?", choices: ["Guess", "Ask a manager / follow allergen process", "Ignore it"], a: 1, explain: "Always follow allergen procedure; escalate if unsure." }
-    ]
-  },
-  {
-    id: "close-clean",
-    title: "Close Down & Cleaning Routine",
-    tags: ["close", "clean", "hygiene", "checklist"],
-    minutes: 15,
-    sections: [
-      { h: "Goal", p: "Leave the store clean, stocked, and safe for the next team." },
-      { h: "Routine", bullets: [
-        "Do tasks little-by-little before rush ends.",
-        "Follow the close checklist (stations, floors, bins, surfaces).",
-        "Restock essentials for open.",
-        "Final walk-through with shift manager."
-      ]}
-    ],
-    quiz: [
-      { q: "Best way to avoid a huge cleanup at the end?", choices: ["Ignore cleaning until close", "Clean as you go", "Ask someone else"], a: 1, explain: "Cleaning as you go prevents end-of-night overload." }
-    ]
-  },
-  {
-    id: "cash-handling",
-    title: "Cash Handling Basics",
-    tags: ["cash", "till", "money", "refunds"],
-    minutes: 9,
-    sections: [
-      { h: "Goal", p: "Accurate tills and safe handling to reduce errors." },
-      { h: "Basics", bullets: [
-        "Count change back clearly.",
-        "Keep till closed when not in use.",
-        "Don’t share logins.",
-        "Follow refund/void rules (manager approval if required)."
-      ]}
-    ],
-    quiz: [
-      { q: "Why shouldn’t you share till logins?", choices: ["It’s faster", "It breaks accountability", "It’s required"], a: 1, explain: "Accountability matters for errors and audits." }
-    ]
-  }
-];
-
-/* ===================== SEARCH + OPEN MODULE ===================== */
-
-function normalise(str) {
-  return String(str || "").toLowerCase().trim();
+function stopRealtime() {
+  try { unsubUser?.(); } catch {}
+  unsubUser = null;
 }
 
-function scoreModule(mod, queryText) {
-  const q = normalise(queryText);
-  if (!q) return 0;
+function startRealtime(uid) {
+  stopRealtime();
+  unsubUser = onSnapshot(doc(db, "users", uid), (snap) => {
+    if (!snap.exists()) return;
+    userDocCache = snap.data() || {};
 
-  const title = normalise(mod.title);
-  const tags = (mod.tags || []).map(normalise);
-  const body = normalise(
-    (mod.sections || [])
-      .map((s) => [s.h, s.p, ...(s.bullets || [])].join(" "))
-      .join(" ")
-  );
+    // header UI
+    const xp = Number(userDocCache.trainingXP) || 0;
+    const lvl = Number(userDocCache.trainingLevel) || calcLevelFromXP(xp);
 
-  let score = 0;
+    if (headerXP) headerXP.textContent = `${xp} XP total`;
+    if (headerLevel) headerLevel.textContent = String(lvl);
 
-  // strong signals
-  if (title.includes(q)) score += 50;
-  if (tags.some((t) => t.includes(q) || q.includes(t))) score += 30;
+    // keep level consistent
+    const computed = calcLevelFromXP(xp);
+    if (computed !== lvl) {
+      // best-effort fix (don’t block UI)
+      updateDoc(doc(db, "users", uid), { trainingLevel: computed }).catch(() => {});
+    }
 
-  // word overlap
-  const words = q.split(/\s+/).filter(Boolean);
-  for (const w of words) {
-    if (w.length < 3) continue;
-    if (title.includes(w)) score += 12;
-    if (tags.some((t) => t.includes(w))) score += 8;
-    if (body.includes(w)) score += 3;
+    // re-render completion styles
+    renderPathRail();
+    renderModuleGrid(trainingSearch?.value || "");
+    refreshProgressPanel();
+  });
+}
+
+function refreshProgressPanel() {
+  const m = selectedModuleId ? MODULES.find(x => x.id === selectedModuleId) : null;
+  if (!m) {
+    if (statusPill) statusPill.textContent = "No module selected";
+    if (moduleXPInfo) moduleXPInfo.textContent = "Select a module to see its XP value.";
+    if (moduleXpFill) moduleXpFill.style.width = "0%";
+    if (completeModuleBtn) completeModuleBtn.disabled = true;
+    if (resetModuleBtn) resetModuleBtn.disabled = true;
+    return;
   }
 
-  return score;
+  const completed = isCompleted(m.id);
+  if (statusPill) {
+    statusPill.textContent = completed ? "Completed" : "In progress";
+    statusPill.classList.toggle("completed", completed);
+  }
+
+  if (moduleXPInfo) moduleXPInfo.textContent = `${m.xp || 0} XP • ~${m.durationMins || 8} min • ${m.tag || "Module"}`;
+  if (moduleXpFill) moduleXpFill.style.width = completed ? "100%" : "35%";
+
+  if (completeModuleBtn) completeModuleBtn.disabled = completed ? true : false;
+  if (resetModuleBtn) resetModuleBtn.disabled = completed ? false : true;
+
+  // restore reflection if saved
+  const prog = getProgressMap()[m.id];
+  if (reflectionInput) reflectionInput.value = prog?.reflection || "";
 }
 
-function findBestModule(queryText) {
-  const scored = MODULES
-    .map((m) => ({ m, s: scoreModule(m, queryText) }))
-    .sort((a, b) => b.s - a.s);
+/* =========================
+   RENDER: PATH + LESSON
+========================= */
 
-  return scored[0]?.s > 0 ? scored[0].m : null;
+function renderPathRail() {
+  if (!pathList) return;
+
+  const progress = getProgressMap();
+
+  const sorted = [...MODULES].sort((a, b) => {
+    const la = Number(a.level) || 1;
+    const lb = Number(b.level) || 1;
+    if (la !== lb) return la - lb;
+    return a.title.localeCompare(b.title);
+  });
+
+  pathList.innerHTML = sorted.map((m, idx) => {
+    const completed = !!progress[m.id]?.completed;
+    const active = selectedModuleId === m.id;
+    return `
+      <li class="path-item ${completed ? "completed" : ""} ${active ? "active" : ""}" data-id="${m.id}">
+        <div class="path-step">${completed ? "✓" : (idx + 1)}</div>
+        <div class="path-text">
+          <div class="path-title-row">
+            <span>${m.title}</span>
+            <span class="path-tag">${m.tag}</span>
+          </div>
+          <div class="path-meta">${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}</div>
+        </div>
+      </li>
+    `;
+  }).join("");
+
+  pathList.querySelectorAll(".path-item").forEach((li) => {
+    li.addEventListener("click", () => {
+      const id = li.dataset.id;
+      openModuleInLesson(id);
+    });
+  });
 }
 
-function renderModules(list = MODULES) {
+function openModuleInLesson(moduleId) {
+  const m = MODULES.find(x => x.id === moduleId);
+  if (!m) return;
+
+  selectedModuleId = moduleId;
+
+  if (lessonTitle) lessonTitle.textContent = m.title;
+  if (lessonSubtitle) lessonSubtitle.textContent = safeText(m.summary, "Training module");
+  if (lessonTag) lessonTag.textContent = m.tag || "Module";
+
+  if (lessonContent) {
+    lessonContent.innerHTML = buildModuleHTML(m);
+  }
+
+  buildChecklist(m);
+  refreshProgressPanel();
+  renderPathRail();
+}
+
+function renderModuleGrid(filterText = "") {
   if (!trainingModuleGrid) return;
 
-  trainingModuleGrid.innerHTML = "";
-  const sorted = [...list].sort((a, b) => a.title.localeCompare(b.title));
+  const q = normalize(filterText);
+  const list = !q
+    ? MODULES
+    : MODULES.filter(m => {
+        const hay = `${m.title} ${m.tag} ${(m.keywords || []).join(" ")} ${m.summary || ""}`.toLowerCase();
+        return hay.includes(q);
+      });
 
-  sorted.forEach((m) => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.style.cursor = "pointer";
-    card.innerHTML = `
-      <div class="card-header">
-        <div class="card-title">${m.title}</div>
-        <div class="card-icon">🎓</div>
-      </div>
-      <div class="card-subtext" style="margin-top:6px;">
-        ${m.minutes ? `${m.minutes} min` : "Module"} · ${(m.tags || []).slice(0, 4).join(", ")}
-      </div>
-      <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
-        <span class="badge-soft">Open</span>
-        <span class="badge-soft-warn">Quiz</span>
-      </div>
-    `;
-    card.onclick = () => openModuleById(m.id);
-    trainingModuleGrid.appendChild(card);
+  trainingModuleGrid.innerHTML = list.length
+    ? list.map(m => {
+        const completed = isCompleted(m.id);
+        return `
+          <div class="card" style="padding:12px; border-radius:16px; border:1px solid #e5e7eb;">
+            <div style="display:flex; justify-content:space-between; gap:8px;">
+              <div>
+                <div style="font-weight:900; font-size:0.9rem;">${m.title}</div>
+                <div style="font-size:0.78rem; color:#6b7280; margin-top:2px;">
+                  ${m.tag} • ${m.xp} XP • L${m.level || 1}
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+                <span class="status-pill ${completed ? "completed" : ""}" style="white-space:nowrap;">
+                  ${completed ? "Completed" : "Open"}
+                </span>
+                <button class="btn-ghost open-module-btn" data-id="${m.id}" type="button">
+                  Open
+                </button>
+              </div>
+            </div>
+            <div style="margin-top:8px; font-size:0.78rem; color:#374151;">
+              ${safeText(m.summary, "")}
+            </div>
+          </div>
+        `;
+      }).join("")
+    : `<div style="font-size:0.82rem; color:#6b7280;">No modules match that search.</div>`;
+
+  trainingModuleGrid.querySelectorAll(".open-module-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      openModuleOverlay(id);
+    });
   });
 }
 
-function moduleToHTML(mod) {
-  const parts = [];
-  (mod.sections || []).forEach((sec) => {
-    if (sec.h) parts.push(`<h4 style="margin:10px 0 6px; font-weight:900;">${sec.h}</h4>`);
-    if (sec.p) parts.push(`<p style="margin:0 0 8px; color:#374151; line-height:1.45;">${sec.p}</p>`);
-    if (Array.isArray(sec.bullets) && sec.bullets.length) {
-      parts.push(`<ul style="margin:0 0 10px 18px; color:#374151;">${sec.bullets.map((b) => `<li>${b}</li>`).join("")}</ul>`);
-    }
-  });
-  return parts.join("");
+/* =========================
+   MODULE OVERLAY + QUIZ
+========================= */
+
+function openModuleOverlay(moduleId) {
+  const m = MODULES.find(x => x.id === moduleId);
+  if (!m || !moduleOverlay) return;
+
+  if (moduleTitle) moduleTitle.textContent = m.title;
+  if (moduleMeta) moduleMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
+  if (moduleBody) moduleBody.innerHTML = buildModuleHTML(m);
+
+  // also sync the main lesson view
+  openModuleInLesson(moduleId);
+
+  // reset quiz UI
+  hideQuiz();
+
+  moduleOverlay.classList.add("show");
 }
 
-function openModuleById(id) {
-  const mod = MODULES.find((m) => m.id === id);
-  if (!mod || !moduleOverlay) return;
+function closeModuleOverlay() {
+  moduleOverlay?.classList.remove("show");
+  hideQuiz();
+}
 
-  activeModule = mod;
-  moduleTitle.textContent = mod.title;
-  moduleMeta.textContent = `${mod.minutes ? `${mod.minutes} min` : "Module"} · ${(mod.tags || []).join(", ")}`;
-
-  moduleBody.innerHTML = moduleToHTML(mod);
-
-  // hide quiz area initially
+function hideQuiz() {
+  activeQuiz = null;
+  quizLocked = false;
   if (quizArea) {
     quizArea.style.display = "none";
     quizArea.innerHTML = "";
   }
-
-  moduleOverlay.style.display = "flex";
 }
 
-function closeModule() {
-  if (!moduleOverlay) return;
-  moduleOverlay.style.display = "none";
-  activeModule = null;
+function buildQuizFromModule(m) {
+  const base = Array.isArray(m.quiz) ? m.quiz : [];
+
+  // If no predefined quiz, generate simple multiple choice from steps/checklist
+  if (!base.length) {
+    const items = [...(m.steps || []), ...(m.checklist || [])].filter(Boolean);
+    const pick = items.slice(0, 6);
+
+    const generated = pick.slice(0, 3).map((t, idx) => {
+      const correct = t;
+      const wrong1 = items[(idx + 2) % items.length] || "Do nothing";
+      const wrong2 = items[(idx + 3) % items.length] || "Skip the timer";
+      const options = [correct, wrong1, wrong2].sort(() => Math.random() - 0.5);
+      return {
+        q: `Which is a correct step for: ${m.title}?`,
+        options,
+        answer: options.indexOf(correct),
+        explain: "This comes directly from the module’s key steps."
+      };
+    });
+
+    return generated;
+  }
+
+  // randomize a bit
+  const shuffled = [...base].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(5, shuffled.length));
 }
 
-/* ===================== QUIZ UI ===================== */
+function renderQuizQuestion() {
+  if (!activeQuiz || !quizArea) return;
 
-function renderQuiz(mod, quiz = mod?.quiz || []) {
-  if (!quizArea) return;
+  const qObj = activeQuiz.questions[activeQuiz.index];
+  if (!qObj) {
+    // finished
+    quizArea.innerHTML = `
+      <div style="font-weight:900; font-size:0.95rem;">Quiz complete ✅</div>
+      <div style="margin-top:6px; font-size:0.82rem; color:#374151;">
+        Score: <strong>${activeQuiz.score}/${activeQuiz.questions.length}</strong>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="quizCloseBtn" class="btn-ghost" type="button">Close quiz</button>
+        <button id="quizRetryBtn" class="btn-main" type="button">Retry quiz</button>
+      </div>
+    `;
 
-  if (!quiz.length) {
-    quizArea.style.display = "block";
-    quizArea.innerHTML = `<div class="subsection-title">Quiz</div><div class="subsection-sub">No quiz for this module yet.</div>`;
+    document.getElementById("quizCloseBtn")?.addEventListener("click", hideQuiz);
+    document.getElementById("quizRetryBtn")?.addEventListener("click", () => {
+      const m = MODULES.find(x => x.id === activeQuiz.moduleId);
+      if (!m) return;
+      startQuizForModule(m.id);
+    });
+
     return;
   }
 
-  quizArea.style.display = "block";
+  const opts = (qObj.options || []).map((t, idx) => {
+    return `
+      <button class="btn-ghost quiz-opt" data-idx="${idx}" type="button"
+        style="justify-content:flex-start; width:100%;">
+        ${String.fromCharCode(65 + idx)}. ${t}
+      </button>
+    `;
+  }).join("");
+
   quizArea.innerHTML = `
-    <div class="subsection-title">Quiz: ${mod.title}</div>
-    <div class="subsection-sub">Answer the questions, then submit.</div>
-    <form id="quizForm" style="margin-top:10px; display:flex; flex-direction:column; gap:10px;"></form>
-    <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
-      <button id="quizSubmitBtn" class="btn" type="button">Submit quiz</button>
-      <div id="quizResult" style="font-size:0.85rem; color:#374151;"></div>
+    <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+      <div style="font-weight:900; font-size:0.95rem;">Quiz: ${activeQuiz.index + 1}/${activeQuiz.questions.length}</div>
+      <div style="font-size:0.8rem; color:#6b7280;">Score: ${activeQuiz.score}</div>
+    </div>
+
+    <div style="margin-top:10px; font-size:0.86rem; color:#111827; font-weight:800;">
+      ${qObj.q}
+    </div>
+
+    <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+      ${opts}
+    </div>
+
+    <div id="quizExplain" style="display:none; margin-top:10px; padding:10px; border-radius:12px; border:1px solid #e5e7eb; background:#f9fafb;"></div>
+
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button id="quizNextBtn" class="btn-main" type="button" disabled>Next</button>
+      <button id="quizExitBtn" class="btn-ghost" type="button">Exit quiz</button>
     </div>
   `;
 
-  const quizForm = document.getElementById("quizForm");
-  quiz.forEach((q, idx) => {
-    const block = document.createElement("div");
-    block.style.border = "1px solid #e5e7eb";
-    block.style.borderRadius = "14px";
-    block.style.padding = "10px 12px";
+  const explain = document.getElementById("quizExplain");
+  const nextBtn = document.getElementById("quizNextBtn");
 
-    const answers = (q.choices || []).map((c, i) => `
-      <label style="display:flex; gap:8px; align-items:center; margin-top:6px; cursor:pointer;">
-        <input type="radio" name="q${idx}" value="${i}" />
-        <span>${c}</span>
-      </label>
-    `).join("");
+  quizLocked = false;
 
-    block.innerHTML = `
-      <div style="font-weight:800;">${idx + 1}) ${q.q}</div>
-      <div style="margin-top:6px;">${answers}</div>
-      <div id="qexp${idx}" style="display:none; margin-top:8px; font-size:0.8rem; color:#6b7280;"></div>
-    `;
-    quizForm.appendChild(block);
-  });
+  quizArea.querySelectorAll(".quiz-opt").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (quizLocked) return;
+      quizLocked = true;
 
-  document.getElementById("quizSubmitBtn")?.addEventListener("click", () => {
-    let correct = 0;
+      const chosen = Number(btn.dataset.idx);
+      const correct = Number(qObj.answer);
 
-    quiz.forEach((q, idx) => {
-      const picked = quizForm.querySelector(`input[name="q${idx}"]:checked`);
-      const exp = document.getElementById(`qexp${idx}`);
-      const pickedIdx = picked ? Number(picked.value) : -1;
+      // mark buttons
+      quizArea.querySelectorAll(".quiz-opt").forEach(b => {
+        const idx = Number(b.dataset.idx);
+        const isCorrect = idx === correct;
+        const isChosen = idx === chosen;
 
-      const ok = pickedIdx === q.a;
-      if (ok) correct++;
+        b.style.borderColor = isCorrect ? "#22c55e" : "#e5e7eb";
+        b.style.background = isCorrect ? "#ecfdf5" : (isChosen ? "#fef2f2" : "#f9fafb");
+      });
 
-      if (exp) {
-        exp.style.display = "block";
-        exp.textContent = ok
-          ? `✅ Correct. ${q.explain || ""}`
-          : `❌ Correct answer: ${(q.choices || [])[q.a] || "—"}. ${q.explain || ""}`;
+      if (chosen === correct) {
+        activeQuiz.score += 1;
+        showToast("Correct ✅");
+      } else {
+        showToast("Not quite ❌");
       }
-    });
 
-    const pct = Math.round((correct / quiz.length) * 100);
-    const res = document.getElementById("quizResult");
-    if (res) res.textContent = `Score: ${correct}/${quiz.length} (${pct}%).`;
+      if (explain) {
+        explain.style.display = "block";
+        explain.innerHTML = `<strong>Explanation:</strong> ${safeText(qObj.explain, "Review the steps in the module.")}`;
+      }
+      if (nextBtn) nextBtn.disabled = false;
+    });
   });
+
+  nextBtn?.addEventListener("click", () => {
+    activeQuiz.index += 1;
+    renderQuizQuestion();
+  });
+
+  document.getElementById("quizExitBtn")?.addEventListener("click", hideQuiz);
 }
 
-/* ===================== TRAINING CHAT ===================== */
+function startQuizForModule(moduleId) {
+  const m = MODULES.find(x => x.id === moduleId);
+  if (!m || !quizArea) return;
+
+  const questions = buildQuizFromModule(m);
+
+  activeQuiz = {
+    moduleId: m.id,
+    questions,
+    index: 0,
+    score: 0
+  };
+
+  quizArea.style.display = "block";
+  renderQuizQuestion();
+}
+
+/* =========================
+   PROGRESS SAVE (complete/reset)
+========================= */
+
+async function markModuleComplete() {
+  if (!sessionUser || !selectedModuleId) return;
+  const m = MODULES.find(x => x.id === selectedModuleId);
+  if (!m) return;
+
+  const progress = getProgressMap();
+  if (progress[m.id]?.completed) return;
+
+  const reflection = reflectionInput ? reflectionInput.value.trim() : "";
+
+  const xpEarn = Number(m.xp) || 0;
+  const currentXP = Number(userDocCache?.trainingXP) || 0;
+  const nextXP = currentXP + xpEarn;
+  const nextLevel = calcLevelFromXP(nextXP);
+
+  const patch = {
+    trainingXP: nextXP,
+    trainingLevel: nextLevel,
+    [`trainingProgress.${m.id}`]: {
+      completed: true,
+      completedAt: serverTimestamp(),
+      xpEarned: xpEarn,
+      reflection
+    }
+  };
+
+  try {
+    await updateDoc(doc(db, "users", sessionUser.id), patch);
+    showToast(`+${xpEarn} XP • Module completed ✅`);
+  } catch (e) {
+    console.error("markModuleComplete error:", e);
+    showToast("Could not save progress.");
+  }
+}
+
+async function resetModule() {
+  if (!sessionUser || !selectedModuleId) return;
+  const m = MODULES.find(x => x.id === selectedModuleId);
+  if (!m) return;
+
+  const progress = getProgressMap();
+  const existing = progress[m.id];
+  if (!existing?.completed) return;
+
+  const xpEarned = Number(existing.xpEarned) || 0;
+  const currentXP = Number(userDocCache?.trainingXP) || 0;
+  const nextXP = Math.max(0, currentXP - xpEarned);
+  const nextLevel = calcLevelFromXP(nextXP);
+
+  const patch = {
+    trainingXP: nextXP,
+    trainingLevel: nextLevel,
+    [`trainingProgress.${m.id}`]: {
+      completed: false,
+      completedAt: null,
+      xpEarned: 0,
+      reflection: ""
+    }
+  };
+
+  try {
+    await updateDoc(doc(db, "users", sessionUser.id), patch);
+    showToast("Module reset ↩️");
+  } catch (e) {
+    console.error("resetModule error:", e);
+    showToast("Could not reset module.");
+  }
+}
+
+/* =========================
+   AI CHAT (open module + answer questions + quiz)
+========================= */
 
 function addChatMessage(text, from = "bot") {
   if (!trainingChat) return;
-
-  const msg = document.createElement("div");
-  msg.className = `message ${from === "user" ? "msg-user" : "msg-bot"}`;
-  msg.innerHTML = `
-    <div class="bubble">${text}</div>
-    <div class="msg-meta">${from === "user" ? "You" : "McAssist"}</div>
-  `;
-  trainingChat.appendChild(msg);
-  trainingChat.scrollTop = trainingChat.scrollHeight;
-}
-
-let thinkingEl = null;
-function showThinking() {
-  if (!trainingChat) return;
-  if (thinkingEl) thinkingEl.remove();
-
-  thinkingEl = document.createElement("div");
-  thinkingEl.className = "message msg-bot thinking";
-  thinkingEl.innerHTML = `
-    <div class="bubble">
-      Thinking
-      <span class="thinking-dots">
-        <span class="thinking-dot"></span>
-        <span class="thinking-dot"></span>
-        <span class="thinking-dot"></span>
-      </span>
+  const div = document.createElement("div");
+  div.style.margin = "8px 0";
+  div.innerHTML = `
+    <div style="
+      max-width: 100%;
+      display:inline-block;
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid #e5e7eb;
+      background: ${from === "user" ? "#111827" : "#f9fafb"};
+      color: ${from === "user" ? "#f9fafb" : "#111827"};
+      font-size: 0.82rem;
+      line-height: 1.45;
+    ">
+      ${text}
     </div>
-    <div class="msg-meta">McAssist</div>
   `;
-  trainingChat.appendChild(thinkingEl);
+  if (from === "user") div.style.textAlign = "right";
+  trainingChat.appendChild(div);
   trainingChat.scrollTop = trainingChat.scrollHeight;
 }
-function hideThinking() {
-  if (thinkingEl) thinkingEl.remove();
-  thinkingEl = null;
-}
 
-/**
- * Instant open handler:
- * - catches "open ___ module" / "open ___ training"
- */
-function tryInstantOpenFromText(text) {
-  const t = normalise(text);
-
-  // basic patterns
-  const patterns = [
-    /^open\s+(.+?)\s+training\s+module$/,
-    /^open\s+(.+?)\s+module$/,
-    /^open\s+(.+?)\s+training$/,
-    /^start\s+(.+?)\s+training\s+module$/,
-    /^show\s+(.+?)\s+module$/
+function renderAIChips() {
+  if (!trainingQuickChips) return;
+  const chips = [
+    "Open grill training module",
+    "Quiz me on food safety",
+    "What are the key steps for drive-thru speed?",
+    "Explain cross-contamination",
+    "Make me a 5 question quiz about fry station"
   ];
+  trainingQuickChips.innerHTML = chips.map(t => `
+    <button class="suggestion-chip" type="button">${t}</button>
+  `).join("");
 
-  let topic = null;
-  for (const p of patterns) {
-    const m = t.match(p);
-    if (m && m[1]) { topic = m[1]; break; }
-  }
-
-  if (!topic) return false;
-
-  const best = findBestModule(topic);
-  if (!best) {
-    addChatMessage(`I couldn’t find a module for “${topic}”. Try: grill, fries, food safety, drive-thru, front counter…`, "bot");
-    return true;
-  }
-
-  openModuleById(best.id);
-  addChatMessage(`Opening **${best.title}** now ✅`, "bot");
-  return true;
+  trainingQuickChips.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      handleTrainingAI(btn.textContent);
+    });
+  });
 }
 
-/**
- * Lightweight retrieval: pick top modules relevant to the question
- * and send only those to the backend so the AI can answer accurately.
- */
-function getRelevantModuleContext(question, topK = 2) {
-  const scored = MODULES
-    .map((m) => ({ m, s: scoreModule(m, question) }))
-    .sort((a, b) => b.s - a.s)
-    .slice(0, topK)
-    .filter((x) => x.s > 0)
-    .map((x) => x.m);
+// detect commands
+function parseAICommand(text) {
+  const t = normalize(text);
 
-  const payload = scored.map((m) => ({
-    id: m.id,
-    title: m.title,
-    tags: m.tags,
-    minutes: m.minutes,
-    text: (m.sections || []).map((s) => [s.h, s.p, ...(s.bullets || [])].join("\n")).join("\n\n"),
-    quiz: (m.quiz || []).map((q) => ({ q: q.q, choices: q.choices, answerIndex: q.a, explain: q.explain }))
-  }));
+  // open module command
+  if (t.startsWith("open ") || t.includes(" open ")) {
+    // try to extract module phrase
+    // examples:
+    // "open grill training module"
+    // "open the fry station module"
+    const cleaned = t
+      .replace("training module", "")
+      .replace("module", "")
+      .replace("open", "")
+      .replace("the", "")
+      .trim();
 
-  return payload;
+    return { type: "open", query: cleaned || t };
+  }
+
+  // quiz command
+  if (t.startsWith("quiz") || t.includes("quiz me") || t.includes("start quiz") || t.includes("make me a") && t.includes("quiz")) {
+    // pick module mentioned
+    const cleaned = t
+      .replace("quiz me on", "")
+      .replace("quiz me", "")
+      .replace("start quiz", "")
+      .replace("make me a", "")
+      .replace("question", "")
+      .replace("questions", "")
+      .replace("quiz", "")
+      .trim();
+
+    return { type: "quiz", query: cleaned || t };
+  }
+
+  return { type: "ask", query: text };
 }
 
-async function sendTrainingMessage(text) {
+async function handleTrainingAI(text) {
   if (!text || !text.trim()) return;
-  if (!sessionUser) return;
+  const clean = text.trim();
 
-  const cleanText = text.trim();
-  addChatMessage(cleanText, "user");
+  addChatMessage(clean, "user");
   if (trainingAiInput) trainingAiInput.value = "";
-  if (trainingAiSend) trainingAiSend.disabled = true;
 
-  // instant open without waiting for AI
-  if (tryInstantOpenFromText(cleanText)) {
-    if (trainingAiSend) trainingAiSend.disabled = false;
+  const cmd = parseAICommand(clean);
+
+  // 1) OPEN MODULE
+  if (cmd.type === "open") {
+    const best = findBestModuleByText(cmd.query);
+    if (!best) {
+      addChatMessage("I couldn’t find that module. Try: Grill, Fry Station, Food Safety, Front Counter, Drive-thru, Customer Recovery.", "bot");
+      return;
+    }
+
+    addChatMessage(`Opening: <strong>${best.title}</strong> ✅`, "bot");
+    openModuleOverlay(best.id);
     return;
   }
 
-  showThinking();
-
-  try {
-    const relevant = getRelevantModuleContext(cleanText, 2);
-
-    // if user asks to "quiz me on X", we can instantly open that module + quiz
-    const t = normalise(cleanText);
-    if (t.startsWith("quiz me on") || t.startsWith("start quiz on") || t.startsWith("quiz on")) {
-      const topic = cleanText.replace(/^(quiz me on|start quiz on|quiz on)\s+/i, "");
-      const best = findBestModule(topic);
-      if (best) {
-        openModuleById(best.id);
-        renderQuiz(best, best.quiz || []);
-        hideThinking();
-        addChatMessage(`Quiz started for **${best.title}** 🧠`, "bot");
-        if (trainingAiSend) trainingAiSend.disabled = false;
-        return;
-      }
+  // 2) QUIZ
+  if (cmd.type === "quiz") {
+    const best = findBestModuleByText(cmd.query);
+    if (!best) {
+      addChatMessage("Which module do you want a quiz on? Example: “Quiz me on grill station”.", "bot");
+      return;
     }
 
-    // send to your existing Vercel endpoint
+    addChatMessage(`Starting a quiz for <strong>${best.title}</strong> 🧠`, "bot");
+    openModuleOverlay(best.id);
+    startQuizForModule(best.id);
+    return;
+  }
+
+  // 3) ASK QUESTION (send to your backend with module context)
+  const chosenModule = selectedModuleId ? MODULES.find(m => m.id === selectedModuleId) : null;
+
+  const contextData = {
+    page: "training",
+    user: sessionUser,
+    selectedModule: chosenModule ? {
+      id: chosenModule.id,
+      title: chosenModule.title,
+      tag: chosenModule.tag,
+      summary: chosenModule.summary,
+      steps: chosenModule.steps,
+      checklist: chosenModule.checklist,
+      doDont: chosenModule.doDont,
+      scenario: chosenModule.scenario
+    } : null,
+    allModules: MODULES.map(m => ({
+      id: m.id,
+      title: m.title,
+      tag: m.tag,
+      level: m.level,
+      xp: m.xp,
+      keywords: m.keywords || []
+    }))
+  };
+
+  // simple local answer if question is basically "what modules exist"
+  const lower = normalize(clean);
+  if (lower.includes("what modules") || lower.includes("list modules")) {
+    const list = MODULES.map(m => `• ${m.title} (${m.tag})`).join("<br>");
+    addChatMessage(`Here are the modules available:<br>${list}`, "bot");
+    return;
+  }
+
+  try {
+    if (trainingAiSend) trainingAiSend.disabled = true;
+
+    // show a small "thinking"
+    addChatMessage(`<span style="opacity:0.7;">Thinking…</span>`, "bot");
+
     const res = await fetch("/api/mcassist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: cleanText,
+        message: clean,
         user: sessionUser,
-        contextData: {
-          page: "training",
-          storeId,
-          activeModule: activeModule ? { id: activeModule.id, title: activeModule.title } : null,
-          relevantModules: relevant,
-          allModuleTitles: MODULES.map((m) => ({ id: m.id, title: m.title, tags: m.tags }))
-        }
+        contextData
       })
     });
 
     let data = {};
     try { data = await res.json(); } catch { data = {}; }
 
-    hideThinking();
-
-    // Optional: allow backend to tell the client to open a module/quiz
-    // If your backend returns: { reply, action:{type:'openModule', id:'grill-101'} }
-    if (data?.action?.type === "openModule" && data?.action?.id) {
-      openModuleById(data.action.id);
-    }
-    if (data?.action?.type === "startQuiz" && data?.action?.id) {
-      openModuleById(data.action.id);
-      const mod = MODULES.find((m) => m.id === data.action.id);
-      if (mod) renderQuiz(mod, mod.quiz || []);
+    // remove last "Thinking…" message (best-effort)
+    if (trainingChat && trainingChat.lastElementChild) {
+      const html = trainingChat.lastElementChild.innerHTML || "";
+      if (html.includes("Thinking")) trainingChat.lastElementChild.remove();
     }
 
-    addChatMessage(data.reply || "I’m not sure — try asking in a different way.", "bot");
-  } catch (err) {
-    console.error("[Training] McAssist error:", err);
-    hideThinking();
-    addChatMessage("Sorry, something went wrong with training AI.", "bot");
+    addChatMessage(data.reply || "I’m not sure. Try asking about a specific module.", "bot");
+  } catch (e) {
+    console.error("Training AI error:", e);
+
+    // remove last "Thinking…" message (best-effort)
+    if (trainingChat && trainingChat.lastElementChild) {
+      const html = trainingChat.lastElementChild.innerHTML || "";
+      if (html.includes("Thinking")) trainingChat.lastElementChild.remove();
+    }
+
+    addChatMessage("Sorry, the training assistant had a problem. Try again.", "bot");
+  } finally {
+    if (trainingAiSend) trainingAiSend.disabled = false;
   }
-
-  if (trainingAiSend) trainingAiSend.disabled = false;
 }
 
-/* ===================== UI EVENTS ===================== */
+/* =========================
+   EVENTS
+========================= */
+
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    stopRealtime();
+    await signOut(auth);
+    localStorage.removeItem("mc_session_user");
+    window.location.href = "index.html";
+  });
+}
+
+if (sidebar && sidebarToggle) {
+  sidebarToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("sidebar-open");
+  });
+}
 
 trainingSearchBtn?.addEventListener("click", () => {
-  const q = trainingSearch?.value || "";
-  if (!q.trim()) return renderModules(MODULES);
-  const filtered = MODULES
-    .map((m) => ({ m, s: scoreModule(m, q) }))
-    .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s)
-    .map((x) => x.m);
-  renderModules(filtered.length ? filtered : MODULES);
+  renderModuleGrid(trainingSearch?.value || "");
+});
+trainingSearch?.addEventListener("input", () => {
+  renderModuleGrid(trainingSearch?.value || "");
 });
 
-trainingSearch?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    trainingSearchBtn?.click();
+completeModuleBtn?.addEventListener("click", markModuleComplete);
+resetModuleBtn?.addEventListener("click", resetModule);
+
+closeModuleBtn?.addEventListener("click", closeModuleOverlay);
+moduleOverlay?.addEventListener("click", (e) => {
+  if (e.target === moduleOverlay) closeModuleOverlay();
+});
+
+startQuizBtn?.addEventListener("click", () => {
+  if (!selectedModuleId) {
+    showToast("Open a module first.");
+    return;
   }
+  startQuizForModule(selectedModuleId);
 });
 
 trainingAiForm?.addEventListener("submit", (e) => {
   e.preventDefault();
-  sendTrainingMessage(trainingAiInput?.value || "");
+  const t = trainingAiInput?.value || "";
+  handleTrainingAI(t);
 });
 
-closeModuleBtn?.addEventListener("click", closeModule);
-moduleOverlay?.addEventListener("click", (e) => {
-  if (e.target === moduleOverlay) closeModule();
-});
+/* =========================
+   INIT
+========================= */
 
-startQuizBtn?.addEventListener("click", () => {
-  if (!activeModule) return;
-  renderQuiz(activeModule, activeModule.quiz || []);
-});
-
-/* Quick chips */
-function renderQuickChips() {
-  if (!trainingQuickChips) return;
-  trainingQuickChips.innerHTML = "";
-  const chips = [
-    "Open grill training module",
-    "Open food safety module",
-    "Quiz me on fries",
-    "What’s the most common grill mistake?",
-    "How do I handle an allergen request?"
-  ];
-  chips.forEach((t) => {
-    const b = document.createElement("button");
-    b.className = "suggestion-chip";
-    b.textContent = t;
-    b.type = "button";
-    b.onclick = () => sendTrainingMessage(t);
-    trainingQuickChips.appendChild(b);
-  });
+function seedTrainingChat() {
+  if (!trainingChat) return;
+  trainingChat.innerHTML = "";
+  addChatMessage("Hi 👋 Ask me anything about training. Try: <strong>“open grill training module”</strong> or <strong>“quiz me on food safety”</strong>.", "bot");
 }
 
-/* ===================== AUTH INIT ===================== */
+function initialRender() {
+  renderPathRail();
+  renderModuleGrid("");
+  renderAIChips();
+  refreshProgressPanel();
+
+  // pick a default module for first-time feel
+  if (!selectedModuleId && MODULES.length) {
+    openModuleInLesson(MODULES[0].id);
+  }
+}
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    stopRealtime();
+    localStorage.removeItem("mc_session_user");
     window.location.href = "index.html";
     return;
   }
 
-  sessionUser =
-    loadSessionUser() || {
-      id: user.uid,
-      role: "crew",
-      name: user.displayName || user.email || "User",
-      storeId: "store001"
-    };
+  sessionUser = loadSessionUser() || {
+    id: user.uid,
+    role: "crew",
+    name: user.displayName || user.email || "User",
+    storeId: "store001"
+  };
 
-  const userDoc = await ensureUserDoc(user);
+  // ensure user doc exists
+  const d = await ensureUserDoc(user);
 
   sessionUser.id = user.uid;
-  sessionUser.role = userDoc.role || sessionUser.role;
-  sessionUser.storeId = userDoc.storeId || sessionUser.storeId;
-  sessionUser.name = userDoc.name || sessionUser.name;
+  sessionUser.name = d.name || sessionUser.name;
+  sessionUser.role = d.role || sessionUser.role;
+  sessionUser.storeId = d.storeId || sessionUser.storeId;
   saveSessionUser(sessionUser);
 
-  storeId = sessionUser.storeId || "store001";
+  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name || "User";
+  if (sidebarUserRole) sidebarUserRole.textContent = sessionUser.role === "crew" ? "Crew Member" : "Staff";
 
-  // initial render
-  renderModules(MODULES);
-  renderQuickChips();
-
-  if (trainingAiSubtitle) {
-    trainingAiSubtitle.textContent =
-      "Ask anything about any module, or say: “open grill training module” / “quiz me on fries”.";
-  }
-
-  if (trainingChat) {
-    trainingChat.innerHTML = "";
-    addChatMessage(`Hi ${String(sessionUser.name).split(" ")[0]} 👋 What do you want to train on today?`, "bot");
-  }
-});
-
-/* Logout if button exists */
-logoutBtn?.addEventListener("click", async () => {
-  await signOut(auth);
-  localStorage.removeItem("mc_session_user");
-  window.location.href = "index.html";
+  seedTrainingChat();
+  initialRender();
+  startRealtime(sessionUser.id);
 });
