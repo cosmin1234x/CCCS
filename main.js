@@ -7,6 +7,7 @@
 // ✅ crew list comes from /users (auto-sync)
 // ✅ realtime syncing (onSnapshot) for store, shifts, crew users, and my user doc
 // ✅ crew McStars now comes from users/{uid}.stars (not achievements.length)
+// ✅ FIX: Crew profile (manager view) shows real next shift + stations
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -17,7 +18,6 @@ import {
   getDoc,
   setDoc,
   collection,
-  getDocs,
   updateDoc,
   serverTimestamp,
   query,
@@ -185,6 +185,55 @@ function calculateBreakMinutes(hours) {
 }
 
 /* ============================================================
+   FIX HELPERS: next shift + stations for crew profile (manager view)
+============================================================ */
+
+function getNextShiftForUser(userId, sourceShifts) {
+  const now = new Date();
+
+  const upcoming = (sourceShifts || [])
+    .filter((s) => s.userId === userId && s.date && s.start)
+    .map((s) => {
+      const dt = new Date(`${s.date}T${s.start}:00`);
+      return { ...s, _dt: dt };
+    })
+    .filter((s) => s._dt > now)
+    .sort((a, b) => a._dt - b._dt);
+
+  return upcoming[0] || null;
+}
+
+function formatNextShiftLine(shift) {
+  if (!shift) return "No upcoming shift on file.";
+  const dt = shift._dt;
+  const dayName = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getDay()];
+  const station = shift.station ? ` · ${shift.station}` : "";
+  return `${dayName} ${shift.start}–${shift.end}${station}`;
+}
+
+async function loadStationsForUser(uid) {
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (!snap.exists()) return [];
+
+    const d = snap.data() || {};
+    const certs = Array.isArray(d.certifications) ? d.certifications : [];
+    const skillsObj = d.skills && typeof d.skills === "object" ? d.skills : {};
+    const skills = Object.keys(skillsObj).filter((k) => !!skillsObj[k]);
+
+    // unique + clean
+    const stations = [...new Set([...certs, ...skills])]
+      .map((x) => String(x).trim())
+      .filter(Boolean);
+
+    return stations;
+  } catch (e) {
+    console.error("loadStationsForUser error:", e);
+    return [];
+  }
+}
+
+/* ============================================================
    IMPORTANT FIX: Ensure /users/{uid} exists
 ============================================================ */
 
@@ -235,18 +284,16 @@ function startRealtime() {
 
   const storeId = sessionUser.storeId || "store001";
 
-  // 1) My user doc realtime (updates role/store/name + trainingStatus/stars/badge)
+  // 1) My user doc realtime
   unsubMyUser = onSnapshot(doc(db, "users", sessionUser.id), (snap) => {
     if (!snap.exists()) return;
     const d = snap.data() || {};
 
-    // keep sessionUser synced
     if (d.role) sessionUser.role = d.role;
     if (d.storeId) sessionUser.storeId = d.storeId;
     if (d.name) sessionUser.name = d.name;
     saveSessionUser(sessionUser);
 
-    // crew fields (even if manager, harmless)
     if (typeof d.position === "string") crewData.position = d.position;
     if (typeof d.hourlyRate === "number") crewData.hourlyRate = d.hourlyRate;
     if (Array.isArray(d.certifications)) crewData.certifications = d.certifications;
@@ -257,7 +304,6 @@ function startRealtime() {
     crewData.badge = d.badge || crewData.badge || "—";
     crewData.stars = typeof d.stars === "number" ? d.stars : (crewData.stars || 0);
 
-    // refresh UI labels/cards if already loaded
     initialiseDashboard();
   });
 
@@ -269,12 +315,10 @@ function startRealtime() {
     } else {
       Object.assign(managerData, managerDataDefault, { storeName: storeId });
     }
-
-    // refresh UI
     initialiseDashboard();
   });
 
-  // 3) Shifts realtime (THIS is what makes Staffing + crew shifts sync)
+  // 3) Shifts realtime (capital "Shifts")
   unsubShifts = onSnapshot(collection(db, "stores", storeId, "Shifts"), (qs) => {
     const list = [];
     qs.forEach((docSnap) => {
@@ -302,11 +346,10 @@ function startRealtime() {
     computeManagerMetrics();
     if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
 
-    // refresh UI
     initialiseDashboard();
   });
 
-  // 4) Crew list realtime (manager dashboard list comes from /users)
+  // 4) Crew list realtime (/users)
   const crewUsersQuery = query(
     collection(db, "users"),
     where("storeId", "==", storeId),
@@ -330,13 +373,11 @@ function startRealtime() {
       (a.name || "").localeCompare(b.name || "")
     );
 
-    // simple training gaps count
     managerData.trainingGaps = managerData.crewTrainingSummary.filter((c) => {
       const s = String(c.status || "").toLowerCase();
       return s && s !== "—" && !s.includes("complete");
     }).length;
 
-    // refresh UI
     initialiseDashboard();
   });
 }
@@ -431,25 +472,19 @@ onAuthStateChanged(auth, async (user) => {
       storeId: "store001"
     };
 
-  // Ensure user doc exists
   const userDoc = await ensureUserDoc(user);
 
-  // sync session with Firestore doc (initial)
   sessionUser.id = user.uid;
   sessionUser.role = userDoc.role || sessionUser.role;
   sessionUser.storeId = userDoc.storeId || sessionUser.storeId;
   sessionUser.name = userDoc.name || sessionUser.name;
   saveSessionUser(sessionUser);
 
-  // seed crewData fields immediately
   crewData.trainingStatus = userDoc.trainingStatus || "—";
   crewData.badge = userDoc.badge || "—";
   crewData.stars = typeof userDoc.stars === "number" ? userDoc.stars : 0;
 
-  // ✅ start realtime syncing
   startRealtime();
-
-  // render once
   initialiseDashboard();
 });
 
@@ -602,25 +637,21 @@ function renderBottomSection(isCrew, profile) {
   if (isCrew) {
     const scheduleHTML = profile.schedule.length
       ? profile.schedule
-          .map(
-            (s) => `
+          .map((s) => `
         <li>
           <span>${s.day}</span>
           <span class="badge-soft">${s.time}</span>
-        </li>`
-          )
+        </li>`)
           .join("")
       : `<li><span>No shifts scheduled this week.</span></li>`;
 
     const trainingHTML = profile.trainingTodo.length
       ? profile.trainingTodo
-          .map(
-            (t) => `
+          .map((t) => `
         <li>
           <span>${t}</span>
           <span class="badge-soft-warn">To do</span>
-        </li>`
-          )
+        </li>`)
           .join("")
       : `<li><span>${crewData.trainingStatus && crewData.trainingStatus !== "—" ? crewData.trainingStatus : "No training tasks right now."}</span></li>`;
 
@@ -638,8 +669,7 @@ function renderBottomSection(isCrew, profile) {
         ${
           managerData.crewTrainingSummary.length
             ? managerData.crewTrainingSummary
-                .map(
-                  (c) => `
+                .map((c) => `
           <li data-id="${c.id}">
             <span>
               <strong>${c.name}</strong><br>
@@ -651,8 +681,7 @@ function renderBottomSection(isCrew, profile) {
               <button class="crew-profile-btn" data-id="${c.id}">Profile</button>
               <button class="crew-edit-btn" data-id="${c.id}">Edit</button>
             </span>
-          </li>`
-                )
+          </li>`)
                 .join("")
             : `<li><span>No crew data available.</span></li>`
         }
@@ -702,7 +731,6 @@ function attachCrewListHandlers() {
           badge: newBadge,
           stars: newStars
         });
-        // realtime listener will refresh list automatically
       } catch (e) {
         console.error("Update crew fields error:", e);
       }
@@ -710,7 +738,8 @@ function attachCrewListHandlers() {
   });
 }
 
-function openCrewProfile(id) {
+// ✅ FIXED: now shows real next shift + stations
+async function openCrewProfile(id) {
   const crew = managerData.crewTrainingSummary.find((x) => x.id === id);
   if (!crew || !crewProfileOverlay) return;
 
@@ -724,8 +753,15 @@ function openCrewProfile(id) {
   crewProfileAvatar.textContent = crew.name.charAt(0).toUpperCase();
   crewProfileStars.textContent = describeStars(crew.stars);
 
-  crewProfileNextShift.textContent = "Next shift: check Shifts page.";
-  crewProfileStations.textContent = "Stations: view in Training / Shifts.";
+  // Next shift from Firestore shifts
+  const next = getNextShiftForUser(id, allShifts);
+  crewProfileNextShift.textContent = formatNextShiftLine(next);
+
+  // Stations from user profile (certifications + skills)
+  crewProfileStations.textContent = "Loading…";
+  const stations = await loadStationsForUser(id);
+  crewProfileStations.textContent = stations.length ? stations.join(" · ") : "No stations assigned yet.";
+
   crewProfileNotes.textContent = `${crew.name.split(" ")[0]} is progressing well.`;
 }
 
@@ -740,7 +776,6 @@ function openSelfProfile() {
   crewProfileRole.textContent = crewData.position || "Crew Member";
   crewProfileStore.textContent = managerData.storeName || sessionUser.storeId || "Restaurant";
 
-  // ✅ from Firestore users/{uid}
   crewProfileStatus.textContent =
     crewData.trainingStatus && crewData.trainingStatus !== "—"
       ? crewData.trainingStatus
@@ -752,8 +787,6 @@ function openSelfProfile() {
       : (crewData.achievements[0]?.title || "No badge assigned yet");
 
   crewProfileAvatar.textContent = String(sessionUser.name || "U").charAt(0).toUpperCase();
-
-  // ✅ FIX: show real McStars, not achievements.length
   crewProfileStars.textContent = describeStars(crewData.stars);
 
   if (crewData.nextShift && crewData.nextShift.start) {
@@ -982,9 +1015,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
       recognition.start();
 
       voiceTimeout = setTimeout(() => {
-        try {
-          recognition.stop();
-        } catch {}
+        try { recognition.stop(); } catch {}
       }, 7000);
     } catch (err) {
       console.error("Voice start error:", err);
@@ -995,9 +1026,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
   micBtn.onclick = () => {
     if (listening) {
-      try {
-        recognition.stop();
-      } catch {}
+      try { recognition.stop(); } catch {}
     } else {
       overlay.classList.add("active");
       overlayText.textContent = "Ask me anything";
@@ -1007,9 +1036,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
   overlayMic.onclick = () => {
     listening = false;
-    try {
-      recognition.stop();
-    } catch {}
+    try { recognition.stop(); } catch {}
     overlay.classList.remove("active");
   };
 
@@ -1085,9 +1112,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
         if (conf > 0.25 && HEY_AMY_VARIANTS.some((w) => text.includes(w))) {
           console.log("[Wake] Triggered:", text);
 
-          try {
-            wakeRecognition.stop();
-          } catch {}
+          try { wakeRecognition.stop(); } catch {}
           wakeRunning = false;
 
           overlay.classList.add("active");
@@ -1108,9 +1133,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
   }
 
   function stopWakeListener() {
-    try {
-      wakeRecognition?.stop();
-    } catch {}
+    try { wakeRecognition?.stop(); } catch {}
     wakeRunning = false;
   }
 
