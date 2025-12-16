@@ -1,11 +1,12 @@
 // ================================
 // main.js – FULL VERSION (Vercel) — OPTION A (crew list from /users)
-// ✅ REALTIME SYNC FIXED (Shifts + Crew training + Staffing)
 // Uses Firestore paths:
 //   users/{uid}
 //   stores/{storeId}
 //   stores/{storeId}/Shifts   (capital S)
-// ✅ crew list comes from /users (no crewSummary collection)
+// ✅ crew list comes from /users (auto-sync)
+// ✅ realtime syncing (onSnapshot) for store, shifts, crew users, and my user doc
+// ✅ crew McStars now comes from users/{uid}.stars (not achievements.length)
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -16,6 +17,7 @@ import {
   getDoc,
   setDoc,
   collection,
+  getDocs,
   updateDoc,
   serverTimestamp,
   query,
@@ -55,7 +57,12 @@ const crewDataDefault = {
   certifications: [],
   trainingTodo: [],
   achievements: [],
-  schedule: []
+  schedule: [],
+
+  // ✅ comes from users/{uid}
+  trainingStatus: "—",
+  badge: "—",
+  stars: 0
 };
 
 let crewData = JSON.parse(JSON.stringify(crewDataDefault));
@@ -71,7 +78,7 @@ const managerDataDefault = {
   trainingGaps: 0,
   potentialOvertime: 0,
   foodWasteByDay: [],
-  crewTrainingSummary: [] // ✅ from users
+  crewTrainingSummary: [] // ✅ now comes from users
 };
 
 let managerData = JSON.parse(JSON.stringify(managerDataDefault));
@@ -162,7 +169,7 @@ function parseShiftHours(startHHMM, endHHMM) {
 
   let start = sh + sm / 60;
   let end = eh + em / 60;
-  if (end < start) end += 24;
+  if (end < start) end += 24; // crossing midnight
   return Math.max(0, end - start);
 }
 
@@ -178,7 +185,7 @@ function calculateBreakMinutes(hours) {
 }
 
 /* ============================================================
-   Ensure /users/{uid} exists (helps rules + consistency)
+   IMPORTANT FIX: Ensure /users/{uid} exists
 ============================================================ */
 
 async function ensureUserDoc(firebaseUser) {
@@ -194,7 +201,7 @@ async function ensureUserDoc(firebaseUser) {
     storeId: cached.storeId || "store001",
     createdAt: serverTimestamp(),
 
-    // option A fields (for dashboard list)
+    // defaults used by manager dashboard list
     trainingStatus: "—",
     badge: "—",
     stars: 0
@@ -205,142 +212,133 @@ async function ensureUserDoc(firebaseUser) {
 }
 
 /* ============================================================
-   REALTIME LISTENERS (THE SYNC FIX)
+   REALTIME SUBSCRIPTIONS
 ============================================================ */
 
 let unsubStore = null;
 let unsubShifts = null;
 let unsubCrewUsers = null;
+let unsubMyUser = null;
 
 function stopRealtime() {
   try { unsubStore?.(); } catch {}
   try { unsubShifts?.(); } catch {}
   try { unsubCrewUsers?.(); } catch {}
-  unsubStore = unsubShifts = unsubCrewUsers = null;
+  try { unsubMyUser?.(); } catch {}
+  unsubStore = unsubShifts = unsubCrewUsers = unsubMyUser = null;
 }
 
-function refreshComputedAndUI() {
+function startRealtime() {
   if (!sessionUser) return;
 
-  // keep shifts for crew metrics
-  const myShifts = allShifts.filter((s) => s.userId === sessionUser.id);
-  window.loadedShiftsForCrew = myShifts;
-
-  computeManagerMetrics();
-  if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
-
-  // training gaps = count crew not completed (simple rule)
-  managerData.trainingGaps = (managerData.crewTrainingSummary || []).filter((c) => {
-    const st = String(c.status || "").toLowerCase();
-    return !(st.includes("complete") || st.includes("completed") || st.includes("done"));
-  }).length;
-
-  // re-render (fast)
-  initialiseDashboard();
-}
-
-function startRealtime(storeId) {
   stopRealtime();
 
-  // store doc
-  unsubStore = onSnapshot(
-    doc(db, "stores", storeId),
-    (snap) => {
-      if (snap.exists()) {
-        Object.assign(managerData, managerDataDefault, snap.data());
-        if (typeof managerData.staffNeeded !== "number") managerData.staffNeeded = 10;
-      } else {
-        Object.assign(managerData, managerDataDefault, { storeName: storeId });
-      }
-      refreshComputedAndUI();
-    },
-    (err) => console.error("[Store] onSnapshot error:", err)
-  );
+  const storeId = sessionUser.storeId || "store001";
 
-  // shifts (THIS is what fixes staffing + shift syncing)
-  unsubShifts = onSnapshot(
-    collection(db, "stores", storeId, "Shifts"),
-    (snap) => {
-      const next = [];
-      snap.forEach((docSnap) => {
-        const d = docSnap.data() || {};
-        if (!d.date || !d.start || !d.end || !d.userId) return;
-        next.push({
-          id: docSnap.id,
-          date: d.date,
-          start: d.start,
-          end: d.end,
-          userId: d.userId,
-          userName: d.userName || "Unknown",
-          station: d.station || "",
-          role: d.role || "crew",
-          isShiftManager: !!d.isShiftManager,
-          generatedByAI: !!d.generatedByAI
-        });
+  // 1) My user doc realtime (updates role/store/name + trainingStatus/stars/badge)
+  unsubMyUser = onSnapshot(doc(db, "users", sessionUser.id), (snap) => {
+    if (!snap.exists()) return;
+    const d = snap.data() || {};
+
+    // keep sessionUser synced
+    if (d.role) sessionUser.role = d.role;
+    if (d.storeId) sessionUser.storeId = d.storeId;
+    if (d.name) sessionUser.name = d.name;
+    saveSessionUser(sessionUser);
+
+    // crew fields (even if manager, harmless)
+    if (typeof d.position === "string") crewData.position = d.position;
+    if (typeof d.hourlyRate === "number") crewData.hourlyRate = d.hourlyRate;
+    if (Array.isArray(d.certifications)) crewData.certifications = d.certifications;
+    if (Array.isArray(d.trainingTodo)) crewData.trainingTodo = d.trainingTodo;
+    if (Array.isArray(d.achievements)) crewData.achievements = d.achievements;
+
+    crewData.trainingStatus = d.trainingStatus || crewData.trainingStatus || "—";
+    crewData.badge = d.badge || crewData.badge || "—";
+    crewData.stars = typeof d.stars === "number" ? d.stars : (crewData.stars || 0);
+
+    // refresh UI labels/cards if already loaded
+    initialiseDashboard();
+  });
+
+  // 2) Store doc realtime
+  unsubStore = onSnapshot(doc(db, "stores", storeId), (snap) => {
+    if (snap.exists()) {
+      Object.assign(managerData, managerDataDefault, snap.data());
+      if (typeof managerData.staffNeeded !== "number") managerData.staffNeeded = 10;
+    } else {
+      Object.assign(managerData, managerDataDefault, { storeName: storeId });
+    }
+
+    // refresh UI
+    initialiseDashboard();
+  });
+
+  // 3) Shifts realtime (THIS is what makes Staffing + crew shifts sync)
+  unsubShifts = onSnapshot(collection(db, "stores", storeId, "Shifts"), (qs) => {
+    const list = [];
+    qs.forEach((docSnap) => {
+      const d = docSnap.data() || {};
+      if (!d.date || !d.start || !d.end || !d.userId) return;
+      list.push({
+        id: docSnap.id,
+        date: d.date,
+        start: d.start,
+        end: d.end,
+        userId: d.userId,
+        userName: d.userName || "Unknown",
+        station: d.station || "",
+        role: d.role || "crew",
+        isShiftManager: !!d.isShiftManager,
+        generatedByAI: !!d.generatedByAI
       });
-      allShifts = next;
-      refreshComputedAndUI();
-    },
-    (err) => console.error("[Shifts] onSnapshot error:", err)
-  );
+    });
 
-  // crew list from users (THIS is what fixes training status not updating)
+    allShifts = list;
+
+    const myShifts = allShifts.filter((s) => s.userId === sessionUser.id);
+    window.loadedShiftsForCrew = myShifts;
+
+    computeManagerMetrics();
+    if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
+
+    // refresh UI
+    initialiseDashboard();
+  });
+
+  // 4) Crew list realtime (manager dashboard list comes from /users)
   const crewUsersQuery = query(
     collection(db, "users"),
     where("storeId", "==", storeId),
     where("role", "==", "crew")
   );
 
-  unsubCrewUsers = onSnapshot(
-    crewUsersQuery,
-    (snap) => {
-      const list = [];
-      snap.forEach((docSnap) => {
-        const d = docSnap.data() || {};
-        list.push({
-          id: docSnap.id,
-          name: d.name || "Crew",
-          status: d.trainingStatus || "—",
-          badge: d.badge || "—",
-          stars: typeof d.stars === "number" ? d.stars : 0
-        });
+  unsubCrewUsers = onSnapshot(crewUsersQuery, (qs) => {
+    const list = [];
+    qs.forEach((snap) => {
+      const d = snap.data() || {};
+      list.push({
+        id: snap.id,
+        name: d.name || "Crew",
+        status: d.trainingStatus || "—",
+        badge: d.badge || "—",
+        stars: typeof d.stars === "number" ? d.stars : 0
       });
-      managerData.crewTrainingSummary = list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-      refreshComputedAndUI();
-    },
-    (err) => console.error("[CrewUsers] onSnapshot error:", err)
-  );
-}
+    });
 
-/* ============================================================
-   FIRESTORE: load current user's optional fields
-============================================================ */
+    managerData.crewTrainingSummary = list.sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "")
+    );
 
-async function loadCrewUserFromFirestore() {
-  if (!sessionUser) return;
+    // simple training gaps count
+    managerData.trainingGaps = managerData.crewTrainingSummary.filter((c) => {
+      const s = String(c.status || "").toLowerCase();
+      return s && s !== "—" && !s.includes("complete");
+    }).length;
 
-  try {
-    const ref = doc(db, "users", sessionUser.id);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-
-    const d = snap.data() || {};
-
-    // keep session synced
-    if (d.role && d.role !== sessionUser.role) sessionUser.role = d.role;
-    if (d.storeId && d.storeId !== sessionUser.storeId) sessionUser.storeId = d.storeId;
-    if (d.name && d.name !== sessionUser.name) sessionUser.name = d.name;
-    saveSessionUser(sessionUser);
-
-    // optional crew fields for crew dashboard
-    if (typeof d.position === "string") crewData.position = d.position;
-    if (typeof d.hourlyRate === "number") crewData.hourlyRate = d.hourlyRate;
-    if (Array.isArray(d.certifications)) crewData.certifications = d.certifications;
-    if (Array.isArray(d.trainingTodo)) crewData.trainingTodo = d.trainingTodo;
-    if (Array.isArray(d.achievements)) crewData.achievements = d.achievements;
-  } catch (err) {
-    console.error("[Crew] Firestore load error:", err);
-  }
+    // refresh UI
+    initialiseDashboard();
+  });
 }
 
 /* ============================================================
@@ -395,7 +393,9 @@ function computeCrewMetrics(myShifts) {
     });
 
   crewData.hoursThisWeek = Number(totalPaid.toFixed(2));
-  crewData.estimatedPayThisWeek = Number((crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2));
+  crewData.estimatedPayThisWeek = Number(
+    (crewData.hoursThisWeek * crewData.hourlyRate).toFixed(2)
+  );
 
   if (nextShiftObj) {
     const dt = nextShiftObj._dt;
@@ -417,8 +417,8 @@ function computeCrewMetrics(myShifts) {
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
-    stopRealtime();
     localStorage.removeItem("mc_session_user");
+    stopRealtime();
     window.location.href = "index.html";
     return;
   }
@@ -431,32 +431,34 @@ onAuthStateChanged(auth, async (user) => {
       storeId: "store001"
     };
 
-  // ensure profile exists (rules + consistency)
+  // Ensure user doc exists
   const userDoc = await ensureUserDoc(user);
 
-  // sync session with Firestore
+  // sync session with Firestore doc (initial)
   sessionUser.id = user.uid;
   sessionUser.role = userDoc.role || sessionUser.role;
   sessionUser.storeId = userDoc.storeId || sessionUser.storeId;
   sessionUser.name = userDoc.name || sessionUser.name;
   saveSessionUser(sessionUser);
 
-  // load optional crew fields (hourlyRate etc.)
-  await loadCrewUserFromFirestore();
+  // seed crewData fields immediately
+  crewData.trainingStatus = userDoc.trainingStatus || "—";
+  crewData.badge = userDoc.badge || "—";
+  crewData.stars = typeof userDoc.stars === "number" ? userDoc.stars : 0;
 
-  // ✅ Start realtime sync (THIS is the big fix)
-  startRealtime(sessionUser.storeId || "store001");
+  // ✅ start realtime syncing
+  startRealtime();
 
-  // initial render
+  // render once
   initialiseDashboard();
 });
 
 /* Logout */
 if (logoutBtn) {
   logoutBtn.addEventListener("click", async () => {
-    stopRealtime();
     await signOut(auth);
     localStorage.removeItem("mc_session_user");
+    stopRealtime();
     window.location.href = "index.html";
   });
 }
@@ -532,18 +534,8 @@ function renderTopCards(isCrew, profile) {
         : "No shifts";
 
     const cards = [
-      {
-        title: "This Week’s Hours",
-        icon: "⏱️",
-        main: `${profile.hoursThisWeek.toFixed(2)} hrs`,
-        sub: `Next shift: ${nextLabel}`
-      },
-      {
-        title: "Estimated Pay",
-        icon: "💷",
-        main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
-        sub: `£${profile.hourlyRate.toFixed(2)}/hr`
-      },
+      { title: "This Week’s Hours", icon: "⏱️", main: `${profile.hoursThisWeek.toFixed(2)} hrs`, sub: `Next shift: ${nextLabel}` },
+      { title: "Estimated Pay", icon: "💷", main: `£${profile.estimatedPayThisWeek.toFixed(2)}`, sub: `£${profile.hourlyRate.toFixed(2)}/hr` },
       {
         title: "Stations",
         icon: "🍔",
@@ -551,10 +543,10 @@ function renderTopCards(isCrew, profile) {
         sub: profile.trainingTodo[0] || ""
       },
       {
-        title: "Achievements",
-        icon: "🏅",
-        main: `${profile.achievements.length} badges`,
-        sub: profile.achievements[0]?.title || "Do something great to earn a badge!"
+        title: "McStars",
+        icon: "⭐",
+        main: describeStars(profile.stars),
+        sub: profile.badge && profile.badge !== "—" ? `Badge: ${profile.badge}` : "No badge assigned yet"
       }
     ];
 
@@ -630,13 +622,13 @@ function renderBottomSection(isCrew, profile) {
         </li>`
           )
           .join("")
-      : `<li><span>No training tasks right now.</span></li>`;
+      : `<li><span>${crewData.trainingStatus && crewData.trainingStatus !== "—" ? crewData.trainingStatus : "No training tasks right now."}</span></li>`;
 
     bottomSection.innerHTML = `
       <div class="subsection-title">Weekly Schedule</div>
       <ul class="list">${scheduleHTML}</ul>
 
-      <div class="subsection-title" style="margin-top:20px;">Training Focus</div>
+      <div class="subsection-title" style="margin-top:20px;">Training</div>
       <ul class="list">${trainingHTML}</ul>
     `;
   } else {
@@ -705,16 +697,14 @@ function attachCrewListHandlers() {
       newStars = Math.max(0, Math.min(3, newStars));
 
       try {
-        // ✅ OPTION A: update user doc directly
         await updateDoc(doc(db, "users", id), {
           trainingStatus: newStatus,
           badge: newBadge,
           stars: newStars
         });
-        // no manual refresh needed — onSnapshot will update UI
+        // realtime listener will refresh list automatically
       } catch (e) {
         console.error("Update crew fields error:", e);
-        alert("Failed to update crew fields (check rules).");
       }
     };
   });
@@ -722,8 +712,7 @@ function attachCrewListHandlers() {
 
 function openCrewProfile(id) {
   const crew = managerData.crewTrainingSummary.find((x) => x.id === id);
-  if (!crew) return;
-  if (!crewProfileOverlay) return;
+  if (!crew || !crewProfileOverlay) return;
 
   crewProfileOverlay.classList.add("show");
 
@@ -750,10 +739,22 @@ function openSelfProfile() {
   crewProfileName.textContent = sessionUser.name;
   crewProfileRole.textContent = crewData.position || "Crew Member";
   crewProfileStore.textContent = managerData.storeName || sessionUser.storeId || "Restaurant";
-  crewProfileStatus.textContent = crewData.trainingTodo.length ? "Training in progress" : "All required training complete";
-  crewProfileBadge.textContent = crewData.achievements[0]?.title || "No badge assigned yet";
+
+  // ✅ from Firestore users/{uid}
+  crewProfileStatus.textContent =
+    crewData.trainingStatus && crewData.trainingStatus !== "—"
+      ? crewData.trainingStatus
+      : (crewData.trainingTodo.length ? "Training in progress" : "All required training complete");
+
+  crewProfileBadge.textContent =
+    crewData.badge && crewData.badge !== "—"
+      ? crewData.badge
+      : (crewData.achievements[0]?.title || "No badge assigned yet");
+
   crewProfileAvatar.textContent = String(sessionUser.name || "U").charAt(0).toUpperCase();
-  crewProfileStars.textContent = describeStars(crewData.achievements.length);
+
+  // ✅ FIX: show real McStars, not achievements.length
+  crewProfileStars.textContent = describeStars(crewData.stars);
 
   if (crewData.nextShift && crewData.nextShift.start) {
     crewProfileNextShift.textContent = `${crewData.nextShift.day} ${crewData.nextShift.start}-${crewData.nextShift.end}`;
@@ -981,7 +982,9 @@ if (micBtn && overlay && hasSpeechSupport()) {
       recognition.start();
 
       voiceTimeout = setTimeout(() => {
-        try { recognition.stop(); } catch {}
+        try {
+          recognition.stop();
+        } catch {}
       }, 7000);
     } catch (err) {
       console.error("Voice start error:", err);
@@ -992,7 +995,9 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
   micBtn.onclick = () => {
     if (listening) {
-      try { recognition.stop(); } catch {}
+      try {
+        recognition.stop();
+      } catch {}
     } else {
       overlay.classList.add("active");
       overlayText.textContent = "Ask me anything";
@@ -1002,7 +1007,9 @@ if (micBtn && overlay && hasSpeechSupport()) {
 
   overlayMic.onclick = () => {
     listening = false;
-    try { recognition.stop(); } catch {}
+    try {
+      recognition.stop();
+    } catch {}
     overlay.classList.remove("active");
   };
 
@@ -1078,7 +1085,9 @@ if (micBtn && overlay && hasSpeechSupport()) {
         if (conf > 0.25 && HEY_AMY_VARIANTS.some((w) => text.includes(w))) {
           console.log("[Wake] Triggered:", text);
 
-          try { wakeRecognition.stop(); } catch {}
+          try {
+            wakeRecognition.stop();
+          } catch {}
           wakeRunning = false;
 
           overlay.classList.add("active");
@@ -1099,7 +1108,9 @@ if (micBtn && overlay && hasSpeechSupport()) {
   }
 
   function stopWakeListener() {
-    try { wakeRecognition?.stop(); } catch {}
+    try {
+      wakeRecognition?.stop();
+    } catch {}
     wakeRunning = false;
   }
 
