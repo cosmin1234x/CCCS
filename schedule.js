@@ -7,8 +7,6 @@
 // ✅ Keeps your week tabs + schedule rendering
 // ✅ Optional overwrite (delete week shifts) ONLY when publishing
 
-import { auth, db } from "./firebase-init.js";
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   collection,
   getDocs,
@@ -16,8 +14,12 @@ import {
   deleteDoc,
   doc,
   query,
-  where
+  where,
+  getDoc,
+  setDoc,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
 
 /* ===================== DOM ===================== */
 
