@@ -765,12 +765,7 @@ function renderModuleGrid(filterText = "") {
       }).join("")
     : `<div style="font-size:0.82rem; color:#6b7280;">No modules match that search.</div>`;
 
-  trainingModuleGrid.querySelectorAll(".open-module-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      openModuleOverlay(id);
-    });
-  });
+  
 }
 
 /* =========================
