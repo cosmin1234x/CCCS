@@ -7,7 +7,10 @@
 // ✅ crew list comes from /users (auto-sync)
 // ✅ realtime syncing (onSnapshot) for store, shifts, crew users, and my user doc
 // ✅ crew McStars now comes from users/{uid}.stars (not achievements.length)
-// ✅ FIX: Crew profile (manager view) shows real next shift + stations
+// ✅ FIX: Crew profile (manager view) shows real next shift + station from shift + stations list
+// ✅ FIX: Detect "On shift now"
+// ✅ FIX: Fallback match by name if old shifts saved with wrong userId
+// ✅ FIX: Chat does NOT reset on every realtime update
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -53,7 +56,7 @@ const crewDataDefault = {
   hourlyRate: 12.22,
   hoursThisWeek: 0,
   estimatedPayThisWeek: 0,
-  nextShift: { day: "-", date: "", start: "", end: "" },
+  nextShift: { day: "-", date: "", start: "", end: "", station: "" },
   certifications: [],
   trainingTodo: [],
   achievements: [],
@@ -185,31 +188,66 @@ function calculateBreakMinutes(hours) {
 }
 
 /* ============================================================
-   FIX HELPERS: next shift + stations for crew profile (manager view)
+   SHIFT HELPERS (FIXED: current shift + next shift + fallback)
 ============================================================ */
 
-function getNextShiftForUser(userId, sourceShifts) {
+function shiftWindow(shift) {
+  const start = new Date(`${shift.date}T${shift.start}:00`);
+  let end = new Date(`${shift.date}T${shift.end}:00`);
+  if (end < start) end.setDate(end.getDate() + 1); // crosses midnight
+  return { start, end };
+}
+
+function dayShort(d) {
+  return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+}
+
+// ✅ Returns { kind: "current"|"next", shift } OR null
+function getCurrentOrNextShiftForUser(userId, userName, sourceShifts) {
   const now = new Date();
+  const shifts = Array.isArray(sourceShifts) ? sourceShifts : [];
 
-  const upcoming = (sourceShifts || [])
-    .filter((s) => s.userId === userId && s.date && s.start)
-    .map((s) => {
-      const dt = new Date(`${s.date}T${s.start}:00`);
-      return { ...s, _dt: dt };
-    })
-    .filter((s) => s._dt > now)
-    .sort((a, b) => a._dt - b._dt);
+  // 1) Strict userId match
+  let matches = shifts.filter((s) => s.userId === userId);
 
-  return upcoming[0] || null;
+  // 2) Fallback name match (for old shifts saved with wrong userId)
+  if (!matches.length && userName) {
+    const target = String(userName).toLowerCase().trim();
+    matches = shifts.filter((s) => String(s.userName || "").toLowerCase().trim() === target);
+  }
+
+  if (!matches.length) return null;
+
+  // Check current shift first
+  for (const s of matches) {
+    if (!s.date || !s.start || !s.end) continue;
+    const { start, end } = shiftWindow(s);
+    if (now >= start && now <= end) return { kind: "current", shift: s };
+  }
+
+  // Find next upcoming
+  const upcoming = matches
+    .filter((s) => s.date && s.start)
+    .map((s) => ({ s, dt: new Date(`${s.date}T${s.start}:00`) }))
+    .filter((x) => x.dt > now)
+    .sort((a, b) => a.dt - b.dt)[0];
+
+  return upcoming ? { kind: "next", shift: upcoming.s } : null;
 }
 
-function formatNextShiftLine(shift) {
+function formatShiftLine(kind, shift) {
   if (!shift) return "No upcoming shift on file.";
-  const dt = shift._dt;
-  const dayName = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][dt.getDay()];
+
+  const dt = new Date(`${shift.date}T00:00:00`);
   const station = shift.station ? ` · ${shift.station}` : "";
-  return `${dayName} ${shift.start}–${shift.end}${station}`;
+  const base = `${dayShort(dt)} ${shift.start}–${shift.end}${station}`;
+
+  return kind === "current" ? `On shift now · ${base}` : base;
 }
+
+/* ============================================================
+   STATIONS (certifications + skills)
+============================================================ */
 
 async function loadStationsForUser(uid) {
   try {
@@ -221,7 +259,6 @@ async function loadStationsForUser(uid) {
     const skillsObj = d.skills && typeof d.skills === "object" ? d.skills : {};
     const skills = Object.keys(skillsObj).filter((k) => !!skillsObj[k]);
 
-    // unique + clean
     const stations = [...new Set([...certs, ...skills])]
       .map((x) => String(x).trim())
       .filter(Boolean);
@@ -250,10 +287,10 @@ async function ensureUserDoc(firebaseUser) {
     storeId: cached.storeId || "store001",
     createdAt: serverTimestamp(),
 
-    // defaults used by manager dashboard list
     trainingStatus: "—",
     badge: "—",
-    stars: 0
+    stars: 0,
+    certifications: []
   };
 
   await setDoc(userRef, payload);
@@ -300,11 +337,12 @@ function startRealtime() {
     if (Array.isArray(d.trainingTodo)) crewData.trainingTodo = d.trainingTodo;
     if (Array.isArray(d.achievements)) crewData.achievements = d.achievements;
 
-    crewData.trainingStatus = d.trainingStatus || crewData.trainingStatus || "—";
-    crewData.badge = d.badge || crewData.badge || "—";
-    crewData.stars = typeof d.stars === "number" ? d.stars : (crewData.stars || 0);
+    crewData.trainingStatus = d.trainingStatus || "—";
+    crewData.badge = d.badge || "—";
+    crewData.stars = typeof d.stars === "number" ? d.stars : 0;
 
-    initialiseDashboard();
+    // Don’t spam-reset chat; just refresh visible dashboard
+    refreshDashboardUIOnly();
   });
 
   // 2) Store doc realtime
@@ -315,7 +353,7 @@ function startRealtime() {
     } else {
       Object.assign(managerData, managerDataDefault, { storeName: storeId });
     }
-    initialiseDashboard();
+    refreshDashboardUIOnly();
   });
 
   // 3) Shifts realtime (capital "Shifts")
@@ -346,7 +384,7 @@ function startRealtime() {
     computeManagerMetrics();
     if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
 
-    initialiseDashboard();
+    refreshDashboardUIOnly();
   });
 
   // 4) Crew list realtime (/users)
@@ -378,7 +416,7 @@ function startRealtime() {
       return s && s !== "—" && !s.includes("complete");
     }).length;
 
-    initialiseDashboard();
+    refreshDashboardUIOnly();
   });
 }
 
@@ -417,6 +455,7 @@ function computeCrewMetrics(myShifts) {
       scheduleMap[s.date].push(`${s.start}–${s.end} (Break ${breakMin}m)`);
     }
 
+    // Compute next shift (upcoming) for cards/self profile
     const shiftDateTime = new Date(`${s.date}T${s.start || "00:00"}:00`);
     if (shiftDateTime > now) {
       if (!nextShiftObj || shiftDateTime < nextShiftObj._dt) {
@@ -429,8 +468,8 @@ function computeCrewMetrics(myShifts) {
     .sort(([a], [b]) => (a > b ? 1 : -1))
     .map(([date, times]) => {
       const d = new Date(`${date}T00:00:00`);
-      const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
-      return { day: dayName, time: times.join(", ") };
+      const dn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
+      return { day: dn, time: times.join(", ") };
     });
 
   crewData.hoursThisWeek = Number(totalPaid.toFixed(2));
@@ -445,10 +484,11 @@ function computeCrewMetrics(myShifts) {
       day: dn,
       date: nextShiftObj.date,
       start: nextShiftObj.start,
-      end: nextShiftObj.end
+      end: nextShiftObj.end,
+      station: nextShiftObj.station || ""
     };
   } else {
-    crewData.nextShift = { day: "-", date: "", start: "", end: "" };
+    crewData.nextShift = { day: "-", date: "", start: "", end: "", station: "" };
   }
 }
 
@@ -483,9 +523,10 @@ onAuthStateChanged(auth, async (user) => {
   crewData.trainingStatus = userDoc.trainingStatus || "—";
   crewData.badge = userDoc.badge || "—";
   crewData.stars = typeof userDoc.stars === "number" ? userDoc.stars : 0;
+  crewData.certifications = Array.isArray(userDoc.certifications) ? userDoc.certifications : [];
 
   startRealtime();
-  initialiseDashboard();
+  initialiseDashboard(true);
 });
 
 /* Logout */
@@ -502,7 +543,14 @@ if (logoutBtn) {
    DASHBOARD INITIALISATION
 ============================================================ */
 
-function initialiseDashboard() {
+// ✅ prevents chat reset spam
+let introSeeded = false;
+
+function refreshDashboardUIOnly() {
+  initialiseDashboard(false);
+}
+
+function initialiseDashboard(seedChat) {
   if (!sessionUser) return;
 
   const isCrew = sessionUser.role === "crew";
@@ -551,7 +599,12 @@ function initialiseDashboard() {
   renderTopCards(isCrew, profile);
   renderBottomSection(isCrew, profile);
   renderSuggestions(isCrew);
-  seedIntroMessages(isCrew);
+
+  // ✅ only seed intro once (or when explicitly requested at startup)
+  if (seedChat && !introSeeded) {
+    seedIntroMessages(isCrew);
+    introSeeded = true;
+  }
 }
 
 /* ============================================================
@@ -565,7 +618,7 @@ function renderTopCards(isCrew, profile) {
   if (isCrew) {
     const nextLabel =
       profile.nextShift && profile.nextShift.start
-        ? `${profile.nextShift.day} ${profile.nextShift.start}-${profile.nextShift.end}`
+        ? `${profile.nextShift.day} ${profile.nextShift.start}-${profile.nextShift.end}${profile.nextShift.station ? " · " + profile.nextShift.station : ""}`
         : "No shifts";
 
     const cards = [
@@ -574,7 +627,7 @@ function renderTopCards(isCrew, profile) {
       {
         title: "Stations",
         icon: "🍔",
-        main: profile.certifications.length ? profile.certifications.join(", ") : "No certifications yet",
+        main: profile.certifications.length ? profile.certifications.join(", ") : "No stations assigned yet",
         sub: profile.trainingTodo[0] || ""
       },
       {
@@ -738,7 +791,7 @@ function attachCrewListHandlers() {
   });
 }
 
-// ✅ FIXED: now shows real next shift + stations
+// ✅ FIXED: manager view profile now shows station from shift + "On shift now"
 async function openCrewProfile(id) {
   const crew = managerData.crewTrainingSummary.find((x) => x.id === id);
   if (!crew || !crewProfileOverlay) return;
@@ -753,14 +806,24 @@ async function openCrewProfile(id) {
   crewProfileAvatar.textContent = crew.name.charAt(0).toUpperCase();
   crewProfileStars.textContent = describeStars(crew.stars);
 
-  // Next shift from Firestore shifts
-  const next = getNextShiftForUser(id, allShifts);
-  crewProfileNextShift.textContent = formatNextShiftLine(next);
+  // ✅ current or next shift (with fallback name match)
+  const result = getCurrentOrNextShiftForUser(id, crew.name, allShifts);
+  crewProfileNextShift.textContent = result ? formatShiftLine(result.kind, result.shift) : "No upcoming shift on file.";
 
-  // Stations from user profile (certifications + skills)
+  // ✅ Station display: prefer station from shift, else show user stations list
+  const shiftStation = result?.shift?.station ? String(result.shift.station).trim() : "";
+
   crewProfileStations.textContent = "Loading…";
   const stations = await loadStationsForUser(id);
-  crewProfileStations.textContent = stations.length ? stations.join(" · ") : "No stations assigned yet.";
+
+  if (shiftStation) {
+    crewProfileStations.textContent =
+      stations.length
+        ? `${shiftStation} · ${stations.join(" · ")}`
+        : shiftStation;
+  } else {
+    crewProfileStations.textContent = stations.length ? stations.join(" · ") : "No stations assigned yet.";
+  }
 
   crewProfileNotes.textContent = `${crew.name.split(" ")[0]} is progressing well.`;
 }
@@ -789,8 +852,13 @@ function openSelfProfile() {
   crewProfileAvatar.textContent = String(sessionUser.name || "U").charAt(0).toUpperCase();
   crewProfileStars.textContent = describeStars(crewData.stars);
 
-  if (crewData.nextShift && crewData.nextShift.start) {
-    crewProfileNextShift.textContent = `${crewData.nextShift.day} ${crewData.nextShift.start}-${crewData.nextShift.end}`;
+  // ✅ Self: show current/next shift too (not only week calc)
+  const result = getCurrentOrNextShiftForUser(sessionUser.id, sessionUser.name, allShifts);
+
+  if (result) {
+    crewProfileNextShift.textContent = formatShiftLine(result.kind, result.shift);
+  } else if (crewData.nextShift && crewData.nextShift.start) {
+    crewProfileNextShift.textContent = `${crewData.nextShift.day} ${crewData.nextShift.start}-${crewData.nextShift.end}${crewData.nextShift.station ? " · " + crewData.nextShift.station : ""}`;
   } else {
     crewProfileNextShift.textContent = "No upcoming shift on file.";
   }
@@ -881,7 +949,6 @@ function hideThinking() {
 
 function seedIntroMessages(isCrew) {
   if (!aiChat) return;
-  aiChat.innerHTML = "";
 
   const first = isCrew
     ? `Hi ${String(sessionUser.name).split(" ")[0]} 👋 I can help with hours, pay, breaks and shifts.`
