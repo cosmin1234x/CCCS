@@ -1,18 +1,11 @@
 // ================================
 // main.js – FULL VERSION (Vercel) — OPTION A (crew list from /users)
-// ✅ FIXED: Live syncing (onSnapshot) for:
-//    - stores/{storeId}
-//    - stores/{storeId}/Shifts   (capital S)
-//    - users (crew list for this store)
-// ✅ FIXED: Staffing updates instantly when shifts are added
-// ✅ FIXED: Training status changes show instantly (because crew list comes from users)
-// ✅ FIXED: Training Gaps is calculated from users.trainingStatus
-// ✅ FIXED: store numeric fields safely coerced to numbers
-//
-// Firestore paths used:
+// ✅ REALTIME SYNC FIXED (Shifts + Crew training + Staffing)
+// Uses Firestore paths:
 //   users/{uid}
 //   stores/{storeId}
-//   stores/{storeId}/Shifts
+//   stores/{storeId}/Shifts   (capital S)
+// ✅ crew list comes from /users (no crewSummary collection)
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -78,7 +71,7 @@ const managerDataDefault = {
   trainingGaps: 0,
   potentialOvertime: 0,
   foodWasteByDay: [],
-  crewTrainingSummary: [] // ✅ now comes from users
+  crewTrainingSummary: [] // ✅ from users
 };
 
 let managerData = JSON.parse(JSON.stringify(managerDataDefault));
@@ -169,7 +162,7 @@ function parseShiftHours(startHHMM, endHHMM) {
 
   let start = sh + sm / 60;
   let end = eh + em / 60;
-  if (end < start) end += 24; // crossing midnight
+  if (end < start) end += 24;
   return Math.max(0, end - start);
 }
 
@@ -185,7 +178,7 @@ function calculateBreakMinutes(hours) {
 }
 
 /* ============================================================
-   IMPORTANT FIX: Ensure /users/{uid} exists
+   Ensure /users/{uid} exists (helps rules + consistency)
 ============================================================ */
 
 async function ensureUserDoc(firebaseUser) {
@@ -201,7 +194,7 @@ async function ensureUserDoc(firebaseUser) {
     storeId: cached.storeId || "store001",
     createdAt: serverTimestamp(),
 
-    // option A fields (manager dashboard reads these from users)
+    // option A fields (for dashboard list)
     trainingStatus: "—",
     badge: "—",
     stars: 0
@@ -212,7 +205,7 @@ async function ensureUserDoc(firebaseUser) {
 }
 
 /* ============================================================
-   REALTIME LISTENERS (FIXES SYNC ISSUES)
+   REALTIME LISTENERS (THE SYNC FIX)
 ============================================================ */
 
 let unsubStore = null;
@@ -226,53 +219,53 @@ function stopRealtime() {
   unsubStore = unsubShifts = unsubCrewUsers = null;
 }
 
-function coerceStoreNumbers() {
-  managerData.todaySales = Number(managerData.todaySales || 0);
-  managerData.weekSales = Number(managerData.weekSales || 0);
+function refreshComputedAndUI() {
+  if (!sessionUser) return;
 
-  // allow legacy field names if you used them before
-  const wasteValueCandidate =
-    managerData.todayWasteValue ?? managerData.foodwaste ?? managerData.foodWaste ?? 0;
+  // keep shifts for crew metrics
+  const myShifts = allShifts.filter((s) => s.userId === sessionUser.id);
+  window.loadedShiftsForCrew = myShifts;
 
-  managerData.todayWasteValue = Number(wasteValueCandidate || 0);
-  managerData.todayWastePct = Number(managerData.todayWastePct || 0);
-  managerData.staffNeeded = Number(managerData.staffNeeded || 10);
-  managerData.potentialOvertime = Number(managerData.potentialOvertime || 0);
+  computeManagerMetrics();
+  if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
+
+  // training gaps = count crew not completed (simple rule)
+  managerData.trainingGaps = (managerData.crewTrainingSummary || []).filter((c) => {
+    const st = String(c.status || "").toLowerCase();
+    return !(st.includes("complete") || st.includes("completed") || st.includes("done"));
+  }).length;
+
+  // re-render (fast)
+  initialiseDashboard();
 }
 
-function startRealtimeForStore() {
-  if (!sessionUser) return;
-  const storeId = sessionUser.storeId || "store001";
-
+function startRealtime(storeId) {
   stopRealtime();
 
-  // 1) Store doc
+  // store doc
   unsubStore = onSnapshot(
     doc(db, "stores", storeId),
     (snap) => {
       if (snap.exists()) {
         Object.assign(managerData, managerDataDefault, snap.data());
+        if (typeof managerData.staffNeeded !== "number") managerData.staffNeeded = 10;
       } else {
         Object.assign(managerData, managerDataDefault, { storeName: storeId });
       }
-
-      coerceStoreNumbers();
-      computeManagerMetrics();
-      initialiseDashboard(); // re-render cards + lists
+      refreshComputedAndUI();
     },
-    (err) => console.error("[Store] Store listener error:", err)
+    (err) => console.error("[Store] onSnapshot error:", err)
   );
 
-  // 2) Shifts (capital S)
+  // shifts (THIS is what fixes staffing + shift syncing)
   unsubShifts = onSnapshot(
     collection(db, "stores", storeId, "Shifts"),
-    (qs) => {
-      allShifts = [];
-      qs.forEach((docSnap) => {
-        const d = docSnap.data();
+    (snap) => {
+      const next = [];
+      snap.forEach((docSnap) => {
+        const d = docSnap.data() || {};
         if (!d.date || !d.start || !d.end || !d.userId) return;
-
-        allShifts.push({
+        next.push({
           id: docSnap.id,
           date: d.date,
           start: d.start,
@@ -285,20 +278,13 @@ function startRealtimeForStore() {
           generatedByAI: !!d.generatedByAI
         });
       });
-
-      // keep crew dashboard data updated
-      const myShifts = allShifts.filter((s) => s.userId === sessionUser.id);
-      window.loadedShiftsForCrew = myShifts;
-
-      computeManagerMetrics();
-      if (sessionUser.role === "crew") computeCrewMetrics(myShifts);
-
-      initialiseDashboard();
+      allShifts = next;
+      refreshComputedAndUI();
     },
-    (err) => console.error("[Store] Shifts listener error:", err)
+    (err) => console.error("[Shifts] onSnapshot error:", err)
   );
 
-  // 3) Crew list from users (Option A)
+  // crew list from users (THIS is what fixes training status not updating)
   const crewUsersQuery = query(
     collection(db, "users"),
     where("storeId", "==", storeId),
@@ -307,32 +293,27 @@ function startRealtimeForStore() {
 
   unsubCrewUsers = onSnapshot(
     crewUsersQuery,
-    (qs) => {
+    (snap) => {
       const list = [];
-      qs.forEach((snap) => {
-        const d = snap.data() || {};
+      snap.forEach((docSnap) => {
+        const d = docSnap.data() || {};
         list.push({
-          id: snap.id,
-          name: d.name || d.email || "Crew",
+          id: docSnap.id,
+          name: d.name || "Crew",
           status: d.trainingStatus || "—",
           badge: d.badge || "—",
           stars: typeof d.stars === "number" ? d.stars : 0
         });
       });
-
-      managerData.crewTrainingSummary = list.sort((a, b) =>
-        String(a.name || "").localeCompare(String(b.name || ""))
-      );
-
-      computeManagerMetrics();
-      initialiseDashboard();
+      managerData.crewTrainingSummary = list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      refreshComputedAndUI();
     },
-    (err) => console.error("[Store] Crew users listener error:", err)
+    (err) => console.error("[CrewUsers] onSnapshot error:", err)
   );
 }
 
 /* ============================================================
-   FIRESTORE LOADERS (still used for crew self fields / first boot)
+   FIRESTORE: load current user's optional fields
 ============================================================ */
 
 async function loadCrewUserFromFirestore() {
@@ -343,14 +324,15 @@ async function loadCrewUserFromFirestore() {
     const snap = await getDoc(ref);
     if (!snap.exists()) return;
 
-    const d = snap.data();
+    const d = snap.data() || {};
 
+    // keep session synced
     if (d.role && d.role !== sessionUser.role) sessionUser.role = d.role;
     if (d.storeId && d.storeId !== sessionUser.storeId) sessionUser.storeId = d.storeId;
     if (d.name && d.name !== sessionUser.name) sessionUser.name = d.name;
     saveSessionUser(sessionUser);
 
-    // optional crew fields
+    // optional crew fields for crew dashboard
     if (typeof d.position === "string") crewData.position = d.position;
     if (typeof d.hourlyRate === "number") crewData.hourlyRate = d.hourlyRate;
     if (Array.isArray(d.certifications)) crewData.certifications = d.certifications;
@@ -362,21 +344,13 @@ async function loadCrewUserFromFirestore() {
 }
 
 /* ============================================================
-   METRIC CALCULATIONS (FIXED)
+   METRIC CALCULATIONS
 ============================================================ */
 
 function computeManagerMetrics() {
-  // staffing = today's shifts
   const todayISO = toISODateString(new Date());
   const todays = allShifts.filter((s) => s.date === todayISO);
   managerData.staffOnShift = todays.length;
-
-  // training gaps = crew where trainingStatus isn't "Training completed"
-  const crew = Array.isArray(managerData.crewTrainingSummary) ? managerData.crewTrainingSummary : [];
-  managerData.trainingGaps = crew.filter((c) => {
-    const st = String(c.status || "").trim().toLowerCase();
-    return st !== "training completed";
-  }).length;
 }
 
 function computeCrewMetrics(myShifts) {
@@ -457,7 +431,7 @@ onAuthStateChanged(auth, async (user) => {
       storeId: "store001"
     };
 
-  // Ensure user doc exists
+  // ensure profile exists (rules + consistency)
   const userDoc = await ensureUserDoc(user);
 
   // sync session with Firestore
@@ -467,17 +441,13 @@ onAuthStateChanged(auth, async (user) => {
   sessionUser.name = userDoc.name || sessionUser.name;
   saveSessionUser(sessionUser);
 
-  // Load optional crew self fields once (still useful)
-  try {
-    await loadCrewUserFromFirestore();
-  } catch (err) {
-    console.error("[Main] load crew user error:", err);
-  }
+  // load optional crew fields (hourlyRate etc.)
+  await loadCrewUserFromFirestore();
 
-  // ✅ Start realtime listeners (THIS fixes sync problems)
-  startRealtimeForStore();
+  // ✅ Start realtime sync (THIS is the big fix)
+  startRealtime(sessionUser.storeId || "store001");
 
-  // render immediately
+  // initial render
   initialiseDashboard();
 });
 
@@ -603,15 +573,15 @@ function renderTopCards(isCrew, profile) {
     });
   } else {
     const cards = [
-      { title: "Today's Sales", icon: "💰", main: `£${Number(managerData.todaySales || 0)}`, sub: `Week: £${Number(managerData.weekSales || 0)}` },
-      { title: "Food Waste", icon: "♻️", main: `£${Number(managerData.todayWasteValue || 0)}`, sub: `${Number(managerData.todayWastePct || 0).toFixed(1)}%` },
+      { title: "Today's Sales", icon: "💰", main: `£${managerData.todaySales}`, sub: `Week: £${managerData.weekSales}` },
+      { title: "Food Waste", icon: "♻️", main: `£${managerData.todayWasteValue}`, sub: `${Number(managerData.todayWastePct || 0).toFixed(1)}%` },
       {
         title: "Staffing",
         icon: "👥",
-        main: `${Number(managerData.staffOnShift || 0)}/${Number(managerData.staffNeeded || 10)}`,
-        sub: Number(managerData.staffNeeded || 10) - Number(managerData.staffOnShift || 0) > 0 ? "Short on shift" : "Good coverage"
+        main: `${managerData.staffOnShift}/${managerData.staffNeeded}`,
+        sub: managerData.staffNeeded - managerData.staffOnShift > 0 ? "Short on shift" : "Good coverage"
       },
-      { title: "Training Gaps", icon: "📚", main: `${Number(managerData.trainingGaps || 0)}`, sub: `${Number(managerData.potentialOvertime || 0)} near overtime` }
+      { title: "Training Gaps", icon: "📚", main: `${managerData.trainingGaps}`, sub: `${managerData.potentialOvertime} near overtime` }
     ];
 
     cards.forEach((c) => {
@@ -702,7 +672,7 @@ function renderBottomSection(isCrew, profile) {
 }
 
 /* ============================================================
-   CREW PROFILES + EDITING (Option A = update users doc)
+   CREW PROFILES + EDITING
 ============================================================ */
 
 function describeStars(n) {
@@ -735,13 +705,16 @@ function attachCrewListHandlers() {
       newStars = Math.max(0, Math.min(3, newStars));
 
       try {
+        // ✅ OPTION A: update user doc directly
         await updateDoc(doc(db, "users", id), {
           trainingStatus: newStatus,
           badge: newBadge,
           stars: newStars
         });
+        // no manual refresh needed — onSnapshot will update UI
       } catch (e) {
         console.error("Update crew fields error:", e);
+        alert("Failed to update crew fields (check rules).");
       }
     };
   });
@@ -1008,9 +981,7 @@ if (micBtn && overlay && hasSpeechSupport()) {
       recognition.start();
 
       voiceTimeout = setTimeout(() => {
-        try {
-          recognition.stop();
-        } catch {}
+        try { recognition.stop(); } catch {}
       }, 7000);
     } catch (err) {
       console.error("Voice start error:", err);
