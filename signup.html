@@ -91,6 +91,7 @@
       outline: none;
       background: #fafafa;
       transition: border 0.2s, box-shadow 0.2s, transform 0.1s;
+      width: 100%;
     }
 
     input:focus,
@@ -160,6 +161,13 @@
     .link-row a:hover {
       text-decoration: underline;
     }
+
+    .hint {
+      margin-top: 6px;
+      font-size: 0.72rem;
+      color: #6b7280;
+      line-height: 1.3;
+    }
   </style>
 </head>
 <body>
@@ -195,11 +203,17 @@
           <option value="manager">Manager</option>
           <option value="shiftCreator">Shift Creator (Scheduler)</option>
         </select>
+        <div class="hint">
+          Managers/Shift Creators are restricted to approved emails.
+        </div>
       </div>
 
       <div>
-        <label for="storeId">Store / Restaurant name</label>
-        <input id="storeId" type="text" placeholder="e.g. High Street #123" />
+        <label for="storeId">Store / Restaurant ID</label>
+        <input id="storeId" type="text" placeholder="e.g. store001" />
+        <div class="hint">
+          Keep it consistent for everyone (example: store001).
+        </div>
       </div>
 
       <button type="submit" class="btn-primary" id="signupBtn">
@@ -224,7 +238,8 @@
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import {
       doc,
-      setDoc
+      setDoc,
+      serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const form = document.getElementById("signupForm");
@@ -232,13 +247,23 @@
     const successBox = document.getElementById("success");
     const signupBtn = document.getElementById("signupBtn");
 
+    // ✅ Put your email + owner email(s) here
+    const ALLOWED_ADMIN_EMAILS = [
+      "you@example.com",
+      "owner@example.com"
+    ];
+
+    function normalizeEmail(e) {
+      return String(e || "").trim().toLowerCase();
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
-      const role = document.getElementById("role").value; // crew / manager / shiftCreator
+      const requestedRole = document.getElementById("role").value;
       const storeId = document.getElementById("storeId").value.trim() || "store001";
 
       errorBox.style.display = "none";
@@ -254,22 +279,43 @@
       signupBtn.disabled = true;
 
       try {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const emailNorm = normalizeEmail(email);
 
+        // ✅ Restrict manager/shiftCreator to approved emails
+        let finalRole = requestedRole;
+        if ((requestedRole === "manager" || requestedRole === "shiftCreator") &&
+            !ALLOWED_ADMIN_EMAILS.map(normalizeEmail).includes(emailNorm)) {
+          finalRole = "crew";
+        }
+
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(cred.user, { displayName: name });
 
+        // Create user profile doc
         await setDoc(doc(db, "users", cred.user.uid), {
           name,
-          email,
-          role,      // <-- stores "shiftCreator" if chosen
+          email: emailNorm,
+          role: finalRole,
+          requestedRole,  // keep what they selected (useful for review)
           storeId,
-          createdAt: new Date().toISOString()
+          createdAt: serverTimestamp(),
+          profileComplete: false,
+
+          // Defaults you can edit later
+          maxHoursPerWeek: 40,
+          skills: { grill:false, chicken:false, line:false, fries:false, front:false, drive:false },
+          availability: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] }
         });
 
-        showSuccess("Account created. You can now log in.");
+        if (finalRole !== requestedRole) {
+          showSuccess("Account created as Crew (manager roles are restricted). You can now log in.");
+        } else {
+          showSuccess("Account created. You can now log in.");
+        }
+
         setTimeout(() => {
           window.location.href = "index.html";
-        }, 1000);
+        }, 900);
       } catch (err) {
         console.error(err);
         if (err.code === "auth/email-already-in-use") {
