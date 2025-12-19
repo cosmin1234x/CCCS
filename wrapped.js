@@ -1,8 +1,4 @@
-// wrapped.js — FULL VERSION (FIXED + ANIMATED)
-// - Buttons always clickable
-// - Tap navigation ignores buttons/inputs
-// - Smooth slide transitions
-// - Works with Firestore: users/{uid}
+// wrapped.js — FULL VERSION (FIXED + ANIMATED + AUTOPLAY + SWIPE + HOLD-TO-PAUSE)
 
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -45,6 +41,27 @@ let slides = [];
 let idx = 0;
 let unsub = null;
 let isAnimating = false;
+
+/* =========================
+   AUTOPLAY / SWIPE STATE
+========================= */
+const SLIDE_DURATION_MS = 4200;     // autoplay speed per slide
+const SWIPE_MIN_PX = 55;            // swipe threshold
+const EDGE_TAP_IGNORE = 0.10;       // if you tap very near edges, still works fine
+
+let autoplayEnabled = true;
+let paused = false;
+
+let autoplayRaf = null;
+let autoplayStart = 0;              // performance.now baseline
+let elapsedBeforePause = 0;         // ms accumulated if paused
+
+let pointerDown = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragDx = 0;
+let dragDy = 0;
+let dragMoved = false;
 
 /* =========================
    Helpers
@@ -101,6 +118,11 @@ function trainingPersonality({xp, completedCount, topTag}){
   return { title:"All-Rounder", sub:"You’re building skills across the floor." };
 }
 
+function shouldIgnoreTap(target){
+  if (!target) return false;
+  return !!target.closest("button, a, input, textarea, select, form, label");
+}
+
 /* =========================
    Slides
 ========================= */
@@ -119,20 +141,19 @@ function buildSlides(){
   const completionPct = totalPossible ? Math.round((completedCount/totalPossible)*100) : 0;
 
   const personality = trainingPersonality({ xp, completedCount, topTag });
-
   const firstName = userDoc?.name ? String(userDoc.name).split(" ")[0] : "crew";
 
   slides = [
     {
       kicker: "McTraining Wrapped",
       title: `Hey ${firstName} 👋`,
-      sub: "Here’s your training recap — tap Next to start.",
+      sub: "Here’s your training recap — it’ll autoplay. Hold to pause.",
       cards: [
         { label:"Your level", value:`Level ${level}`, mini:`Based on ${xp} XP` },
         { label:"XP earned", value:`${xp} XP`, mini:"Keep going to level up" },
         { label:"Modules done", value:`${completedCount}/${totalPossible}`, mini:`${completionPct}% complete` }
       ],
-      tags: ["UK training style", "Quick recap", "Built from your progress"]
+      tags: ["UK training style", "Autoplay on", "Hold to pause"]
     },
 
     {
@@ -188,7 +209,7 @@ function buildSlides(){
             `).join("")}
           </div>`
         : `<div class="stat"><div class="label">No data yet</div><div class="value">Start with Grill or Food Safety</div><div class="mini">Then try a quiz.</div></div>`,
-      tags: ["Tap Share to save a card", "Keep levelling up"]
+      tags: ["Swipe left/right", "Tap buttons anytime"]
     },
 
     {
@@ -204,14 +225,13 @@ function buildSlides(){
     }
   ];
 
-  // progress bars
   if (progressBars){
     progressBars.innerHTML = slides.map(()=>`<div class="bar"><div></div></div>`).join("");
   }
 }
 
 /* =========================
-   Render + Animation
+   Buttons + Progress fill
 ========================= */
 function setButtons(){
   const ready = slides.length > 0;
@@ -222,6 +242,19 @@ function setButtons(){
   if (shareBtn) shareBtn.disabled = !ready;
 }
 
+function setProgressFill(ratio){
+  // ratio for current slide fill: 0..1
+  const fills = progressBars?.querySelectorAll(".bar > div") || [];
+  fills.forEach((f, i) => {
+    if (i < idx) f.style.width = "100%";
+    else if (i > idx) f.style.width = "0%";
+    else f.style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+  });
+}
+
+/* =========================
+   Render + Animation
+========================= */
 function render(direction = "right"){
   if (!storyEl) return;
 
@@ -229,9 +262,9 @@ function render(direction = "right"){
     storyEl.innerHTML = `
       <div class="story-kicker">Loading…</div>
       <div class="story-title">Getting your Wrapped</div>
-      <div class="story-sub">One sec — pulling your training progress.</div>
+      <div class="story-sub">Pulling your training progress.</div>
       <div class="grid">
-        <div class="stat"><div class="label">Tip</div><div class="value">If this hangs</div><div class="mini">Check Firebase auth + Firestore rules.</div></div>
+        <div class="stat"><div class="label">Tip</div><div class="value">If stuck</div><div class="mini">Check Firebase auth + rules.</div></div>
         <div class="stat"><div class="label">Tip</div><div class="value">Make sure</div><div class="mini">users/{uid} exists.</div></div>
         <div class="stat"><div class="label">Tip</div><div class="value">Then reload</div><div class="mini">and try again.</div></div>
       </div>
@@ -241,12 +274,10 @@ function render(direction = "right"){
   }
 
   const s = slides[idx];
+  setButtons();
 
-  // progress bars fill
-  const fills = progressBars?.querySelectorAll(".bar > div") || [];
-  fills.forEach((f, i) => {
-    f.style.width = i < idx ? "100%" : (i === idx ? "50%" : "0%");
-  });
+  // reset autoplay timer each time we render a new slide
+  resetAutoplayTimer();
 
   const cardsHTML = s.cards
     ? `<div class="grid">
@@ -265,7 +296,6 @@ function render(direction = "right"){
     ? `<div class="tagrow">${tags.map(t=>`<span class="pill">${t}</span>`).join("")}</div>`
     : "";
 
-  // animate out/in
   if (isAnimating) return;
   isAnimating = true;
 
@@ -284,14 +314,12 @@ function render(direction = "right"){
       ${tagsHTML}
       <div class="navhint">
         <span>${idx+1}/${slides.length}</span>
-        <span>Tap right = next • Tap left = prev</span>
+        <span>${paused ? "Paused" : (autoplayEnabled ? "Autoplay" : "Manual")} • Hold to pause • Swipe to navigate</span>
       </div>
     `;
 
     storyEl.classList.remove(exitClass);
     storyEl.classList.add(enterClass);
-
-    setButtons();
 
     setTimeout(() => {
       storyEl.classList.remove(enterClass);
@@ -308,6 +336,10 @@ function next(){
   if (idx < slides.length - 1){
     idx++;
     render("right");
+  } else {
+    // last slide: stop autoplay
+    stopAutoplay();
+    setProgressFill(1);
   }
 }
 function prev(){
@@ -319,23 +351,160 @@ function prev(){
 }
 
 /* =========================
-   Tap navigation (FIXED)
-   Ignore taps on buttons/inputs/links/forms.
+   Autoplay
 ========================= */
-function shouldIgnoreTap(target){
-  if (!target) return false;
-  return !!target.closest("button, a, input, textarea, select, form, label");
+function resetAutoplayTimer(){
+  elapsedBeforePause = 0;
+  autoplayStart = performance.now();
+  startAutoplayLoop();
 }
 
+function startAutoplayLoop(){
+  stopAutoplayLoopOnly();
+
+  const tick = () => {
+    if (!slides.length) {
+      autoplayRaf = requestAnimationFrame(tick);
+      return;
+    }
+
+    if (!autoplayEnabled || paused) {
+      // keep current fill (no movement) while paused
+      autoplayRaf = requestAnimationFrame(tick);
+      return;
+    }
+
+    const now = performance.now();
+    const elapsed = elapsedBeforePause + (now - autoplayStart);
+    const ratio = elapsed / SLIDE_DURATION_MS;
+
+    setProgressFill(ratio);
+
+    if (ratio >= 1) {
+      // move to next slide
+      next();
+      return; // render() will reset timer
+    }
+
+    autoplayRaf = requestAnimationFrame(tick);
+  };
+
+  autoplayRaf = requestAnimationFrame(tick);
+}
+
+function stopAutoplayLoopOnly(){
+  if (autoplayRaf) cancelAnimationFrame(autoplayRaf);
+  autoplayRaf = null;
+}
+
+function stopAutoplay(){
+  autoplayEnabled = false;
+  paused = false;
+  stopAutoplayLoopOnly();
+}
+
+function pauseAutoplay(){
+  if (!autoplayEnabled || paused) return;
+  paused = true;
+  const now = performance.now();
+  elapsedBeforePause += (now - autoplayStart);
+}
+
+function resumeAutoplay(){
+  if (!autoplayEnabled || !paused) return;
+  paused = false;
+  autoplayStart = performance.now();
+}
+
+function toggleAutoplay(){
+  autoplayEnabled = !autoplayEnabled;
+  paused = false;
+  if (autoplayEnabled) resetAutoplayTimer();
+  else stopAutoplayLoopOnly();
+  toast(autoplayEnabled ? "Autoplay on ▶️" : "Autoplay off ⏸️");
+}
+
+/* =========================
+   Tap navigation (FIXED)
+========================= */
 function onTapNavigate(e){
+  if (!storyShell) return;
   if (shouldIgnoreTap(e.target)) return;
 
   const rect = storyShell.getBoundingClientRect();
   const clientX = e.changedTouches?.[0]?.clientX ?? e.clientX;
   const x = clientX - rect.left;
 
-  if (x < rect.width * 0.45) prev();
+  // optional tiny edge ignore zone (still works fine)
+  const leftEdge = rect.width * EDGE_TAP_IGNORE;
+  const rightEdge = rect.width * (1 - EDGE_TAP_IGNORE);
+
+  if (x <= leftEdge) { prev(); return; }
+  if (x >= rightEdge) { next(); return; }
+
+  if (x < rect.width * 0.5) prev();
   else next();
+}
+
+/* =========================
+   Swipe (drag) + Hold-to-pause
+========================= */
+function onPointerDown(e){
+  if (!storyShell) return;
+  if (shouldIgnoreTap(e.target)) return;
+
+  pointerDown = true;
+  dragMoved = false;
+  dragDx = 0;
+  dragDy = 0;
+
+  dragStartX = e.touches?.[0]?.clientX ?? e.clientX;
+  dragStartY = e.touches?.[0]?.clientY ?? e.clientY;
+
+  pauseAutoplay(); // HOLD to pause immediately
+}
+
+function onPointerMove(e){
+  if (!pointerDown) return;
+
+  const x = e.touches?.[0]?.clientX ?? e.clientX;
+  const y = e.touches?.[0]?.clientY ?? e.clientY;
+
+  dragDx = x - dragStartX;
+  dragDy = y - dragStartY;
+
+  if (Math.abs(dragDx) > 8 || Math.abs(dragDy) > 8) dragMoved = true;
+
+  // (optional) tiny visual feedback
+  if (storyEl && dragMoved && Math.abs(dragDx) > Math.abs(dragDy)) {
+    storyEl.style.transform = `translateX(${dragDx * 0.18}px)`;
+    storyEl.style.opacity = String(1 - Math.min(0.25, Math.abs(dragDx) / 500));
+  }
+}
+
+function onPointerUp(){
+  if (!pointerDown) return;
+  pointerDown = false;
+
+  // reset visuals
+  if (storyEl) {
+    storyEl.style.transform = "";
+    storyEl.style.opacity = "";
+  }
+
+  const horizontal = Math.abs(dragDx) > Math.abs(dragDy);
+
+  if (dragMoved && horizontal && Math.abs(dragDx) >= SWIPE_MIN_PX) {
+    if (dragDx < 0) next();  // swipe left => next
+    else prev();             // swipe right => prev
+  } else {
+    // if no swipe, resume autoplay
+    resumeAutoplay();
+  }
+
+  dragDx = 0;
+  dragDy = 0;
+  dragMoved = false;
 }
 
 /* =========================
@@ -360,18 +529,6 @@ async function saveShareCard(){
   g.addColorStop(1, "#111827");
   ctx.fillStyle = g;
   ctx.fillRect(0,0,W,H);
-
-  function blob(x,y,r, col){
-    const rg = ctx.createRadialGradient(x,y,0,x,y,r);
-    rg.addColorStop(0, col);
-    rg.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = rg;
-    ctx.beginPath();
-    ctx.arc(x,y,r,0,Math.PI*2);
-    ctx.fill();
-  }
-  blob(220,220,360,"rgba(250,204,21,0.22)");
-  blob(900,300,420,"rgba(34,197,94,0.18)");
 
   ctx.fillStyle = "rgba(255,255,255,0.06)";
   roundRect(ctx, 70, 110, W-140, H-220, 36);
@@ -456,10 +613,8 @@ function start(uid){
     userDoc = snap.data() || {};
     buildSlides();
 
-    // keep idx valid
     if (idx >= slides.length) idx = Math.max(0, slides.length - 1);
 
-    // render without exit animation on data refresh
     render("right");
   });
 }
@@ -468,33 +623,66 @@ function start(uid){
    Events
 ========================= */
 backBtn?.addEventListener("click", ()=> window.location.href = "training.html");
+
+// IMPORTANT: stopPropagation so container click doesn’t steal button clicks
 nextBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); next(); });
 prevBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); prev(); });
 shareBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); saveShareCard(); });
 
-// Tap navigation (click + touch)
+// Tap navigation
 storyShell?.addEventListener("click", onTapNavigate);
-storyShell?.addEventListener("touchend", onTapNavigate, { passive:true });
+
+// Touch + Mouse for swipe/hold
+storyShell?.addEventListener("mousedown", onPointerDown);
+window.addEventListener("mousemove", onPointerMove);
+window.addEventListener("mouseup", onPointerUp);
+
+storyShell?.addEventListener("touchstart", onPointerDown, { passive:true });
+window.addEventListener("touchmove", onPointerMove, { passive:true });
+window.addEventListener("touchend", onPointerUp, { passive:true });
 
 // Keyboard
 document.addEventListener("keydown", (e)=>{
   if (e.key === "ArrowRight") next();
   if (e.key === "ArrowLeft") prev();
+
+  // Space toggles autoplay
+  if (e.key === " "){
+    e.preventDefault();
+    toggleAutoplay();
+  }
+});
+
+// Optional: double click / double tap toggles autoplay
+storyShell?.addEventListener("dblclick", (e)=>{
+  if (shouldIgnoreTap(e.target)) return;
+  toggleAutoplay();
 });
 
 /* =========================
-   Auth init
+   Init
 ========================= */
-render("right"); // show loading UI instantly
+function renderLoading(){
+  if (!storyEl) return;
+  storyEl.innerHTML = `
+    <div class="story-kicker">Loading…</div>
+    <div class="story-title">Getting your Wrapped</div>
+    <div class="story-sub">Pulling your training progress.</div>
+  `;
+  setProgressFill(0);
+}
+
+renderLoading();
 
 onAuthStateChanged(auth, async (user)=>{
   if(!user){
     window.location.href = "index.html";
     return;
   }
+
   uid = user.uid;
 
-  // quick first load
+  // first load
   const snap = await getDoc(doc(db,"users",uid));
   userDoc = snap.exists() ? (snap.data() || {}) : {};
   buildSlides();
@@ -502,4 +690,7 @@ onAuthStateChanged(auth, async (user)=>{
 
   render("right");
   start(uid);
+
+  // autoplay starts after first render
+  resetAutoplayTimer();
 });
