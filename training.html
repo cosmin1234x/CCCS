@@ -2,340 +2,674 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining – Learning Hub</title>
+  <title>McTraining 3.0</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 
   <style>
     :root{
-      --card:#ffffff;
-      --border:#e5e7eb;
-      --muted:#6b7280;
-      --ink:#111827;
-      --shadow: 0 10px 25px rgba(15,23,42,.10);
+      --bg: #0b1220;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.08);
+      --border: rgba(255,255,255,.10);
+      --text: #eef2ff;
+      --muted: rgba(238,242,255,.70);
+      --soft: rgba(238,242,255,.10);
+
+      --mcd-red:#DA291C;
+      --mcd-yellow:#FFC72C;
+      --good:#22c55e;
+      --warn:#f59e0b;
+
       --radius: 18px;
-      --gap: 14px;
+      --shadow: 0 18px 60px rgba(0,0,0,.35);
+      --shadow2: 0 10px 30px rgba(0,0,0,.28);
+
+      --ease: cubic-bezier(.2,.8,.2,1);
     }
 
-    /* ===== Page frame ===== */
-    .main-layout{
-      display:flex;
-      min-height:100vh;
+    /* ====== PAGE BG ====== */
+    body.app-page{
+      background:
+        radial-gradient(900px 600px at 15% 10%, rgba(255,199,44,.18), transparent 55%),
+        radial-gradient(900px 700px at 85% 20%, rgba(218,41,28,.18), transparent 55%),
+        radial-gradient(900px 700px at 50% 95%, rgba(34,197,94,.10), transparent 60%),
+        var(--bg);
+      color: var(--text);
     }
-    .learning-layout{
-      flex: 1;
-      display:flex;
-      flex-direction:column;
-      gap: var(--gap);
-      padding: 16px 18px;
+
+    /* ====== CONTENT WRAP ====== */
+    .training-wrap{
       max-width: 1400px;
       margin: 0 auto;
-      width: 100%;
-    }
-
-    /* ===== Sticky header ===== */
-    .learning-topbar{
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      backdrop-filter: blur(10px);
-      background: rgba(247,247,247,.72);
-      border-bottom: 1px solid rgba(229,231,235,.8);
-      padding: 10px 0 12px;
-    }
-
-    .learning-header{
+      padding: 16px 18px;
       display:flex;
-      align-items:flex-end;
-      justify-content:space-between;
-      gap: 12px;
+      flex-direction:column;
+      gap: 14px;
     }
-    .learning-header-left h2{
-      margin:0;
-      font-size: 1.35rem;
-      font-weight: 900;
-      letter-spacing: -.02em;
+
+    /* ====== TOP BAR ====== */
+    .topbar{
       display:flex;
       align-items:center;
-      gap: 8px;
-      color: var(--ink);
+      justify-content:space-between;
+      gap: 12px;
+      padding: 14px 14px;
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.05));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow2);
+      backdrop-filter: blur(14px);
+      transform: translateY(0);
+      animation: dropIn .35s var(--ease) both;
     }
-    .learning-header-left h2::before{ content:"🎓"; }
-    .learning-header-left p{
-      margin:6px 0 0;
-      font-size: .85rem;
-      color: var(--muted);
-      max-width: 62ch;
-      line-height: 1.35;
-    }
+    @keyframes dropIn{ from{opacity:0; transform: translateY(-8px);} to{opacity:1; transform: translateY(0);} }
 
-    .learning-header-right{
+    .brand{
       display:flex;
       align-items:center;
       gap: 10px;
-      font-size:.8rem;
-      color: var(--muted);
-      flex-wrap: wrap;
-      justify-content:flex-end;
+      min-width: 240px;
     }
-    .learning-level-pill{
-      border-radius:999px;
-      padding: 7px 12px;
-      background: var(--ink);
-      color:#fff;
-      font-weight: 800;
+    .brand-badge{
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(255,199,44,.95), rgba(218,41,28,.95));
+      box-shadow: 0 16px 40px rgba(218,41,28,.22);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight: 1000;
+      color: #111827;
+      letter-spacing: -.02em;
+    }
+    .brand h1{
+      margin:0;
+      font-size: 1.05rem;
+      font-weight: 1000;
+      letter-spacing: -.02em;
+    }
+    .brand p{
+      margin:2px 0 0;
+      font-size: .78rem;
+      color: var(--muted);
+    }
+
+    .topbar-mid{
+      flex:1;
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      justify-content:center;
+      flex-wrap: wrap;
+    }
+
+    .pill{
       display:inline-flex;
       align-items:center;
       gap: 8px;
-    }
-
-    /* ===== Cards (consistent) ===== */
-    .card-surface{
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-    }
-    .card-pad{ padding: 14px 14px; }
-    .card-title{
-      font-size: .95rem;
-      font-weight: 900;
-      margin: 0;
-      color: var(--ink);
-    }
-    .card-sub{
-      margin: 6px 0 0;
-      font-size: .82rem;
-      color: var(--muted);
-      line-height: 1.35;
-    }
-
-    /* ===== Main workspace grid ===== */
-    .workspace-grid{
-      display:grid;
-      grid-template-columns: 1.05fr 2.2fr 1.15fr;
-      gap: var(--gap);
-      align-items:start;
-    }
-
-    /* Make it feel “app-like” (taller panels) */
-    .rail, .lesson, .progress{
-      min-height: 340px;
-      max-height: calc(100vh - 170px);
-      overflow:auto;
-    }
-
-    /* Path rail */
-    .path-list{ list-style:none; padding:0; margin: 10px 0 0; display:flex; flex-direction:column; gap: 8px; }
-    .path-item{
-      display:flex;
-      gap:10px;
-      padding: 10px 10px;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background:#f9fafb;
-      cursor:pointer;
-      transition: transform .08s ease, box-shadow .08s ease, border-color .08s ease, background .08s ease;
-      user-select:none;
-    }
-    .path-item:hover{
-      transform: translateY(-1px);
-      box-shadow: 0 10px 18px rgba(15,23,42,.12);
-      border-color: #fbbf24;
-      background:#fff;
-    }
-    .path-item.active{
-      background:#fffbeb;
-      border-color:#d97706;
-    }
-    .path-step{
-      width: 22px; height: 22px;
       border-radius: 999px;
-      background:#e5e7eb;
-      display:flex; align-items:center; justify-content:center;
-      font-size:.75rem; font-weight:900;
-      flex-shrink:0;
-    }
-    .path-item.completed .path-step{
-      background:#22c55e; color:#fff;
-    }
-    .path-title-row{
-      display:flex; justify-content:space-between; gap: 8px; align-items:center;
-    }
-    .path-tag{
-      font-size:.68rem;
-      padding: 3px 8px;
-      border-radius:999px;
-      background:#eff6ff;
-      color:#1d4ed8;
-      white-space:nowrap;
-    }
-    .path-meta{ margin-top:3px; font-size:.72rem; color: var(--muted); }
-
-    /* Lesson */
-    .lesson-header-row{
-      display:flex; justify-content:space-between; gap: 10px; align-items:flex-start;
-      margin-bottom: 10px;
-    }
-    .lesson-tag-pill{
-      font-size: .7rem;
-      padding: 4px 10px;
-      border-radius:999px;
-      background:#fef9c3;
-      border:1px solid #fde68a;
-      color:#92400e;
-      font-weight: 800;
-      white-space:nowrap;
-    }
-    .lesson-section h4{
-      margin: 12px 0 6px;
-      font-size:.78rem;
-      letter-spacing:.09em;
-      text-transform:uppercase;
-      color:#9ca3af;
-    }
-    .lesson-section li, .lesson-section p{ font-size:.84rem; color:#374151; line-height:1.45; }
-
-    /* Progress */
-    .progress-heading{
-      display:flex; justify-content:space-between; align-items:center; gap: 10px;
-      margin-bottom: 10px;
-    }
-    .status-pill{
-      font-size:.7rem;
-      padding: 4px 10px;
-      border-radius:999px;
-      background:#e5e7eb;
-      color:#374151;
-      font-weight:800;
-    }
-    .status-pill.completed{ background:#ecfdf5; color:#15803d; }
-
-    .xp-bar-shell-small{
-      width:100%;
-      height: 7px;
-      border-radius:999px;
-      background:#e5e7eb;
-      overflow:hidden;
-      margin-top: 6px;
-    }
-    .xp-bar-fill-small{
-      height:100%;
-      width:0%;
-      border-radius:inherit;
-      background: linear-gradient(90deg, #22c55e, #facc15);
-      transition: width .25s ease;
-    }
-
-    /* Buttons (clean) */
-    .btn-main{
-      border-radius:999px;
-      border:none;
       padding: 9px 12px;
-      font-size:.82rem;
-      font-weight: 900;
-      background: linear-gradient(135deg, #d9091c, #a30716);
-      color:#fff7ed;
-      cursor:pointer;
-      box-shadow: 0 10px 20px rgba(148, 27, 12, 0.40);
-      transition: transform .08s ease, box-shadow .08s ease, opacity .08s ease;
-    }
-    .btn-main:hover{ transform: translateY(-1px); box-shadow: 0 14px 26px rgba(148, 27, 12, 0.45); }
-    .btn-main:disabled{ opacity:.55; cursor:default; box-shadow:none; }
-
-    .btn-ghost{
-      border-radius:999px;
+      background: rgba(255,255,255,.07);
       border:1px solid var(--border);
-      padding: 8px 10px;
-      font-size:.8rem;
-      font-weight:800;
-      background:#f9fafb;
-      cursor:pointer;
+      font-size: .82rem;
+      color: var(--text);
+      backdrop-filter: blur(12px);
     }
-    .btn-ghost:hover{ background:#f3f4f6; }
-
-    /* ===== Bottom tools row ===== */
-    .tools-grid{
-      display:grid;
-      grid-template-columns: 1.25fr 1fr;
-      gap: var(--gap);
-      align-items:stretch;
+    .pill strong{
+      font-weight: 1000;
+      letter-spacing: -.01em;
     }
-    .tools-grid .card-surface{ min-height: 360px; }
 
-    .training-search-row{
+    .xpbar{
+      width: 240px;
+      max-width: 38vw;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border:1px solid var(--border);
+      overflow:hidden;
+      position: relative;
+    }
+    .xpbar > div{
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(34,197,94,.9), rgba(255,199,44,.9), rgba(218,41,28,.9));
+      transition: width .35s var(--ease);
+    }
+
+    .topbar-right{
       display:flex;
-      gap: 8px;
-      margin-top: 10px;
+      align-items:center;
+      justify-content:flex-end;
+      gap: 10px;
+      min-width: 240px;
     }
-    .training-search-row input{
-      flex:1;
-      min-width: 220px;
-      padding: 10px 12px;
-      border-radius:999px;
+    .userchip{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.07);
       border:1px solid var(--border);
-      outline:none;
-      font-size:.84rem;
-      background:#fff;
     }
-
-    .chat-box{
-      margin-top: 10px;
-      border:1px solid var(--border);
-      border-radius: 16px;
-      padding: 10px;
-      min-height: 210px;
-      max-height: 260px;
-      overflow:auto;
-      background:#fff;
-    }
-    .suggestion-chip{
-      border-radius:999px;
-      border:1px solid var(--border);
-      padding: 7px 10px;
-      font-size: .78rem;
-      background:#f9fafb;
-      cursor:pointer;
-      font-weight: 800;
-    }
-    .suggestion-chip:hover{ background:#f3f4f6; }
-
-    /* Overlay */
-    .module-overlay{
-      position:fixed;
-      inset:0;
-      background: rgba(15,23,42,.50);
-      display:none;
+    .avatar{
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.12);
+      display:flex;
       align-items:center;
       justify-content:center;
-      z-index: 300;
-      padding: 18px;
+      font-weight: 1000;
     }
-    .module-overlay.show{ display:flex; }
-    .module-card{
-      width:100%;
-      max-width: 820px;
-      background:#fff;
-      border-radius: 18px;
-      padding: 16px;
+    .userchip small{ display:block; color: var(--muted); font-size:.72rem; line-height:1.2; }
+    .userchip strong{ display:block; font-size:.82rem; font-weight: 1000; line-height:1.2; }
+
+    .btn{
+      border:none;
+      cursor:pointer;
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-weight: 1000;
+      letter-spacing: -.01em;
+      font-size:.82rem;
+      transition: transform .10s var(--ease), filter .10s var(--ease), background .10s var(--ease);
+      user-select:none;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn-ghost{
+      background: rgba(255,255,255,.06);
       border:1px solid var(--border);
-      box-shadow: 0 25px 60px rgba(0,0,0,.30);
-      max-height: 85vh;
-      overflow:auto;
+      color: var(--text);
+    }
+    .btn-ghost:hover{ background: rgba(255,255,255,.10); }
+    .btn-primary{
+      background: linear-gradient(135deg, rgba(255,199,44,.95), rgba(218,41,28,.95));
+      color: #111827;
+      box-shadow: 0 16px 45px rgba(218,41,28,.25);
+    }
+    .btn-primary:hover{ filter: brightness(1.03); }
+
+    /* ====== MAIN GRID ====== */
+    .grid{
+      display:grid;
+      grid-template-columns: 1.05fr 1.65fr;
+      gap: 14px;
+      align-items:start;
+      animation: fadeIn .35s var(--ease) both;
+    }
+    @keyframes fadeIn{ from{opacity:0; transform: translateY(8px);} to{opacity:1; transform: translateY(0);} }
+
+    @media (max-width: 1024px){
+      .grid{ grid-template-columns: 1fr; }
+      .topbar{ flex-direction: column; align-items: stretch; }
+      .topbar-right{ min-width: 0; justify-content: space-between; width: 100%; }
+      .topbar-mid{ justify-content: space-between; width: 100%; }
+      .brand{ min-width: 0; }
     }
 
-    /* Responsive */
-    @media (max-width: 1024px){
-      .workspace-grid{ grid-template-columns: 1fr; }
-      .rail, .lesson, .progress{ max-height:none; }
-      .tools-grid{ grid-template-columns: 1fr; }
+    /* ====== PANELS ====== */
+    .panel{
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow2);
+      backdrop-filter: blur(14px);
+      overflow:hidden;
     }
+    .panel-head{
+      padding: 14px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 10px;
+    }
+    .panel-head h2{
+      margin:0;
+      font-size: .98rem;
+      font-weight: 1000;
+      letter-spacing: -.02em;
+    }
+    .panel-head p{
+      margin:6px 0 0;
+      font-size: .8rem;
+      color: var(--muted);
+      line-height:1.35;
+    }
+    .panel-body{ padding: 14px 14px; }
+
+    /* ====== LEFT: MODULE LIBRARY ====== */
+    .searchrow{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items:center;
+      margin-bottom: 12px;
+    }
+    .searchrow input{
+      flex: 1;
+      min-width: 240px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      outline:none;
+      font-size: .84rem;
+    }
+    .searchrow input::placeholder{ color: rgba(238,242,255,.55); }
+
+    .filters{
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .chip{
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      font-weight: 900;
+      font-size: .78rem;
+      cursor:pointer;
+      transition: background .12s var(--ease), transform .12s var(--ease);
+    }
+    .chip:hover{ background: rgba(255,255,255,.10); transform: translateY(-1px); }
+    .chip.active{
+      background: rgba(255,199,44,.18);
+      border-color: rgba(255,199,44,.35);
+    }
+
+    .moduleGrid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+    }
+
+    .mcard{
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      padding: 12px 12px;
+      cursor:pointer;
+      transition: transform .12s var(--ease), background .12s var(--ease), border-color .12s var(--ease);
+      position: relative;
+      overflow:hidden;
+    }
+    .mcard:hover{
+      transform: translateY(-2px);
+      background: rgba(255,255,255,.085);
+      border-color: rgba(255,199,44,.30);
+    }
+    .mcard .top{
+      display:flex;
+      justify-content:space-between;
+      gap: 10px;
+      align-items:flex-start;
+    }
+    .mcard h3{
+      margin:0;
+      font-size: .90rem;
+      font-weight: 1000;
+      letter-spacing:-.01em;
+    }
+    .meta{
+      margin-top: 6px;
+      font-size:.76rem;
+      color: var(--muted);
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items:center;
+    }
+    .tag{
+      font-size:.68rem;
+      font-weight: 1000;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(238,242,255,.10);
+      border:1px solid rgba(255,255,255,.10);
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .badgeDone{
+      font-size:.68rem;
+      font-weight: 1000;
+      padding: 3px 9px;
+      border-radius:999px;
+      background: rgba(34,197,94,.16);
+      border:1px solid rgba(34,197,94,.28);
+      color: rgba(236,253,245,.95);
+      white-space: nowrap;
+    }
+    .mcard p{
+      margin: 10px 0 0;
+      font-size:.80rem;
+      color: rgba(238,242,255,.80);
+      line-height: 1.35;
+    }
+    .mcard .actions{
+      margin-top: 12px;
+      display:flex;
+      gap: 8px;
+      align-items:center;
+      justify-content:flex-end;
+    }
+
+    /* ====== RIGHT: MODULE PLAYER ====== */
+    .playerHero{
+      padding: 14px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap: 12px;
+      background: linear-gradient(135deg, rgba(255,199,44,.10), rgba(218,41,28,.08), rgba(255,255,255,.03));
+    }
+    .playerHero h2{
+      margin:0;
+      font-size: 1.05rem;
+      font-weight: 1000;
+      letter-spacing:-.02em;
+    }
+    .playerHero .sub{
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: .82rem;
+      line-height:1.35;
+      max-width: 70ch;
+    }
+    .playerHero .right{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap: 8px;
+      min-width: 160px;
+    }
+    .smallpill{
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border:1px solid var(--border);
+      font-size:.75rem;
+      color: var(--text);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .tabs{
+      display:flex;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
+      overflow:auto;
+    }
+    .tab{
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      font-weight: 1000;
+      font-size: .78rem;
+      cursor:pointer;
+      transition: background .12s var(--ease), transform .12s var(--ease);
+      white-space: nowrap;
+    }
+    .tab:hover{ background: rgba(255,255,255,.09); transform: translateY(-1px); }
+    .tab.active{
+      background: rgba(255,199,44,.18);
+      border-color: rgba(255,199,44,.35);
+    }
+
+    .stage{
+      padding: 14px 14px;
+      min-height: 420px;
+      animation: stageIn .18s var(--ease) both;
+    }
+    @keyframes stageIn{ from{opacity:.0; transform: translateY(6px);} to{opacity:1; transform: translateY(0);} }
+
+    .sectionTitle{
+      font-size:.78rem;
+      font-weight: 1000;
+      color: rgba(238,242,255,.65);
+      letter-spacing:.10em;
+      text-transform: uppercase;
+      margin: 0 0 10px;
+    }
+
+    .bullets{ margin:0; padding-left: 18px; }
+    .bullets li{
+      margin: 8px 0;
+      color: rgba(238,242,255,.85);
+      font-size:.86rem;
+      line-height:1.45;
+    }
+
+    .twocol{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    @media (max-width: 640px){
+      .twocol{ grid-template-columns: 1fr; }
+    }
+
+    .box{
+      border-radius: 16px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.10);
+      padding: 12px 12px;
+    }
+    .box strong{
+      display:block;
+      font-weight: 1000;
+      font-size:.86rem;
+      margin-bottom: 8px;
+    }
+    .box ul{ margin:0; padding-left: 18px; }
+    .box li{ margin:6px 0; color: rgba(238,242,255,.82); font-size:.84rem; }
+
+    .progressRow{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    @media (max-width: 640px){
+      .progressRow{ grid-template-columns: 1fr; }
+    }
+
+    .bar{
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.10);
+      overflow:hidden;
+      margin-top: 8px;
+    }
+    .bar > div{
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(34,197,94,.9), rgba(255,199,44,.9));
+      transition: width .25s var(--ease);
+    }
+
+    /* Checklist */
+    .checklist{
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+    }
+    .checkitem{
+      display:flex;
+      gap: 10px;
+      align-items:flex-start;
+      padding: 10px 10px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+    }
+    .checkitem input{
+      margin-top: 3px;
+      width: 16px; height:16px;
+      accent-color: var(--mcd-yellow);
+    }
+    .checkitem span{
+      font-size:.88rem;
+      color: rgba(238,242,255,.90);
+      line-height:1.35;
+    }
+
+    textarea{
+      width:100%;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      padding: 12px 12px;
+      font-size:.88rem;
+      outline:none;
+      resize: vertical;
+      min-height: 74px;
+    }
+
+    /* Quiz */
+    .qcard{
+      border-radius: 16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.05);
+      padding: 12px 12px;
+    }
+    .qhead{
+      display:flex;
+      justify-content:space-between;
+      gap: 10px;
+      align-items:center;
+      color: var(--muted);
+      font-size:.78rem;
+      font-weight: 900;
+    }
+    .qtext{
+      margin-top: 10px;
+      font-size: .96rem;
+      font-weight: 1000;
+      letter-spacing:-.01em;
+      color: var(--text);
+      line-height:1.25;
+    }
+    .opt{
+      width:100%;
+      text-align:left;
+      margin-top: 10px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      font-weight: 900;
+      padding: 10px 10px;
+      cursor:pointer;
+      transition: transform .10s var(--ease), background .10s var(--ease), border-color .10s var(--ease);
+    }
+    .opt:hover{ transform: translateY(-1px); background: rgba(255,255,255,.09); }
+    .opt:disabled{ opacity:.7; cursor:default; }
+    .explain{
+      margin-top: 10px;
+      padding: 10px 10px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: rgba(238,242,255,.85);
+      font-size:.86rem;
+      line-height:1.35;
+      display:none;
+    }
+
+    /* Chat */
+    .chatBox{
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+      padding: 10px 10px;
+      min-height: 240px;
+      max-height: 320px;
+      overflow:auto;
+    }
+    .msg{
+      display:flex;
+      margin: 8px 0;
+    }
+    .msg.user{ justify-content:flex-end; }
+    .bubble{
+      max-width: 86%;
+      padding: 10px 10px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      color: rgba(238,242,255,.92);
+      font-size:.88rem;
+      line-height:1.35;
+    }
+    .msg.user .bubble{
+      background: rgba(255,199,44,.18);
+      border-color: rgba(255,199,44,.35);
+      color: #0b1220;
+      font-weight: 900;
+    }
+
+    .chatForm{
+      display:flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .chatForm input{
+      flex:1;
+      padding: 11px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      font-size:.88rem;
+      outline:none;
+    }
+    .chatForm input::placeholder{ color: rgba(238,242,255,.55); }
+
+    /* Toast */
+    .toast{
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 1200;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(17,24,39,.92);
+      border:1px solid rgba(255,255,255,.10);
+      color: #fff;
+      font-size: .86rem;
+      box-shadow: 0 18px 60px rgba(0,0,0,.55);
+      display:none;
+    }
+    .toast.show{
+      display:block;
+      animation: toastIn .22s var(--ease) both;
+    }
+    @keyframes toastIn{ from{opacity:0; transform: translateY(8px);} to{opacity:1; transform: translateY(0);} }
   </style>
 </head>
 
 <body class="app-page">
 
-  <!-- ========= SIDEBAR ========= -->
+  <!-- ===== SIDEBAR (keep your existing sidebar) ===== -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo-circle">M</div>
@@ -370,148 +704,170 @@
     </div>
   </aside>
 
-  <!-- ========= MAIN ========= -->
+  <!-- ===== MAIN ===== -->
   <div class="main-layout">
-    <div class="learning-layout">
+    <div class="training-wrap">
 
-      <!-- Sticky header area -->
-      <div class="learning-topbar">
-        <header class="learning-header">
-          <div class="learning-header-left">
-            <h2>Learning Hub</h2>
-            <p>Work through modules, open them instantly, and quiz yourself on the spot.</p>
+      <!-- Top bar -->
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-badge">M</div>
+          <div>
+            <h1>McTraining 3.0</h1>
+            <p>Open modules instantly • Ask McAssist • Quiz on demand</p>
           </div>
-          <div class="learning-header-right">
-            <div class="learning-level-pill">
-              <span id="headerLevel">1</span>
-              <span>Training level</span>
-            </div>
-            <span id="headerXP">0 XP total</span>
+        </div>
+
+        <div class="topbar-mid">
+          <div class="pill">Level <strong id="headerLevel">1</strong></div>
+          <div class="pill"><strong id="headerXP">0</strong> XP</div>
+          <div class="xpbar" title="XP progress to next level">
+            <div id="xpProgressFill"></div>
           </div>
-        </header>
-      </div>
+        </div>
 
-      <!-- Main “workspace” -->
-      <section class="workspace-grid">
-
-        <!-- LEFT -->
-        <aside class="card-surface card-pad rail">
-          <h3 class="card-title">Your learning path</h3>
-          <p class="card-sub">Pick a module to load the lesson.</p>
-          <ul id="pathList" class="path-list"></ul>
-        </aside>
-
-        <!-- CENTER -->
-        <main id="lessonPanel" class="card-surface card-pad lesson">
-          <div class="lesson-header-row">
+        <div class="topbar-right">
+          <div class="userchip">
+            <div class="avatar" id="userAvatar">U</div>
             <div>
-              <h3 id="lessonTitle" class="card-title">Choose a module to get started</h3>
-              <p id="lessonSubtitle" class="card-sub">
-                You’ll see key steps + a scenario so you can apply it on shift.
-              </p>
-            </div>
-            <div id="lessonTag" class="lesson-tag-pill">Overview</div>
-          </div>
-
-          <div id="lessonContent">
-            <p class="card-sub" style="margin-top:0;">
-              Use the learning path to choose where to focus first: food safety, kitchen,
-              front counter, drive-thru, customer recovery.
-            </p>
-          </div>
-        </main>
-
-        <!-- RIGHT -->
-        <aside class="card-surface card-pad progress">
-          <div class="progress-heading">
-            <h3 class="card-title">Module progress</h3>
-            <span id="statusPill" class="status-pill">No module selected</span>
-          </div>
-
-          <div style="margin-top:6px;">
-            <div id="moduleXPInfo" class="card-sub" style="margin:0;">Select a module to see its XP value.</div>
-            <div class="xp-bar-shell-small">
-              <div id="moduleXpFill" class="xp-bar-fill-small"></div>
+              <strong id="topUserName">User</strong>
+              <small id="topUserRole">Crew Member</small>
             </div>
           </div>
-
-          <div style="margin-top:12px;">
-            <strong style="font-size:.82rem;">Checklist</strong>
-            <ul id="checklist" class="checklist" style="margin-top:8px;"></ul>
-          </div>
-
-          <div class="mini-reflection" style="margin-top:14px;">
-            <strong>Quick note</strong>
-            <div class="card-sub" style="margin-top:4px;">
-              What’s one thing you’ll do better next shift?
-            </div>
-            <textarea id="reflectionInput"
-              placeholder="Example: ‘I’ll call out big orders before they’re ready.’"
-              style="width:100%; margin-top:8px; border-radius:14px; border:1px solid var(--border); padding:10px 12px; font-size:.82rem; resize:vertical; min-height:48px;"></textarea>
-          </div>
-
-          <div class="progress-actions" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
-            <button id="completeModuleBtn" class="btn-main" disabled>Mark module as complete</button>
-            <button id="resetModuleBtn" class="btn-ghost" disabled>Reset this module</button>
-          </div>
-        </aside>
-      </section>
-
-      <!-- Tools row -->
-      <section class="tools-grid">
-
-        <!-- Modules explorer -->
-        <section class="card-surface card-pad">
-          <h3 class="card-title">Training Modules</h3>
-          <p class="card-sub">Search and open modules instantly.</p>
-
-          <div class="training-search-row">
-            <input id="trainingSearch" placeholder="Search modules (e.g. grill, hygiene, drive-thru)…" />
-            <button id="trainingSearchBtn" class="btn-ghost" type="button">Search</button>
-          </div>
-
-          <div id="trainingModuleGrid"
-               style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-top:12px;">
-          </div>
-        </section>
-
-        <!-- AI assistant -->
-        <section class="card-surface card-pad">
-          <h3 class="card-title">McAssist – Training Help</h3>
-          <p class="card-sub" id="trainingAiSubtitle">Ask anything or say: “open grill training module”.</p>
-
-          <div id="trainingChat" class="chat-box"></div>
-
-          <form id="trainingAiForm" style="display:flex; gap:8px; margin-top:10px;">
-            <input id="trainingAiInput" placeholder="Type a question…"
-              style="flex:1; padding:10px 12px; border-radius:999px; border:1px solid var(--border); outline:none; font-size:.84rem;" />
-            <button id="trainingAiSend" class="btn-main" type="submit">Send</button>
-          </form>
-
-          <div id="trainingQuickChips" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;"></div>
-        </section>
-
-      </section>
-
-    </div>
-  </div>
-
-  <!-- Overlay -->
-  <div id="moduleOverlay" class="module-overlay">
-    <div class="module-card">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-        <div>
-          <div id="moduleTitle" style="font-weight:900; font-size:1.05rem;">Module</div>
-          <div id="moduleMeta" style="font-size:.82rem; color:var(--muted); margin-top:2px;">—</div>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button id="startQuizBtn" class="btn-ghost" type="button">🧠 Start quiz</button>
-          <button id="closeModuleBtn" class="btn-ghost" type="button" style="background:#111827; color:#fff;">✕ Close</button>
+          <button id="quickQuizBtn" class="btn btn-ghost" type="button">🧠 Quick quiz</button>
         </div>
       </div>
 
-      <div id="moduleBody" style="margin-top:14px;"></div>
-      <div id="quizArea" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:12px;"></div>
+      <!-- Main grid -->
+      <section class="grid">
+
+        <!-- LEFT: Module Library -->
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Module Library</h2>
+              <p>Search modules and open instantly. Use filters to find what you need.</p>
+            </div>
+            <button id="refreshModulesBtn" class="btn btn-ghost" type="button">↻ Refresh</button>
+          </div>
+
+          <div class="panel-body">
+            <div class="searchrow">
+              <input id="moduleSearch" placeholder="Search (e.g. grill, food safety, Big Mac UK, drive-thru)..." />
+              <button id="moduleSearchBtn" class="btn btn-primary" type="button">Search</button>
+            </div>
+
+            <div class="filters" id="filterRow">
+              <!-- chips filled by JS -->
+            </div>
+
+            <div id="moduleGrid" class="moduleGrid">
+              <!-- cards filled by JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT: Player -->
+        <section class="panel">
+          <div class="playerHero">
+            <div>
+              <h2 id="playerTitle">Pick a module to start</h2>
+              <div class="sub" id="playerSubtitle">
+                Open from the library or tell McAssist: <strong>“open grill training module”</strong>.
+              </div>
+            </div>
+            <div class="right">
+              <div class="smallpill" id="playerMeta">—</div>
+              <div class="smallpill" id="playerStatus">No module selected</div>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <button class="tab active" data-tab="lesson" type="button">📘 Lesson</button>
+            <button class="tab" data-tab="checklist" type="button">✅ Checklist</button>
+            <button class="tab" data-tab="quiz" type="button">🧠 Quiz</button>
+            <button class="tab" data-tab="ask" type="button">💬 Ask McAssist</button>
+          </div>
+
+          <div class="stage" id="tabStage">
+            <!-- LESSON -->
+            <div class="tabPanel" data-panel="lesson">
+              <div class="sectionTitle">Key steps</div>
+              <ul class="bullets" id="lessonSteps">
+                <li>Choose a module to load steps.</li>
+              </ul>
+
+              <div class="twocol" style="margin-top:14px;">
+                <div class="box">
+                  <strong>Do</strong>
+                  <ul id="doList"><li>—</li></ul>
+                </div>
+                <div class="box">
+                  <strong>Don’t</strong>
+                  <ul id="dontList"><li>—</li></ul>
+                </div>
+              </div>
+
+              <div class="progressRow">
+                <div class="box">
+                  <strong>Module XP</strong>
+                  <div id="moduleXPInfo">—</div>
+                  <div class="bar"><div id="moduleBarFill"></div></div>
+                </div>
+                <div class="box">
+                  <strong>Reflection</strong>
+                  <textarea id="reflectionInput" placeholder="What will you do better next shift?"></textarea>
+                </div>
+              </div>
+
+              <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px;">
+                <button id="completeModuleBtn" class="btn btn-primary" type="button" disabled>Complete module</button>
+                <button id="resetModuleBtn" class="btn btn-ghost" type="button" disabled>Reset</button>
+              </div>
+            </div>
+
+            <!-- CHECKLIST -->
+            <div class="tabPanel" data-panel="checklist" style="display:none;">
+              <div class="sectionTitle">Checklist</div>
+              <div class="checklist" id="checklist"></div>
+            </div>
+
+            <!-- QUIZ -->
+            <div class="tabPanel" data-panel="quiz" style="display:none;">
+              <div class="sectionTitle">Quiz</div>
+              <div class="qcard" id="quizArea">
+                <div class="qhead">
+                  <span id="quizCounter">Quiz</span>
+                  <span id="quizScore">Score: 0</span>
+                </div>
+                <div class="qtext" id="quizQuestion">Open a module, then start a quiz.</div>
+                <div id="quizOptions"></div>
+                <div class="explain" id="quizExplain"></div>
+                <div style="display:flex; gap:10px; margin-top:12px; justify-content:flex-end;">
+                  <button id="startQuizBtn" class="btn btn-primary" type="button" disabled>Start quiz</button>
+                  <button id="nextQuizBtn" class="btn btn-ghost" type="button" disabled>Next</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ASK -->
+            <div class="tabPanel" data-panel="ask" style="display:none;">
+              <div class="sectionTitle">McAssist</div>
+              <div class="chatBox" id="trainingChat"></div>
+
+              <form class="chatForm" id="trainingAiForm">
+                <input id="trainingAiInput" placeholder="Ask… or say: open fry station module" />
+                <button id="trainingAiSend" class="btn btn-primary" type="submit">Send</button>
+              </form>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;" id="trainingQuickChips"></div>
+            </div>
+
+          </div>
+        </section>
+
+      </section>
+
     </div>
   </div>
 

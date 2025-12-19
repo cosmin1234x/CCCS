@@ -1,15 +1,15 @@
 // ========================================
-// training.js — FULL VERSION (Explorer + AI + Overlay + Quiz + Firestore Progress)
-// FIXED: imports at top (no JS before imports)
-// FIXED: Open button uses event delegation (works after re-render)
-// FIXED: Quiz Next works reliably + optional auto-advance
-// ADDED: Wrapped-style animations (slide/fade, pop, progress bar)
+// training.js — V3 FULL (New UI + Explorer + AI + Overlay + Quiz + Firestore)
+// ✅ Open button works (event delegation)
+// ✅ Quiz Next works (locks after answer + enables Next)
+// ✅ Smooth UI updates
+//
 // Firestore:
-//  users/{uid}
-//    - trainingXP (number)
-//    - trainingLevel (number)
-//    - trainingProgress (map)
-//        trainingProgress[moduleId] = { completed: boolean, completedAt, reflection, xpEarned }
+// users/{uid}
+//   - trainingXP (number)
+//   - trainingLevel (number)
+//   - trainingProgress (map)
+//       trainingProgress[moduleId] = { completed, completedAt, reflection, xpEarned }
 // ========================================
 
 import { auth, db } from "./firebase-init.js";
@@ -24,59 +24,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* =========================
-   STYLE INJECTION (animations)
-========================= */
-(function injectTrainingStyles() {
-  if (document.getElementById("trainingAnimStyles")) return;
-  const style = document.createElement("style");
-  style.id = "trainingAnimStyles";
-  style.textContent = `
-    .anim-fade-in{ animation: fadeIn .18s ease-out both; }
-    .anim-pop{ animation: pop .16s ease-out both; }
-    .anim-slide-in{ animation: slideIn .18s ease-out both; }
-    .anim-shake{ animation: shake .18s ease-out both; }
-    .anim-glow{ box-shadow: 0 0 0 3px rgba(250,204,21,.35); }
-
-    @keyframes fadeIn { from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)} }
-    @keyframes pop { 0%{transform:scale(.97)} 100%{transform:scale(1)} }
-    @keyframes slideIn { from{opacity:0; transform:translateX(10px)} to{opacity:1; transform:translateX(0)} }
-    @keyframes shake { 0%{transform:translateX(0)} 35%{transform:translateX(-4px)} 70%{transform:translateX(4px)} 100%{transform:translateX(0)} }
-
-    .quiz-shell{
-      margin-top: 10px;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: 12px;
-      background: #ffffff;
-    }
-    .quiz-topbar{
-      display:flex; justify-content:space-between; align-items:center; gap:10px;
-    }
-    .quiz-progress-shell{
-      width:100%; height:7px; border-radius:999px; background:#e5e7eb; overflow:hidden;
-      margin-top:10px;
-    }
-    .quiz-progress-fill{
-      height:100%; width:0%;
-      border-radius: inherit;
-      background: linear-gradient(90deg,#22c55e,#facc15,#d9091c);
-      transition: width .25s ease;
-    }
-
-    .quiz-opt{
-      transition: transform .08s ease, box-shadow .08s ease, background .12s ease, border-color .12s ease;
-      text-align:left;
-    }
-    .quiz-opt:hover{ transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,23,42,.12); }
-
-    .btn-main[disabled]{ pointer-events:none; }
-  `;
-  document.head.appendChild(style);
-})();
-
-/* =========================
    DOM
 ========================= */
+
 // sidebar
 const sidebarUserName = document.getElementById("sidebarUserName");
 const sidebarUserRole = document.getElementById("sidebarUserRole");
@@ -88,14 +38,15 @@ const sidebarToggle = document.getElementById("sidebarToggle");
 const headerLevel = document.getElementById("headerLevel");
 const headerXP = document.getElementById("headerXP");
 
-// path + lesson panel
+// path + lesson
 const pathList = document.getElementById("pathList");
+const lessonPanel = document.getElementById("lessonPanel");
 const lessonTitle = document.getElementById("lessonTitle");
 const lessonSubtitle = document.getElementById("lessonSubtitle");
 const lessonTag = document.getElementById("lessonTag");
 const lessonContent = document.getElementById("lessonContent");
 
-// progress panel
+// progress
 const statusPill = document.getElementById("statusPill");
 const moduleXPInfo = document.getElementById("moduleXPInfo");
 const moduleXpFill = document.getElementById("moduleXpFill");
@@ -104,10 +55,7 @@ const reflectionInput = document.getElementById("reflectionInput");
 const completeModuleBtn = document.getElementById("completeModuleBtn");
 const resetModuleBtn = document.getElementById("resetModuleBtn");
 
-// toast
-const toastEl = document.getElementById("toast");
-
-// module explorer
+// explorer
 const trainingSearch = document.getElementById("trainingSearch");
 const trainingSearchBtn = document.getElementById("trainingSearchBtn");
 const trainingModuleGrid = document.getElementById("trainingModuleGrid");
@@ -119,7 +67,7 @@ const trainingAiInput = document.getElementById("trainingAiInput");
 const trainingAiSend = document.getElementById("trainingAiSend");
 const trainingQuickChips = document.getElementById("trainingQuickChips");
 
-// overlay
+// overlay + quiz
 const moduleOverlay = document.getElementById("moduleOverlay");
 const moduleTitle = document.getElementById("moduleTitle");
 const moduleMeta = document.getElementById("moduleMeta");
@@ -128,25 +76,31 @@ const closeModuleBtn = document.getElementById("closeModuleBtn");
 const startQuizBtn = document.getElementById("startQuizBtn");
 const quizArea = document.getElementById("quizArea");
 
+// toast
+const toastEl = document.getElementById("toast");
+
 /* =========================
    STATE
 ========================= */
+
 let sessionUser = null;
 let selectedModuleId = null;
 let userDocCache = null;
 let unsubUser = null;
 
-// quiz state
-let activeQuiz = null; // { moduleId, questions, index, score, answered:boolean }
+// quiz
+let activeQuiz = null; // { moduleId, questions: [{q, options, answer, explain}], index, score }
 let quizLocked = false;
 
-// UX settings
-const QUIZ_AUTO_ADVANCE = false; // set true if you want next question automatically
-const QUIZ_AUTO_ADVANCE_MS = 650;
+// one-time binds
+let pathBound = false;
+let gridBound = false;
 
 /* =========================
-   MODULE LIBRARY (UK-focused, adjust to your store build cards)
+   MODULE LIBRARY (UK-focused)
+   Edit freely to match your store build cards.
 ========================= */
+
 const MODULES = [
   {
     id: "food_safety_basics",
@@ -160,15 +114,18 @@ const MODULES = [
     steps: [
       "Wash hands properly: warm water + soap, scrub all areas, dry fully.",
       "Avoid cross-contamination: separate raw vs ready-to-eat items and tools.",
-      "Follow time/temp rules for holding, chilling, reheating (use store logs).",
+      "Follow time/temp rules for holding, chilling, and reheating (use store equipment + logs).",
       "Clean-as-you-go: sanitise surfaces and tools using approved solution.",
-      "Allergens: follow your store allergen process every time."
+      "Allergens: treat requests seriously, avoid contact, and follow store allergen process."
     ],
     doDont: {
       do: ["Change gloves between tasks", "Use separate tools for raw/cooked", "Use sanitiser correctly"],
       dont: ["Store raw above cooked", "Ignore allergen requests", "Reuse dirty cloths without sanitiser"]
     },
-    scenario: { title: "Rush spill", text: "Raw product leaks in the fridge. What do you do immediately, and what do you check after cleaning?" },
+    scenario: {
+      title: "Rush spill",
+      text: "Raw product leaks in the fridge. What do you do immediately, and what do you check after cleaning?"
+    },
     checklist: [
       "I know the handwash steps",
       "I can explain cross-contamination",
@@ -176,8 +133,18 @@ const MODULES = [
       "I understand allergen prevention basics"
     ],
     quiz: [
-      { q: "Best way to prevent cross-contamination?", options: ["Use same tools for speed", "Separate raw/ready-to-eat items + tools", "Only wipe at end of shift"], answer: 1, explain: "Separation stops bacteria/allergens spreading." },
-      { q: "When should you change gloves?", options: ["Only if ripped", "Between different tasks/foods", "Once per hour"], answer: 1, explain: "Change between tasks to avoid transferring bacteria/allergens." }
+      {
+        q: "What’s the best way to prevent cross-contamination?",
+        options: ["Use the same tools for speed", "Separate raw and ready-to-eat items + tools", "Only wipe surfaces at end of shift"],
+        answer: 1,
+        explain: "Separation prevents bacteria/allergens spreading."
+      },
+      {
+        q: "When should you change gloves?",
+        options: ["Only if ripped", "Between different tasks/foods", "Once per hour"],
+        answer: 1,
+        explain: "Change gloves between tasks to stop transferring bacteria/allergens."
+      }
     ]
   },
 
@@ -188,7 +155,7 @@ const MODULES = [
     level: 1,
     xp: 55,
     durationMins: 10,
-    keywords: ["grill", "meat", "burger", "cook", "timers", "clamshell", "uk"],
+    keywords: ["grill", "meat", "burger", "cook", "timers", "clamshell", "seasoning", "uk"],
     summary: "Cook safely, use timers, and keep quality consistent during rush.",
     steps: [
       "Pre-shift: confirm grill is ready, tools are clean, timers are working.",
@@ -201,11 +168,29 @@ const MODULES = [
       do: ["Use timers every cook", "Call out product levels", "Rotate held product"],
       dont: ["Guess cook time", "Mix old/new without rotation", "Ignore holding rules"]
     },
-    scenario: { title: "Quality drop", text: "Burgers are coming out dry. What’s the quickest change to make during rush?" },
-    checklist: ["I know the pre-shift setup steps", "I use timers every cook", "I can explain holding/rotation", "I keep raw/cooked tools separated"],
+    scenario: {
+      title: "Quality drop",
+      text: "Burgers are coming out dry. What’s the quickest change to make during rush?"
+    },
+    checklist: [
+      "I know the pre-shift setup steps",
+      "I use timers every cook",
+      "I can explain holding/rotation",
+      "I keep raw/cooked tools separated"
+    ],
     quiz: [
-      { q: "What habit prevents over/under cooking best?", options: ["Cook by eye", "Use timers consistently", "Flip early"], answer: 1, explain: "Timers remove guessing and keep results consistent." },
-      { q: "Why is rotation important in holding?", options: ["It looks nicer", "It reduces risk of serving old product", "It speeds up cooking"], answer: 1, explain: "Rotation helps keep product within quality window." }
+      {
+        q: "What habit prevents over/under cooking best?",
+        options: ["Cook by eye", "Use timers consistently", "Flip early"],
+        answer: 1,
+        explain: "Timers remove guessing and keep results consistent."
+      },
+      {
+        q: "Why is rotation important in holding?",
+        options: ["It looks nicer", "It reduces risk of serving old product", "It speeds up cooking"],
+        answer: 1,
+        explain: "Rotation helps ensure product served is within holding quality window."
+      }
     ]
   },
 
@@ -220,13 +205,21 @@ const MODULES = [
     summary: "Crisp fries, safe oil handling, and fast rhythm without burns.",
     steps: [
       "Check fryer is operating normally and baskets are safe to use.",
-      "Use correct basket fill guideline to prevent soggy fries.",
+      "Use the correct basket fill guideline to prevent soggy fries.",
       "Use the timer for every drop; shake as per store practice.",
       "Season consistently (if your store uses salting station).",
       "Hold correctly, rotate, and keep the station tidy."
     ],
-    doDont: { do: ["Use timer every drop", "Keep area dry to prevent slips", "Rotate fries properly"], dont: ["Overfill baskets", "Rush and splash oil", "Serve fries out of quality window"] },
-    checklist: ["I follow fill guidelines", "I use timers for every drop", "I understand fry holding/rotation", "I work safely around hot oil"]
+    doDont: {
+      do: ["Use timer every drop", "Keep area dry to prevent slips", "Rotate fries properly"],
+      dont: ["Overfill baskets", "Rush and splash oil", "Serve fries that are out of quality window"]
+    },
+    checklist: [
+      "I follow fill guidelines",
+      "I use timers for every drop",
+      "I understand basic fry holding/rotation",
+      "I work safely around hot oil"
+    ]
   },
 
   {
@@ -236,20 +229,69 @@ const MODULES = [
     level: 2,
     xp: 70,
     durationMins: 10,
-    keywords: ["big mac", "build", "uk", "assemble", "sandwich"],
+    keywords: ["big mac", "build", "uk", "assemble", "sandwich", "kitchen"],
     summary: "Build a Big Mac cleanly and consistently using your store’s build card order.",
     steps: [
       "Prep area: clean gloves/hands, correct packaging ready.",
       "Use the correct bun set (top/middle/bottom) and toast per store process.",
-      "Apply correct sauce/condiments amounts (follow build card).",
-      "Add salad/pickles in correct order for even coverage.",
-      "Add patties using correct tools; keep build neat and stable.",
+      "Apply the correct sauce/condiments amounts (follow your store build card).",
+      "Add salad/pickles in the correct order for even coverage.",
+      "Add patties using correct tools; keep the build neat and stable.",
       "Close, wrap/box, and present with label if required."
     ],
-    doDont: { do: ["Follow build card order", "Keep ingredients centered", "Wipe spills immediately"], dont: ["Guess sauce amounts", "Over-stack and crush build", "Cross-contaminate tools"] },
-    scenario: { title: "Messy build", text: "Big Macs are sliding/tilting in the box during rush. What do you change first?" },
-    checklist: ["I can name the bun pieces used", "I follow consistent build order", "I keep build neat/centered", "I close and package correctly"],
-    quiz: [{ q: "What matters most for build consistency?", options: ["Speed only", "Build card order + portions", "Always add extra sauce"], answer: 1, explain: "Order + correct portions = consistent builds." }]
+    doDont: {
+      do: ["Follow the build card order", "Keep ingredients centered", "Wipe spills immediately"],
+      dont: ["Guess sauce amounts", "Over-stack and crush the build", "Cross-contaminate tools"]
+    },
+    scenario: {
+      title: "Messy build",
+      text: "Big Macs are sliding/tilting in the box during rush. What do you change first?"
+    },
+    checklist: [
+      "I can name the bun pieces used",
+      "I follow a consistent build order",
+      "I keep the build neat/centered",
+      "I close and package correctly"
+    ],
+    quiz: [
+      {
+        q: "What matters most for consistent builds?",
+        options: ["Going fast only", "Following the build card order + portions", "Adding extra sauce automatically"],
+        answer: 1,
+        explain: "Order + correct portions = consistent results."
+      }
+    ]
+  },
+
+  {
+    id: "uk_fries_holding",
+    title: "Fries – Holding, Rotation & Presentation (UK training)",
+    tag: "Kitchen",
+    level: 2,
+    xp: 60,
+    durationMins: 9,
+    keywords: ["fries", "holding", "rotation", "presentation", "uk", "quality"],
+    summary: "Keep fries within quality window, rotate properly, and present cleanly.",
+    steps: [
+      "Hold fries in the correct area and avoid mixing old/new product.",
+      "Rotate using first-in-first-out and discard when out of quality window.",
+      "Keep the scoop/utensils clean and use correct portions for boxes/bags.",
+      "Avoid overfilling and keep packaging clean for presentation.",
+      "Communicate levels to prevent running out mid-rush."
+    ],
+    checklist: [
+      "I rotate fries properly",
+      "I don’t mix old and new",
+      "I serve clean portions and tidy packaging"
+    ],
+    quiz: [
+      {
+        q: "What’s the biggest quality mistake with fries?",
+        options: ["Serving quickly", "Mixing old fries with new", "Using a scoop"],
+        answer: 1,
+        explain: "Mixing old and new makes rotation impossible and hurts quality."
+      }
+    ]
   },
 
   {
@@ -262,13 +304,18 @@ const MODULES = [
     keywords: ["front counter", "greeting", "order", "accuracy", "customer", "uk"],
     summary: "Friendly greeting, correct orders, calm under pressure.",
     steps: [
-      "Greet quickly and clearly; keep a friendly tone.",
-      "Repeat the order back to confirm accuracy.",
+      "Greet quickly and clearly; keep friendly tone.",
+      "Repeat order back to confirm accuracy.",
       "Clarify customisations (no pickles, extra sauce, etc.).",
       "Handle payment smoothly and follow receipt guidance.",
-      "Thank the customer and direct them clearly."
+      "Thank the customer and direct them clearly (collection point/table service)."
     ],
-    checklist: ["I greet quickly", "I repeat orders back", "I clarify custom items", "I stay calm during rush"]
+    checklist: [
+      "I greet quickly",
+      "I repeat orders back",
+      "I clarify custom items",
+      "I stay calm during rush"
+    ]
   },
 
   {
@@ -282,12 +329,17 @@ const MODULES = [
     summary: "Clear communication and fast workflow without mistakes.",
     steps: [
       "Speak clearly on headset and confirm key items/drinks.",
-      "Keep calm pace; accuracy beats remakes.",
-      "Use 'park' when needed per store process/manager guidance.",
-      "Prep napkins/condiments while payment happens.",
-      "Hand-off with final confirmation."
+      "Use a calm pace; accuracy beats redoing orders.",
+      "Use 'park' when needed based on your store’s process and manager guidance.",
+      "Prep condiments/napkins while payment happens.",
+      "Hand-off with a final confirmation: “That’s your …”"
     ],
-    checklist: ["I speak clearly on headset", "I repeat order back", "I know when to park", "I confirm at hand-off"]
+    checklist: [
+      "I speak clearly on headset",
+      "I repeat order back",
+      "I understand when to park",
+      "I confirm at hand-off"
+    ]
   },
 
   {
@@ -304,28 +356,43 @@ const MODULES = [
       "Apologise and acknowledge the issue.",
       "Offer the correct fix (replace/remake/manager support).",
       "Thank them for telling you.",
-      "Share learning with the team to prevent repeats."
+      "Share the learning with the team to prevent repeats."
     ],
-    checklist: ["I stay calm with complaints", "I know the apology + fix flow", "I can get help quickly", "I share learnings with team"]
+    checklist: [
+      "I stay calm with complaints",
+      "I know the apology + fix flow",
+      "I can get help quickly",
+      "I share learnings with team"
+    ]
   }
 ];
 
 /* =========================
    HELPERS
 ========================= */
-function showToast(msg) {
-  if (!toastEl) return;
-  toastEl.textContent = msg;
-  toastEl.classList.add("show");
-  setTimeout(() => toastEl.classList.remove("show"), 2200);
+
+function normalize(s) {
+  return String(s || "").toLowerCase().trim();
 }
 
 function safeText(x, fallback = "") {
   return typeof x === "string" ? x : fallback;
 }
 
-function normalize(s) {
-  return String(s || "").toLowerCase().trim();
+function escapeHTML(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function showToast(msg) {
+  if (!toastEl) return;
+  toastEl.textContent = String(msg || "");
+  toastEl.classList.add("show");
+  setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
 
 function calcLevelFromXP(xp) {
@@ -368,41 +435,41 @@ function findBestModuleByText(text) {
 
     if (normalize(m.title).includes(q)) score += 8;
     return { m, score };
-  }).sort((a,b) => b.score - a.score);
+  }).sort((a, b) => b.score - a.score);
 
   if (!scored.length || scored[0].score <= 0) return null;
   return scored[0].m;
 }
 
 function buildModuleHTML(m) {
-  const steps = (m.steps || []).map(s => `<li>${s}</li>`).join("");
-  const doList = (m.doDont?.do || []).map(s => `<li>${s}</li>`).join("");
-  const dontList = (m.doDont?.dont || []).map(s => `<li>${s}</li>`).join("");
+  const steps = (m.steps || []).map(s => `<li>${escapeHTML(s)}</li>`).join("");
+  const doList = (m.doDont?.do || []).map(s => `<li>${escapeHTML(s)}</li>`).join("");
+  const dontList = (m.doDont?.dont || []).map(s => `<li>${escapeHTML(s)}</li>`).join("");
 
   const scenario = m.scenario
-    ? `<div class="lesson-scenario anim-fade-in"><strong>${safeText(m.scenario.title)}</strong>${safeText(m.scenario.text)}</div>`
+    ? `<div class="lesson-scenario"><strong>${escapeHTML(safeText(m.scenario.title))}</strong><div>${escapeHTML(safeText(m.scenario.text))}</div></div>`
     : "";
 
   const highlight = m.summary
-    ? `<div class="lesson-highlight anim-fade-in"><strong>Focus:</strong> ${safeText(m.summary)}</div>`
+    ? `<div class="lesson-highlight"><strong>Focus:</strong> ${escapeHTML(safeText(m.summary))}</div>`
     : "";
 
   return `
-    <div class="lesson-section anim-fade-in">
+    <div class="lesson-section">
       <h4>Key steps</h4>
       <ul>${steps || "<li>No steps added yet.</li>"}</ul>
     </div>
 
-    <div class="lesson-section anim-fade-in">
+    <div class="lesson-section">
       <h4>Do / Don’t</h4>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-        <div style="background:#ecfdf5; border:1px solid #bbf7d0; padding:10px; border-radius:12px;">
-          <strong style="font-size:0.8rem; color:#166534;">Do</strong>
-          <ul style="margin-top:6px;">${doList || "<li>—</li>"}</ul>
+        <div style="background:#ecfdf5; border:1px solid #bbf7d0; padding:10px; border-radius:14px;">
+          <strong style="font-size:.84rem; color:#166534;">Do</strong>
+          <ul style="margin-top:8px;">${doList || "<li>—</li>"}</ul>
         </div>
-        <div style="background:#fef2f2; border:1px solid #fecaca; padding:10px; border-radius:12px;">
-          <strong style="font-size:0.8rem; color:#991b1b;">Don’t</strong>
-          <ul style="margin-top:6px;">${dontList || "<li>—</li>"}</ul>
+        <div style="background:#fef2f2; border:1px solid #fecaca; padding:10px; border-radius:14px;">
+          <strong style="font-size:.84rem; color:#991b1b;">Don’t</strong>
+          <ul style="margin-top:8px;">${dontList || "<li>—</li>"}</ul>
         </div>
       </div>
     </div>
@@ -420,7 +487,7 @@ function buildChecklist(m) {
     ? items.map((t, idx) => `
         <li class="check-item">
           <input type="checkbox" id="chk_${idx}" />
-          <span>${t}</span>
+          <span>${escapeHTML(t)}</span>
         </li>
       `).join("")
     : `<li class="check-item"><span>No checklist items yet.</span></li>`;
@@ -429,9 +496,13 @@ function buildChecklist(m) {
 /* =========================
    AUTH + USER DOC
 ========================= */
+
 function loadSessionUser() {
-  try { return JSON.parse(localStorage.getItem("mc_session_user")); }
-  catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem("mc_session_user"));
+  } catch {
+    return null;
+  }
 }
 
 function saveSessionUser(u) {
@@ -450,6 +521,7 @@ async function ensureUserDoc(firebaseUser) {
     role: cached.role || "crew",
     storeId: cached.storeId || "store001",
     createdAt: serverTimestamp(),
+
     trainingXP: 0,
     trainingLevel: 1,
     trainingProgress: {}
@@ -477,9 +549,7 @@ function startRealtime(uid) {
     if (headerLevel) headerLevel.textContent = String(lvl);
 
     const computed = calcLevelFromXP(xp);
-    if (computed !== lvl) {
-      updateDoc(doc(db, "users", uid), { trainingLevel: computed }).catch(() => {});
-    }
+    if (computed !== lvl) updateDoc(doc(db, "users", uid), { trainingLevel: computed }).catch(() => {});
 
     renderPathRail();
     renderModuleGrid(trainingSearch?.value || "");
@@ -488,40 +558,9 @@ function startRealtime(uid) {
 }
 
 /* =========================
-   PROGRESS PANEL
+   RENDER: PATH / LESSON / PROGRESS
 ========================= */
-function refreshProgressPanel() {
-  const m = selectedModuleId ? MODULES.find(x => x.id === selectedModuleId) : null;
 
-  if (!m) {
-    if (statusPill) statusPill.textContent = "No module selected";
-    if (moduleXPInfo) moduleXPInfo.textContent = "Select a module to see its XP value.";
-    if (moduleXpFill) moduleXpFill.style.width = "0%";
-    if (completeModuleBtn) completeModuleBtn.disabled = true;
-    if (resetModuleBtn) resetModuleBtn.disabled = true;
-    return;
-  }
-
-  const completed = isCompleted(m.id);
-
-  if (statusPill) {
-    statusPill.textContent = completed ? "Completed" : "In progress";
-    statusPill.classList.toggle("completed", completed);
-  }
-
-  if (moduleXPInfo) moduleXPInfo.textContent = `${m.xp || 0} XP • ~${m.durationMins || 8} min • ${m.tag || "Module"}`;
-  if (moduleXpFill) moduleXpFill.style.width = completed ? "100%" : "35%";
-
-  if (completeModuleBtn) completeModuleBtn.disabled = completed;
-  if (resetModuleBtn) resetModuleBtn.disabled = !completed;
-
-  const prog = getProgressMap()[m.id];
-  if (reflectionInput) reflectionInput.value = prog?.reflection || "";
-}
-
-/* =========================
-   RENDER: PATH + LESSON
-========================= */
 function renderPathRail() {
   if (!pathList) return;
 
@@ -540,20 +579,33 @@ function renderPathRail() {
     return `
       <li class="path-item ${completed ? "completed" : ""} ${active ? "active" : ""}" data-id="${m.id}">
         <div class="path-step">${completed ? "✓" : (idx + 1)}</div>
-        <div class="path-text">
+        <div style="flex:1;">
           <div class="path-title-row">
-            <span>${m.title}</span>
-            <span class="path-tag">${m.tag}</span>
+            <span class="path-title">${escapeHTML(m.title)}</span>
+            <span class="path-tag">${escapeHTML(m.tag || "Module")}</span>
           </div>
-          <div class="path-meta">${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}</div>
+          <div class="path-meta">${Number(m.xp) || 0} XP • ~${Number(m.durationMins) || 8} min • Level ${Number(m.level) || 1}</div>
         </div>
       </li>
     `;
   }).join("");
 
-  pathList.querySelectorAll(".path-item").forEach((li) => {
-    li.addEventListener("click", () => openModuleInLesson(li.dataset.id));
+  bindPathClicks();
+}
+
+function bindPathClicks() {
+  if (!pathList || pathBound) return;
+
+  // event delegation
+  pathList.addEventListener("click", (e) => {
+    const item = e.target.closest(".path-item");
+    if (!item) return;
+    const id = item.dataset.id;
+    if (!id) return;
+    openModuleInLesson(id);
   });
+
+  pathBound = true;
 }
 
 function openModuleInLesson(moduleId) {
@@ -567,35 +619,63 @@ function openModuleInLesson(moduleId) {
   if (lessonTag) lessonTag.textContent = m.tag || "Module";
 
   if (lessonContent) {
-    lessonContent.innerHTML = buildModuleHTML(m);
-    lessonContent.classList.remove("anim-fade-in");
+    // re-trigger small animation class
+    lessonContent.classList.remove("lessonContentFade");
+    // force reflow
     void lessonContent.offsetWidth;
-    lessonContent.classList.add("anim-fade-in");
+    lessonContent.classList.add("lessonContentFade");
+
+    lessonContent.innerHTML = buildModuleHTML(m);
   }
 
   buildChecklist(m);
   refreshProgressPanel();
   renderPathRail();
+
+  // small UX: keep lesson in view on mobile
+  if (window.matchMedia("(max-width: 1100px)").matches) {
+    lessonPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function refreshProgressPanel() {
+  const m = selectedModuleId ? MODULES.find(x => x.id === selectedModuleId) : null;
+
+  if (!m) {
+    if (statusPill) statusPill.textContent = "No module selected";
+    if (statusPill) statusPill.classList.remove("completed");
+    if (moduleXPInfo) moduleXPInfo.textContent = "Select a module to see its XP value.";
+    if (moduleXpFill) moduleXpFill.style.width = "0%";
+    if (completeModuleBtn) completeModuleBtn.disabled = true;
+    if (resetModuleBtn) resetModuleBtn.disabled = true;
+    return;
+  }
+
+  const completed = isCompleted(m.id);
+
+  if (statusPill) {
+    statusPill.textContent = completed ? "Completed" : "In progress";
+    statusPill.classList.toggle("completed", completed);
+  }
+
+  if (moduleXPInfo) {
+    moduleXPInfo.textContent = `${Number(m.xp) || 0} XP • ~${Number(m.durationMins) || 8} min • ${m.tag || "Module"}`;
+  }
+
+  if (moduleXpFill) {
+    moduleXpFill.style.width = completed ? "100%" : "35%";
+  }
+
+  if (completeModuleBtn) completeModuleBtn.disabled = !!completed;
+  if (resetModuleBtn) resetModuleBtn.disabled = !completed;
+
+  const prog = getProgressMap()[m.id];
+  if (reflectionInput) reflectionInput.value = prog?.reflection || "";
 }
 
 /* =========================
-   MODULE GRID (Explorer)
+   MODULE EXPLORER (Open button fix)
 ========================= */
-let moduleGridDelegationBound = false;
-
-function bindModuleGridClicks() {
-  if (!trainingModuleGrid || moduleGridDelegationBound) return;
-
-  trainingModuleGrid.addEventListener("click", (e) => {
-    const btn = e.target.closest(".open-module-btn");
-    if (!btn) return;
-    const id = btn.dataset.id;
-    if (!id) return;
-    openModuleOverlay(id);
-  });
-
-  moduleGridDelegationBound = true;
-}
 
 function renderModuleGrid(filterText = "") {
   if (!trainingModuleGrid) return;
@@ -612,53 +692,62 @@ function renderModuleGrid(filterText = "") {
     ? list.map(m => {
         const completed = isCompleted(m.id);
         return `
-          <div class="card anim-fade-in" style="padding:12px; border-radius:16px; border:1px solid #e5e7eb;">
-            <div style="display:flex; justify-content:space-between; gap:8px;">
-              <div>
-                <div style="font-weight:900; font-size:0.9rem;">${m.title}</div>
-                <div style="font-size:0.78rem; color:#6b7280; margin-top:2px;">
-                  ${m.tag} • ${m.xp} XP • L${m.level || 1}
-                </div>
+          <div class="module-card-mini">
+            <div class="module-mini-top">
+              <div style="min-width:0;">
+                <h4 class="module-mini-title">${escapeHTML(m.title)}</h4>
+                <div class="module-mini-meta">${escapeHTML(m.tag || "Module")} • ${Number(m.xp) || 0} XP • L${Number(m.level) || 1}</div>
               </div>
-              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+              <div class="mini-actions">
                 <span class="status-pill ${completed ? "completed" : ""}" style="white-space:nowrap;">
                   ${completed ? "Completed" : "Open"}
                 </span>
-                <button class="btn-ghost open-module-btn anim-pop" data-id="${m.id}" type="button">Open</button>
+                <button class="btn-ghost open-module-btn" data-id="${m.id}" type="button">Open</button>
               </div>
             </div>
-            <div style="margin-top:8px; font-size:0.78rem; color:#374151;">
-              ${safeText(m.summary, "")}
-            </div>
+            <div class="module-mini-desc">${escapeHTML(safeText(m.summary, ""))}</div>
           </div>
         `;
       }).join("")
-    : `<div style="font-size:0.82rem; color:#6b7280;">No modules match that search.</div>`;
+    : `<div class="muted">No modules match that search.</div>`;
+
+  bindModuleGridClicks();
+}
+
+function bindModuleGridClicks() {
+  if (!trainingModuleGrid || gridBound) return;
+
+  // event delegation (survives re-render)
+  trainingModuleGrid.addEventListener("click", (e) => {
+    const btn = e.target.closest(".open-module-btn");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    openModuleOverlay(id);
+  });
+
+  gridBound = true;
 }
 
 /* =========================
-   MODULE OVERLAY + QUIZ
+   OVERLAY
 ========================= */
+
 function openModuleOverlay(moduleId) {
   const m = MODULES.find(x => x.id === moduleId);
   if (!m) return;
 
+  // sync lesson view too
   openModuleInLesson(moduleId);
 
   if (!moduleOverlay) {
-    showToast("Opened module in lesson view ✅");
-    document.getElementById("lessonPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    showToast("Opened module ✅");
     return;
   }
 
   if (moduleTitle) moduleTitle.textContent = m.title;
-  if (moduleMeta) moduleMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
-  if (moduleBody) {
-    moduleBody.innerHTML = buildModuleHTML(m);
-    moduleBody.classList.remove("anim-slide-in");
-    void moduleBody.offsetWidth;
-    moduleBody.classList.add("anim-slide-in");
-  }
+  if (moduleMeta) moduleMeta.textContent = `${m.tag || "Module"} • ${Number(m.xp) || 0} XP • ~${Number(m.durationMins) || 8} min • Level ${Number(m.level) || 1}`;
+  if (moduleBody) moduleBody.innerHTML = buildModuleHTML(m);
 
   hideQuiz();
   moduleOverlay.classList.add("show");
@@ -678,16 +767,21 @@ function hideQuiz() {
   }
 }
 
+/* =========================
+   QUIZ
+========================= */
+
 function buildQuizFromModule(m) {
   const base = Array.isArray(m.quiz) ? m.quiz : [];
 
   if (!base.length) {
     const items = [...(m.steps || []), ...(m.checklist || [])].filter(Boolean);
-    const pick = items.slice(0, 8);
-    const generated = pick.slice(0, 5).map((t, idx) => {
-      const correct = t;
-      const wrong1 = items[(idx + 2) % items.length] || "Do nothing";
-      const wrong2 = items[(idx + 3) % items.length] || "Skip the timer";
+    const pool = items.length ? items : ["Follow the module steps"];
+
+    const generated = Array.from({ length: Math.min(5, pool.length) }).slice(0, 3).map((_, idx) => {
+      const correct = pool[idx % pool.length];
+      const wrong1 = pool[(idx + 1) % pool.length] || "Skip the timer";
+      const wrong2 = pool[(idx + 2) % pool.length] || "Do nothing";
       const options = [correct, wrong1, wrong2].sort(() => Math.random() - 0.5);
       return {
         q: `Which is a correct step for: ${m.title}?`,
@@ -696,34 +790,25 @@ function buildQuizFromModule(m) {
         explain: "This comes directly from the module’s key steps."
       };
     });
+
     return generated;
   }
 
-  const shuffled = [...base].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.min(6, shuffled.length));
-}
-
-function quizProgressPct() {
-  if (!activeQuiz) return 0;
-  const total = activeQuiz.questions.length || 1;
-  const idx = Math.min(activeQuiz.index, total);
-  return Math.round((idx / total) * 100);
+  return [...base].sort(() => Math.random() - 0.5).slice(0, Math.min(5, base.length));
 }
 
 function startQuizForModule(moduleId) {
   const m = MODULES.find(x => x.id === moduleId);
   if (!m || !quizArea) return;
 
-  const questions = buildQuizFromModule(m);
-
   activeQuiz = {
     moduleId: m.id,
-    questions,
+    questions: buildQuizFromModule(m),
     index: 0,
-    score: 0,
-    answered: false
+    score: 0
   };
 
+  quizLocked = false;
   quizArea.style.display = "block";
   renderQuizQuestion();
 }
@@ -733,154 +818,107 @@ function renderQuizQuestion() {
 
   const qObj = activeQuiz.questions[activeQuiz.index];
 
-  // Finished state
+  // finished
   if (!qObj) {
     quizArea.innerHTML = `
-      <div class="quiz-shell anim-fade-in">
-        <div style="font-weight:900; font-size:0.98rem;">Quiz complete ✅</div>
-        <div style="margin-top:6px; font-size:0.82rem; color:#374151;">
-          Score: <strong>${activeQuiz.score}/${activeQuiz.questions.length}</strong>
-        </div>
-        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-          <button id="quizCloseBtn" class="btn-ghost" type="button">Close</button>
-          <button id="quizRetryBtn" class="btn-main" type="button">Retry</button>
-        </div>
+      <div style="font-weight:950; font-size:0.98rem;">Quiz complete ✅</div>
+      <div style="margin-top:8px; font-size:0.86rem; color:#374151;">
+        Score: <strong>${activeQuiz.score}/${activeQuiz.questions.length}</strong>
+      </div>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="quizCloseBtn" class="btn-ghost" type="button">Close quiz</button>
+        <button id="quizRetryBtn" class="btn-main" type="button">Retry quiz</button>
       </div>
     `;
 
     document.getElementById("quizCloseBtn")?.addEventListener("click", hideQuiz);
-    document.getElementById("quizRetryBtn")?.addEventListener("click", () => startQuizForModule(activeQuiz.moduleId));
+    document.getElementById("quizRetryBtn")?.addEventListener("click", () => {
+      const mid = activeQuiz?.moduleId;
+      if (mid) startQuizForModule(mid);
+    });
     return;
   }
 
-  const total = activeQuiz.questions.length;
-  const current = activeQuiz.index + 1;
+  quizLocked = false;
 
-  const opts = (qObj.options || []).map((t, idx) => `
-    <button class="btn-ghost quiz-opt anim-pop" data-idx="${idx}" type="button" style="justify-content:flex-start; width:100%;">
-      <strong style="margin-right:6px;">${String.fromCharCode(65 + idx)}.</strong> ${t}
+  const optionsHTML = (qObj.options || []).map((opt, idx) => `
+    <button class="btn-ghost quiz-opt" data-idx="${idx}" type="button" style="justify-content:flex-start; width:100%;">
+      ${String.fromCharCode(65 + idx)}. ${escapeHTML(opt)}
     </button>
   `).join("");
 
   quizArea.innerHTML = `
-    <div class="quiz-shell anim-slide-in">
-      <div class="quiz-topbar">
-        <div style="font-weight:900; font-size:0.92rem;">Quiz: ${current}/${total}</div>
-        <div style="font-size:0.8rem; color:#6b7280;">Score: <strong>${activeQuiz.score}</strong></div>
-      </div>
+    <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+      <div style="font-weight:950; font-size:0.92rem;">Quiz ${activeQuiz.index + 1}/${activeQuiz.questions.length}</div>
+      <div style="font-size:0.82rem; color:#6b7280;">Score: ${activeQuiz.score}</div>
+    </div>
 
-      <div class="quiz-progress-shell">
-        <div id="quizProgressFill" class="quiz-progress-fill"></div>
-      </div>
+    <div style="margin-top:10px; font-size:0.9rem; color:#111827; font-weight:950;">
+      ${escapeHTML(qObj.q)}
+    </div>
 
-      <div style="margin-top:12px; font-size:0.9rem; color:#111827; font-weight:900;">
-        ${qObj.q}
-      </div>
+    <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+      ${optionsHTML}
+    </div>
 
-      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
-        ${opts}
-      </div>
+    <div id="quizExplain" style="display:none; margin-top:10px; padding:10px; border-radius:14px; border:1px solid #e5e7eb; background:#f9fafb;"></div>
 
-      <div id="quizExplain" style="display:none; margin-top:10px; padding:10px; border-radius:12px; border:1px solid #e5e7eb; background:#f9fafb;"></div>
-
-      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-        <button id="quizNextBtn" class="btn-main" type="button" disabled>Next</button>
-        <button id="quizExitBtn" class="btn-ghost" type="button">Exit</button>
-      </div>
-
-      <div style="margin-top:8px; font-size:0.75rem; color:#6b7280;">
-        Tip: press <strong>1/2/3</strong> to pick an answer, <strong>Enter</strong> for Next.
-      </div>
+    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button id="quizNextBtn" class="btn-main" type="button" disabled>Next</button>
+      <button id="quizExitBtn" class="btn-ghost" type="button">Exit quiz</button>
     </div>
   `;
 
-  const progressFill = document.getElementById("quizProgressFill");
-  if (progressFill) progressFill.style.width = `${Math.max(0, Math.min(100, quizProgressPct()))}%`;
-
-  const explain = document.getElementById("quizExplain");
+  const explainEl = document.getElementById("quizExplain");
   const nextBtn = document.getElementById("quizNextBtn");
 
-  quizLocked = false;
-  activeQuiz.answered = false;
-
-  function chooseAnswer(chosenIdx) {
-    if (quizLocked) return;
-    quizLocked = true;
-    activeQuiz.answered = true;
-
-    const correct = Number(qObj.answer);
-
-    quizArea.querySelectorAll(".quiz-opt").forEach(b => {
-      const idx = Number(b.dataset.idx);
-      const isCorrect = idx === correct;
-      const isChosen = idx === chosenIdx;
-
-      b.style.borderColor = isCorrect ? "#22c55e" : "#e5e7eb";
-      b.style.background = isCorrect ? "#ecfdf5" : (isChosen ? "#fef2f2" : "#f9fafb");
-      b.style.transform = "none";
-      b.style.boxShadow = "none";
-    });
-
-    if (chosenIdx === correct) {
-      activeQuiz.score += 1;
-      showToast("Correct ✅");
-    } else {
-      showToast("Not quite ❌");
-      quizArea.querySelector(".quiz-shell")?.classList.add("anim-shake");
-    }
-
-    if (explain) {
-      explain.style.display = "block";
-      explain.innerHTML = `<strong>Explanation:</strong> ${safeText(qObj.explain, "Review the steps in the module.")}`;
-      explain.classList.add("anim-fade-in");
-    }
-
-    if (nextBtn) {
-      nextBtn.disabled = false;
-      nextBtn.classList.add("anim-pop");
-      nextBtn.classList.add("anim-glow");
-      setTimeout(() => nextBtn.classList.remove("anim-glow"), 600);
-    }
-
-    if (QUIZ_AUTO_ADVANCE) {
-      setTimeout(() => {
-        if (!activeQuiz) return;
-        activeQuiz.index += 1;
-        renderQuizQuestion();
-      }, QUIZ_AUTO_ADVANCE_MS);
-    }
-  }
-
+  // answer select
   quizArea.querySelectorAll(".quiz-opt").forEach(btn => {
-    btn.addEventListener("click", () => chooseAnswer(Number(btn.dataset.idx)));
+    btn.addEventListener("click", () => {
+      if (quizLocked) return;
+      quizLocked = true;
+
+      const chosen = Number(btn.dataset.idx);
+      const correct = Number(qObj.answer);
+
+      // mark
+      quizArea.querySelectorAll(".quiz-opt").forEach(b => {
+        const idx = Number(b.dataset.idx);
+        const isCorrect = idx === correct;
+        const isChosen = idx === chosen;
+
+        b.style.borderColor = isCorrect ? "#22c55e" : "#e5e7eb";
+        b.style.background = isCorrect ? "#ecfdf5" : (isChosen ? "#fef2f2" : "#f9fafb");
+      });
+
+      if (chosen === correct) {
+        activeQuiz.score += 1;
+        showToast("Correct ✅");
+      } else {
+        showToast("Not quite ❌");
+      }
+
+      if (explainEl) {
+        explainEl.style.display = "block";
+        explainEl.innerHTML = `<strong>Explanation:</strong> ${escapeHTML(safeText(qObj.explain, "Review the steps in the module."))}`;
+      }
+
+      if (nextBtn) nextBtn.disabled = false; // ✅ FIX: Next always unlocks after answering
+    });
   });
 
   nextBtn?.addEventListener("click", () => {
-    if (!activeQuiz) return;
-    if (!activeQuiz.answered) {
-      showToast("Pick an answer first 🙂");
-      return;
-    }
     activeQuiz.index += 1;
     renderQuizQuestion();
   });
 
   document.getElementById("quizExitBtn")?.addEventListener("click", hideQuiz);
-
-  // Keyboard: 1/2/3 choose, Enter next
-  window.onkeydown = (ev) => {
-    if (!activeQuiz || quizArea.style.display === "none") return;
-
-    if (ev.key === "1") return chooseAnswer(0);
-    if (ev.key === "2") return chooseAnswer(1);
-    if (ev.key === "3") return chooseAnswer(2);
-    if (ev.key === "Enter") nextBtn?.click();
-  };
 }
 
 /* =========================
-   PROGRESS SAVE (complete/reset)
+   PROGRESS SAVE
 ========================= */
+
 async function markModuleComplete() {
   if (!sessionUser || !selectedModuleId) return;
   const m = MODULES.find(x => x.id === selectedModuleId);
@@ -951,49 +989,67 @@ async function resetModule() {
 }
 
 /* =========================
-   AI CHAT (open module + quiz + ask)
+   AI CHAT
 ========================= */
-function addChatMessage(text, from = "bot") {
-  if (!trainingChat) return;
+
+function addChatMessage(text, from = "bot", { allowHTML = false } = {}) {
+  if (!trainingChat) return null;
+
   const div = document.createElement("div");
   div.style.margin = "8px 0";
-  div.innerHTML = `
-    <div class="anim-fade-in" style="
-      max-width: 100%;
-      display:inline-block;
-      padding: 8px 10px;
-      border-radius: 14px;
-      border: 1px solid #e5e7eb;
-      background: ${from === "user" ? "#111827" : "#f9fafb"};
-      color: ${from === "user" ? "#f9fafb" : "#111827"};
-      font-size: 0.82rem;
-      line-height: 1.45;">
-      ${text}
-    </div>
-  `;
+
+  const bubble = document.createElement("div");
+  bubble.style.maxWidth = "100%";
+  bubble.style.display = "inline-block";
+  bubble.style.padding = "8px 10px";
+  bubble.style.borderRadius = "14px";
+  bubble.style.border = "1px solid #e5e7eb";
+  bubble.style.fontSize = "0.84rem";
+  bubble.style.lineHeight = "1.45";
+  bubble.style.background = from === "user" ? "#111827" : "#f9fafb";
+  bubble.style.color = from === "user" ? "#f9fafb" : "#111827";
+
+  const safe = allowHTML ? String(text || "") : escapeHTML(String(text || "")).replaceAll("\n", "<br>");
+  bubble.innerHTML = safe;
+
   if (from === "user") div.style.textAlign = "right";
+  div.appendChild(bubble);
+
   trainingChat.appendChild(div);
   trainingChat.scrollTop = trainingChat.scrollHeight;
+  return div;
 }
 
 function renderAIChips() {
   if (!trainingQuickChips) return;
+
   const chips = [
     "Open grill training module",
     "Open Big Mac UK build module",
     "Quiz me on food safety",
-    "Quiz me on grill station",
+    "Quiz me on fries holding",
     "What are the key steps for drive-thru speed?"
   ];
-  trainingQuickChips.innerHTML = chips.map(t => `<button class="suggestion-chip" type="button">${t}</button>`).join("");
-  trainingQuickChips.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => handleTrainingAI(btn.textContent)));
+
+  trainingQuickChips.innerHTML = chips
+    .map(t => `<button class="suggestion-chip" type="button">${escapeHTML(t)}</button>`)
+    .join("");
+
+  trainingQuickChips.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => handleTrainingAI(btn.textContent || ""));
+  });
 }
 
 function parseAICommand(text) {
   const t = normalize(text);
 
   if (t.startsWith("open ") || t.includes(" open ")) {
-    const cleaned = t.replace("training module", "").replace("module", "").replace("open", "").replace("the", "").trim();
+    const cleaned = t
+      .replace("training module", "")
+      .replace("module", "")
+      .replace("open", "")
+      .replace("the", "")
+      .trim();
     return { type: "open", query: cleaned || t };
   }
 
@@ -1020,22 +1076,30 @@ function parseAICommand(text) {
 }
 
 async function handleTrainingAI(text) {
-  if (!text || !text.trim()) return;
-  const clean = text.trim();
+  const clean = String(text || "").trim();
+  if (!clean) return;
 
   addChatMessage(clean, "user");
   if (trainingAiInput) trainingAiInput.value = "";
 
   const cmd = parseAICommand(clean);
 
-  // OPEN MODULE
+  // local: list modules
+  const lower = normalize(clean);
+  if (lower.includes("list modules") || lower.includes("what modules")) {
+    const list = MODULES.map(m => `• ${m.title} (${m.tag})`).join("\n");
+    addChatMessage(list, "bot");
+    return;
+  }
+
+  // OPEN
   if (cmd.type === "open") {
     const best = findBestModuleByText(cmd.query);
     if (!best) {
-      addChatMessage("I couldn’t find that module. Try: Grill, Fry Station, Big Mac build, Food Safety, Front Counter, Drive-thru.", "bot");
+      addChatMessage("I couldn’t find that module. Try: grill, fryer, big mac, food safety, drive-thru.", "bot");
       return;
     }
-    addChatMessage(`Opening: <strong>${best.title}</strong> ✅`, "bot");
+    addChatMessage(`Opening: ${best.title} ✅`, "bot");
     openModuleOverlay(best.id);
     return;
   }
@@ -1047,17 +1111,19 @@ async function handleTrainingAI(text) {
       addChatMessage("Which module do you want a quiz on? Example: “Quiz me on grill station”.", "bot");
       return;
     }
-    addChatMessage(`Starting a quiz for <strong>${best.title}</strong> 🧠`, "bot");
+    addChatMessage(`Starting a quiz for ${best.title} 🧠`, "bot");
     openModuleOverlay(best.id);
     startQuizForModule(best.id);
     return;
   }
 
-  // ASK QUESTION (backend)
+  // ASK (send to backend)
   const chosenModule = selectedModuleId ? MODULES.find(m => m.id === selectedModuleId) : null;
 
   const contextData = {
     page: "training",
+    region: "UK",
+    guidance: "Use UK store training tone. If unsure on exact build/portion, tell the crew member to check the store build card/manager.",
     user: sessionUser,
     selectedModule: chosenModule ? {
       id: chosenModule.id,
@@ -1070,44 +1136,42 @@ async function handleTrainingAI(text) {
       scenario: chosenModule.scenario
     } : null,
     allModules: MODULES.map(m => ({
-      id: m.id, title: m.title, tag: m.tag, level: m.level, xp: m.xp, keywords: m.keywords || []
+      id: m.id,
+      title: m.title,
+      tag: m.tag,
+      level: m.level,
+      xp: m.xp,
+      keywords: m.keywords || []
     }))
   };
 
-  const lower = normalize(clean);
-  if (lower.includes("what modules") || lower.includes("list modules")) {
-    const list = MODULES.map(m => `• ${m.title} (${m.tag})`).join("<br>");
-    addChatMessage(`Here are the modules available:<br>${list}`, "bot");
-    return;
-  }
+  let thinkingEl = null;
 
   try {
     if (trainingAiSend) trainingAiSend.disabled = true;
-    addChatMessage(`<span style="opacity:0.7;">Thinking…</span>`, "bot");
+    thinkingEl = addChatMessage("Thinking…", "bot");
 
     const res = await fetch("/api/mcassist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: clean, user: sessionUser, contextData })
+      body: JSON.stringify({
+        message: clean,
+        user: sessionUser,
+        contextData
+      })
     });
 
     let data = {};
     try { data = await res.json(); } catch { data = {}; }
 
-    if (trainingChat && trainingChat.lastElementChild) {
-      const html = trainingChat.lastElementChild.innerHTML || "";
-      if (html.includes("Thinking")) trainingChat.lastElementChild.remove();
-    }
+    // remove thinking
+    thinkingEl?.remove();
 
-    addChatMessage(data.reply || "I’m not sure. Try asking about a specific module.", "bot");
+    const reply = data?.reply ? String(data.reply) : "I’m not sure. Try asking about a specific module.";
+    addChatMessage(reply, "bot");
   } catch (e) {
     console.error("Training AI error:", e);
-
-    if (trainingChat && trainingChat.lastElementChild) {
-      const html = trainingChat.lastElementChild.innerHTML || "";
-      if (html.includes("Thinking")) trainingChat.lastElementChild.remove();
-    }
-
+    thinkingEl?.remove();
     addChatMessage("Sorry, the training assistant had a problem. Try again.", "bot");
   } finally {
     if (trainingAiSend) trainingAiSend.disabled = false;
@@ -1117,6 +1181,7 @@ async function handleTrainingAI(text) {
 /* =========================
    EVENTS
 ========================= */
+
 if (logoutBtn) {
   logoutBtn.addEventListener("click", async () => {
     stopRealtime();
@@ -1127,20 +1192,31 @@ if (logoutBtn) {
 }
 
 if (sidebar && sidebarToggle) {
-  sidebarToggle.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
+  sidebarToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("sidebar-open");
+  });
 }
 
-trainingSearchBtn?.addEventListener("click", () => renderModuleGrid(trainingSearch?.value || ""));
-trainingSearch?.addEventListener("input", () => renderModuleGrid(trainingSearch?.value || ""));
+trainingSearchBtn?.addEventListener("click", () => {
+  renderModuleGrid(trainingSearch?.value || "");
+});
+trainingSearch?.addEventListener("input", () => {
+  renderModuleGrid(trainingSearch?.value || "");
+});
 
 completeModuleBtn?.addEventListener("click", markModuleComplete);
 resetModuleBtn?.addEventListener("click", resetModule);
 
 closeModuleBtn?.addEventListener("click", closeModuleOverlay);
-moduleOverlay?.addEventListener("click", (e) => { if (e.target === moduleOverlay) closeModuleOverlay(); });
+moduleOverlay?.addEventListener("click", (e) => {
+  if (e.target === moduleOverlay) closeModuleOverlay();
+});
 
 startQuizBtn?.addEventListener("click", () => {
-  if (!selectedModuleId) return showToast("Open a module first.");
+  if (!selectedModuleId) {
+    showToast("Open a module first.");
+    return;
+  }
   startQuizForModule(selectedModuleId);
 });
 
@@ -1149,26 +1225,35 @@ trainingAiForm?.addEventListener("submit", (e) => {
   handleTrainingAI(trainingAiInput?.value || "");
 });
 
+// Escape closes overlay
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && moduleOverlay?.classList.contains("show")) {
+    closeModuleOverlay();
+  }
+});
+
 /* =========================
    INIT
 ========================= */
+
 function seedTrainingChat() {
   if (!trainingChat) return;
   trainingChat.innerHTML = "";
   addChatMessage(
-    "Hi 👋 Ask me anything about training. Try: <strong>“open grill training module”</strong>, <strong>“open Big Mac UK build module”</strong>, or <strong>“quiz me on food safety”</strong>.",
+    "Hi 👋 Try: “open grill training module”, “open Big Mac UK build module”, or “quiz me on food safety”.",
     "bot"
   );
 }
 
 function initialRender() {
-  bindModuleGridClicks(); // ✅ open buttons work forever
   renderPathRail();
   renderModuleGrid("");
   renderAIChips();
   refreshProgressPanel();
 
-  if (!selectedModuleId && MODULES.length) openModuleInLesson(MODULES[0].id);
+  if (!selectedModuleId && MODULES.length) {
+    openModuleInLesson(MODULES[0].id);
+  }
 }
 
 onAuthStateChanged(auth, async (user) => {
