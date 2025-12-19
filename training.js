@@ -1,15 +1,6 @@
 // ========================================
-// training.js — V3 FULL (New UI + Explorer + AI + Overlay + Quiz + Firestore)
-// ✅ Open button works (event delegation)
-// ✅ Quiz Next works (locks after answer + enables Next)
-// ✅ Smooth UI updates
-//
-// Firestore:
-// users/{uid}
-//   - trainingXP (number)
-//   - trainingLevel (number)
-//   - trainingProgress (map)
-//       trainingProgress[moduleId] = { completed, completedAt, reflection, xpEarned }
+// training.js — FULL VERSION (Explorer + AI + Overlay + Quiz + Firestore Progress)
+// ✅ IMPORTANT: imports MUST be at the top (or the whole file won't run)
 // ========================================
 
 import { auth, db } from "./firebase-init.js";
@@ -38,15 +29,14 @@ const sidebarToggle = document.getElementById("sidebarToggle");
 const headerLevel = document.getElementById("headerLevel");
 const headerXP = document.getElementById("headerXP");
 
-// path + lesson
+// path + lesson panel
 const pathList = document.getElementById("pathList");
-const lessonPanel = document.getElementById("lessonPanel");
 const lessonTitle = document.getElementById("lessonTitle");
 const lessonSubtitle = document.getElementById("lessonSubtitle");
 const lessonTag = document.getElementById("lessonTag");
 const lessonContent = document.getElementById("lessonContent");
 
-// progress
+// progress panel
 const statusPill = document.getElementById("statusPill");
 const moduleXPInfo = document.getElementById("moduleXPInfo");
 const moduleXpFill = document.getElementById("moduleXpFill");
@@ -55,19 +45,22 @@ const reflectionInput = document.getElementById("reflectionInput");
 const completeModuleBtn = document.getElementById("completeModuleBtn");
 const resetModuleBtn = document.getElementById("resetModuleBtn");
 
-// explorer
+// toast
+const toastEl = document.getElementById("toast");
+
+// module explorer
 const trainingSearch = document.getElementById("trainingSearch");
 const trainingSearchBtn = document.getElementById("trainingSearchBtn");
 const trainingModuleGrid = document.getElementById("trainingModuleGrid");
 
-// ai
+// ai (these exist in your HTML)
 const trainingChat = document.getElementById("trainingChat");
 const trainingAiForm = document.getElementById("trainingAiForm");
 const trainingAiInput = document.getElementById("trainingAiInput");
 const trainingAiSend = document.getElementById("trainingAiSend");
 const trainingQuickChips = document.getElementById("trainingQuickChips");
 
-// overlay + quiz
+// overlay
 const moduleOverlay = document.getElementById("moduleOverlay");
 const moduleTitle = document.getElementById("moduleTitle");
 const moduleMeta = document.getElementById("moduleMeta");
@@ -76,9 +69,6 @@ const closeModuleBtn = document.getElementById("closeModuleBtn");
 const startQuizBtn = document.getElementById("startQuizBtn");
 const quizArea = document.getElementById("quizArea");
 
-// toast
-const toastEl = document.getElementById("toast");
-
 /* =========================
    STATE
 ========================= */
@@ -86,19 +76,18 @@ const toastEl = document.getElementById("toast");
 let sessionUser = null;
 let selectedModuleId = null;
 let userDocCache = null;
+
 let unsubUser = null;
 
-// quiz
-let activeQuiz = null; // { moduleId, questions: [{q, options, answer, explain}], index, score }
+// quiz state
+let activeQuiz = null; // { moduleId, questions, index, score }
 let quizLocked = false;
 
-// one-time binds
-let pathBound = false;
-let gridBound = false;
+// one-time event delegation binds
+let moduleGridBound = false;
 
 /* =========================
-   MODULE LIBRARY (UK-focused)
-   Edit freely to match your store build cards.
+   MODULE LIBRARY (UK-focused training style)
 ========================= */
 
 const MODULES = [
@@ -184,12 +173,6 @@ const MODULES = [
         options: ["Cook by eye", "Use timers consistently", "Flip early"],
         answer: 1,
         explain: "Timers remove guessing and keep results consistent."
-      },
-      {
-        q: "Why is rotation important in holding?",
-        options: ["It looks nicer", "It reduces risk of serving old product", "It speeds up cooking"],
-        answer: 1,
-        explain: "Rotation helps ensure product served is within holding quality window."
       }
     ]
   },
@@ -210,14 +193,9 @@ const MODULES = [
       "Season consistently (if your store uses salting station).",
       "Hold correctly, rotate, and keep the station tidy."
     ],
-    doDont: {
-      do: ["Use timer every drop", "Keep area dry to prevent slips", "Rotate fries properly"],
-      dont: ["Overfill baskets", "Rush and splash oil", "Serve fries that are out of quality window"]
-    },
     checklist: [
       "I follow fill guidelines",
       "I use timers for every drop",
-      "I understand basic fry holding/rotation",
       "I work safely around hot oil"
     ]
   },
@@ -230,28 +208,19 @@ const MODULES = [
     xp: 70,
     durationMins: 10,
     keywords: ["big mac", "build", "uk", "assemble", "sandwich", "kitchen"],
-    summary: "Build a Big Mac cleanly and consistently using your store’s build card order.",
+    summary: "Build a Big Mac consistently using your store’s build card order.",
     steps: [
-      "Prep area: clean gloves/hands, correct packaging ready.",
+      "Prep area: clean hands/gloves, correct packaging ready.",
       "Use the correct bun set (top/middle/bottom) and toast per store process.",
-      "Apply the correct sauce/condiments amounts (follow your store build card).",
-      "Add salad/pickles in the correct order for even coverage.",
+      "Apply correct sauce/condiments amounts (follow your store build card).",
+      "Add salad/pickles in the correct order.",
       "Add patties using correct tools; keep the build neat and stable.",
       "Close, wrap/box, and present with label if required."
     ],
-    doDont: {
-      do: ["Follow the build card order", "Keep ingredients centered", "Wipe spills immediately"],
-      dont: ["Guess sauce amounts", "Over-stack and crush the build", "Cross-contaminate tools"]
-    },
-    scenario: {
-      title: "Messy build",
-      text: "Big Macs are sliding/tilting in the box during rush. What do you change first?"
-    },
     checklist: [
-      "I can name the bun pieces used",
       "I follow a consistent build order",
       "I keep the build neat/centered",
-      "I close and package correctly"
+      "I package correctly"
     ],
     quiz: [
       {
@@ -260,61 +229,6 @@ const MODULES = [
         answer: 1,
         explain: "Order + correct portions = consistent results."
       }
-    ]
-  },
-
-  {
-    id: "uk_fries_holding",
-    title: "Fries – Holding, Rotation & Presentation (UK training)",
-    tag: "Kitchen",
-    level: 2,
-    xp: 60,
-    durationMins: 9,
-    keywords: ["fries", "holding", "rotation", "presentation", "uk", "quality"],
-    summary: "Keep fries within quality window, rotate properly, and present cleanly.",
-    steps: [
-      "Hold fries in the correct area and avoid mixing old/new product.",
-      "Rotate using first-in-first-out and discard when out of quality window.",
-      "Keep the scoop/utensils clean and use correct portions for boxes/bags.",
-      "Avoid overfilling and keep packaging clean for presentation.",
-      "Communicate levels to prevent running out mid-rush."
-    ],
-    checklist: [
-      "I rotate fries properly",
-      "I don’t mix old and new",
-      "I serve clean portions and tidy packaging"
-    ],
-    quiz: [
-      {
-        q: "What’s the biggest quality mistake with fries?",
-        options: ["Serving quickly", "Mixing old fries with new", "Using a scoop"],
-        answer: 1,
-        explain: "Mixing old and new makes rotation impossible and hurts quality."
-      }
-    ]
-  },
-
-  {
-    id: "front_counter_greeting",
-    title: "Front Counter – Greeting & Order Accuracy",
-    tag: "Front counter",
-    level: 1,
-    xp: 45,
-    durationMins: 8,
-    keywords: ["front counter", "greeting", "order", "accuracy", "customer", "uk"],
-    summary: "Friendly greeting, correct orders, calm under pressure.",
-    steps: [
-      "Greet quickly and clearly; keep friendly tone.",
-      "Repeat order back to confirm accuracy.",
-      "Clarify customisations (no pickles, extra sauce, etc.).",
-      "Handle payment smoothly and follow receipt guidance.",
-      "Thank the customer and direct them clearly (collection point/table service)."
-    ],
-    checklist: [
-      "I greet quickly",
-      "I repeat orders back",
-      "I clarify custom items",
-      "I stay calm during rush"
     ]
   },
 
@@ -329,40 +243,15 @@ const MODULES = [
     summary: "Clear communication and fast workflow without mistakes.",
     steps: [
       "Speak clearly on headset and confirm key items/drinks.",
-      "Use a calm pace; accuracy beats redoing orders.",
-      "Use 'park' when needed based on your store’s process and manager guidance.",
-      "Prep condiments/napkins while payment happens.",
-      "Hand-off with a final confirmation: “That’s your …”"
+      "Accuracy beats redoing orders.",
+      "Use 'park' when needed based on store process.",
+      "Prep napkins/condiments while payment happens.",
+      "Hand-off with final confirmation."
     ],
     checklist: [
-      "I speak clearly on headset",
+      "I speak clearly",
       "I repeat order back",
-      "I understand when to park",
       "I confirm at hand-off"
-    ]
-  },
-
-  {
-    id: "customer_recovery",
-    title: "Customer Recovery – Fixing Mistakes",
-    tag: "Customer experience",
-    level: 2,
-    xp: 55,
-    durationMins: 9,
-    keywords: ["complaint", "refund", "apology", "replacement", "customer recovery", "uk"],
-    summary: "Own the issue, fix it fast, keep the customer calm.",
-    steps: [
-      "Listen without interrupting.",
-      "Apologise and acknowledge the issue.",
-      "Offer the correct fix (replace/remake/manager support).",
-      "Thank them for telling you.",
-      "Share the learning with the team to prevent repeats."
-    ],
-    checklist: [
-      "I stay calm with complaints",
-      "I know the apology + fix flow",
-      "I can get help quickly",
-      "I share learnings with team"
     ]
   }
 ];
@@ -371,28 +260,15 @@ const MODULES = [
    HELPERS
 ========================= */
 
-function normalize(s) {
-  return String(s || "").toLowerCase().trim();
+function showToast(msg) {
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
 
 function safeText(x, fallback = "") {
   return typeof x === "string" ? x : fallback;
-}
-
-function escapeHTML(str) {
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function showToast(msg) {
-  if (!toastEl) return;
-  toastEl.textContent = String(msg || "");
-  toastEl.classList.add("show");
-  setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
 
 function calcLevelFromXP(xp) {
@@ -413,6 +289,10 @@ function getProgressMap() {
 function isCompleted(moduleId) {
   const prog = getProgressMap()[moduleId];
   return !!(prog && prog.completed);
+}
+
+function normalize(s) {
+  return String(s || "").toLowerCase().trim();
 }
 
 function findBestModuleByText(text) {
@@ -442,16 +322,16 @@ function findBestModuleByText(text) {
 }
 
 function buildModuleHTML(m) {
-  const steps = (m.steps || []).map(s => `<li>${escapeHTML(s)}</li>`).join("");
-  const doList = (m.doDont?.do || []).map(s => `<li>${escapeHTML(s)}</li>`).join("");
-  const dontList = (m.doDont?.dont || []).map(s => `<li>${escapeHTML(s)}</li>`).join("");
+  const steps = (m.steps || []).map(s => `<li>${s}</li>`).join("");
+  const doList = (m.doDont?.do || []).map(s => `<li>${s}</li>`).join("");
+  const dontList = (m.doDont?.dont || []).map(s => `<li>${s}</li>`).join("");
 
   const scenario = m.scenario
-    ? `<div class="lesson-scenario"><strong>${escapeHTML(safeText(m.scenario.title))}</strong><div>${escapeHTML(safeText(m.scenario.text))}</div></div>`
+    ? `<div class="lesson-scenario"><strong>${safeText(m.scenario.title)}</strong>${safeText(m.scenario.text)}</div>`
     : "";
 
   const highlight = m.summary
-    ? `<div class="lesson-highlight"><strong>Focus:</strong> ${escapeHTML(safeText(m.summary))}</div>`
+    ? `<div class="lesson-highlight"><strong>Focus:</strong> ${safeText(m.summary)}</div>`
     : "";
 
   return `
@@ -463,13 +343,13 @@ function buildModuleHTML(m) {
     <div class="lesson-section">
       <h4>Do / Don’t</h4>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-        <div style="background:#ecfdf5; border:1px solid #bbf7d0; padding:10px; border-radius:14px;">
-          <strong style="font-size:.84rem; color:#166534;">Do</strong>
-          <ul style="margin-top:8px;">${doList || "<li>—</li>"}</ul>
+        <div style="background:#ecfdf5; border:1px solid #bbf7d0; padding:10px; border-radius:12px;">
+          <strong style="font-size:0.8rem; color:#166534;">Do</strong>
+          <ul style="margin-top:6px;">${doList || "<li>—</li>"}</ul>
         </div>
-        <div style="background:#fef2f2; border:1px solid #fecaca; padding:10px; border-radius:14px;">
-          <strong style="font-size:.84rem; color:#991b1b;">Don’t</strong>
-          <ul style="margin-top:8px;">${dontList || "<li>—</li>"}</ul>
+        <div style="background:#fef2f2; border:1px solid #fecaca; padding:10px; border-radius:12px;">
+          <strong style="font-size:0.8rem; color:#991b1b;">Don’t</strong>
+          <ul style="margin-top:6px;">${dontList || "<li>—</li>"}</ul>
         </div>
       </div>
     </div>
@@ -487,7 +367,7 @@ function buildChecklist(m) {
     ? items.map((t, idx) => `
         <li class="check-item">
           <input type="checkbox" id="chk_${idx}" />
-          <span>${escapeHTML(t)}</span>
+          <span>${t}</span>
         </li>
       `).join("")
     : `<li class="check-item"><span>No checklist items yet.</span></li>`;
@@ -549,7 +429,9 @@ function startRealtime(uid) {
     if (headerLevel) headerLevel.textContent = String(lvl);
 
     const computed = calcLevelFromXP(xp);
-    if (computed !== lvl) updateDoc(doc(db, "users", uid), { trainingLevel: computed }).catch(() => {});
+    if (computed !== lvl) {
+      updateDoc(doc(db, "users", uid), { trainingLevel: computed }).catch(() => {});
+    }
 
     renderPathRail();
     renderModuleGrid(trainingSearch?.value || "");
@@ -558,7 +440,7 @@ function startRealtime(uid) {
 }
 
 /* =========================
-   RENDER: PATH / LESSON / PROGRESS
+   RENDER: PATH + LESSON
 ========================= */
 
 function renderPathRail() {
@@ -575,37 +457,24 @@ function renderPathRail() {
   pathList.innerHTML = sorted.map((m, idx) => {
     const completed = !!progress[m.id]?.completed;
     const active = selectedModuleId === m.id;
-
     return `
       <li class="path-item ${completed ? "completed" : ""} ${active ? "active" : ""}" data-id="${m.id}">
         <div class="path-step">${completed ? "✓" : (idx + 1)}</div>
-        <div style="flex:1;">
+        <div class="path-text">
           <div class="path-title-row">
-            <span class="path-title">${escapeHTML(m.title)}</span>
-            <span class="path-tag">${escapeHTML(m.tag || "Module")}</span>
+            <span>${m.title}</span>
+            <span class="path-tag">${m.tag}</span>
           </div>
-          <div class="path-meta">${Number(m.xp) || 0} XP • ~${Number(m.durationMins) || 8} min • Level ${Number(m.level) || 1}</div>
+          <div class="path-meta">${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}</div>
         </div>
       </li>
     `;
   }).join("");
 
-  bindPathClicks();
-}
-
-function bindPathClicks() {
-  if (!pathList || pathBound) return;
-
-  // event delegation
-  pathList.addEventListener("click", (e) => {
-    const item = e.target.closest(".path-item");
-    if (!item) return;
-    const id = item.dataset.id;
-    if (!id) return;
-    openModuleInLesson(id);
+  // click to open
+  pathList.querySelectorAll(".path-item").forEach(li => {
+    li.addEventListener("click", () => openModuleInLesson(li.dataset.id));
   });
-
-  pathBound = true;
 }
 
 function openModuleInLesson(moduleId) {
@@ -617,33 +486,17 @@ function openModuleInLesson(moduleId) {
   if (lessonTitle) lessonTitle.textContent = m.title;
   if (lessonSubtitle) lessonSubtitle.textContent = safeText(m.summary, "Training module");
   if (lessonTag) lessonTag.textContent = m.tag || "Module";
-
-  if (lessonContent) {
-    // re-trigger small animation class
-    lessonContent.classList.remove("lessonContentFade");
-    // force reflow
-    void lessonContent.offsetWidth;
-    lessonContent.classList.add("lessonContentFade");
-
-    lessonContent.innerHTML = buildModuleHTML(m);
-  }
+  if (lessonContent) lessonContent.innerHTML = buildModuleHTML(m);
 
   buildChecklist(m);
   refreshProgressPanel();
   renderPathRail();
-
-  // small UX: keep lesson in view on mobile
-  if (window.matchMedia("(max-width: 1100px)").matches) {
-    lessonPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 }
 
 function refreshProgressPanel() {
   const m = selectedModuleId ? MODULES.find(x => x.id === selectedModuleId) : null;
-
   if (!m) {
     if (statusPill) statusPill.textContent = "No module selected";
-    if (statusPill) statusPill.classList.remove("completed");
     if (moduleXPInfo) moduleXPInfo.textContent = "Select a module to see its XP value.";
     if (moduleXpFill) moduleXpFill.style.width = "0%";
     if (completeModuleBtn) completeModuleBtn.disabled = true;
@@ -658,15 +511,10 @@ function refreshProgressPanel() {
     statusPill.classList.toggle("completed", completed);
   }
 
-  if (moduleXPInfo) {
-    moduleXPInfo.textContent = `${Number(m.xp) || 0} XP • ~${Number(m.durationMins) || 8} min • ${m.tag || "Module"}`;
-  }
+  if (moduleXPInfo) moduleXPInfo.textContent = `${m.xp || 0} XP • ~${m.durationMins || 8} min • ${m.tag || "Module"}`;
+  if (moduleXpFill) moduleXpFill.style.width = completed ? "100%" : "35%";
 
-  if (moduleXpFill) {
-    moduleXpFill.style.width = completed ? "100%" : "35%";
-  }
-
-  if (completeModuleBtn) completeModuleBtn.disabled = !!completed;
+  if (completeModuleBtn) completeModuleBtn.disabled = completed;
   if (resetModuleBtn) resetModuleBtn.disabled = !completed;
 
   const prog = getProgressMap()[m.id];
@@ -674,8 +522,23 @@ function refreshProgressPanel() {
 }
 
 /* =========================
-   MODULE EXPLORER (Open button fix)
+   MODULE GRID (Open button FIX)
 ========================= */
+
+function bindModuleGridClicks() {
+  if (!trainingModuleGrid || moduleGridBound) return;
+
+  // event delegation so it works after re-render
+  trainingModuleGrid.addEventListener("click", (e) => {
+    const btn = e.target.closest(".open-module-btn");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    openModuleOverlay(id);
+  });
+
+  moduleGridBound = true;
+}
 
 function renderModuleGrid(filterText = "") {
   if (!trainingModuleGrid) return;
@@ -692,52 +555,40 @@ function renderModuleGrid(filterText = "") {
     ? list.map(m => {
         const completed = isCompleted(m.id);
         return `
-          <div class="module-card-mini">
-            <div class="module-mini-top">
-              <div style="min-width:0;">
-                <h4 class="module-mini-title">${escapeHTML(m.title)}</h4>
-                <div class="module-mini-meta">${escapeHTML(m.tag || "Module")} • ${Number(m.xp) || 0} XP • L${Number(m.level) || 1}</div>
+          <div class="card" style="padding:12px; border-radius:16px; border:1px solid #e5e7eb;">
+            <div style="display:flex; justify-content:space-between; gap:8px;">
+              <div>
+                <div style="font-weight:900; font-size:0.9rem;">${m.title}</div>
+                <div style="font-size:0.78rem; color:#6b7280; margin-top:2px;">
+                  ${m.tag} • ${m.xp} XP • L${m.level || 1}
+                </div>
               </div>
-              <div class="mini-actions">
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
                 <span class="status-pill ${completed ? "completed" : ""}" style="white-space:nowrap;">
                   ${completed ? "Completed" : "Open"}
                 </span>
                 <button class="btn-ghost open-module-btn" data-id="${m.id}" type="button">Open</button>
               </div>
             </div>
-            <div class="module-mini-desc">${escapeHTML(safeText(m.summary, ""))}</div>
+            <div style="margin-top:8px; font-size:0.78rem; color:#374151;">
+              ${safeText(m.summary, "")}
+            </div>
           </div>
         `;
       }).join("")
-    : `<div class="muted">No modules match that search.</div>`;
+    : `<div style="font-size:0.82rem; color:#6b7280;">No modules match that search.</div>`;
 
   bindModuleGridClicks();
 }
 
-function bindModuleGridClicks() {
-  if (!trainingModuleGrid || gridBound) return;
-
-  // event delegation (survives re-render)
-  trainingModuleGrid.addEventListener("click", (e) => {
-    const btn = e.target.closest(".open-module-btn");
-    if (!btn) return;
-    const id = btn.dataset.id;
-    if (!id) return;
-    openModuleOverlay(id);
-  });
-
-  gridBound = true;
-}
-
 /* =========================
-   OVERLAY
+   OVERLAY + QUIZ
 ========================= */
 
 function openModuleOverlay(moduleId) {
   const m = MODULES.find(x => x.id === moduleId);
   if (!m) return;
 
-  // sync lesson view too
   openModuleInLesson(moduleId);
 
   if (!moduleOverlay) {
@@ -746,7 +597,7 @@ function openModuleOverlay(moduleId) {
   }
 
   if (moduleTitle) moduleTitle.textContent = m.title;
-  if (moduleMeta) moduleMeta.textContent = `${m.tag || "Module"} • ${Number(m.xp) || 0} XP • ~${Number(m.durationMins) || 8} min • Level ${Number(m.level) || 1}`;
+  if (moduleMeta) moduleMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
   if (moduleBody) moduleBody.innerHTML = buildModuleHTML(m);
 
   hideQuiz();
@@ -767,34 +618,27 @@ function hideQuiz() {
   }
 }
 
-/* =========================
-   QUIZ
-========================= */
-
 function buildQuizFromModule(m) {
   const base = Array.isArray(m.quiz) ? m.quiz : [];
+  if (base.length) return [...base].sort(() => Math.random() - 0.5).slice(0, Math.min(5, base.length));
 
-  if (!base.length) {
-    const items = [...(m.steps || []), ...(m.checklist || [])].filter(Boolean);
-    const pool = items.length ? items : ["Follow the module steps"];
+  // fallback quiz from steps/checklist
+  const items = [...(m.steps || []), ...(m.checklist || [])].filter(Boolean);
+  const pick = items.slice(0, 6);
 
-    const generated = Array.from({ length: Math.min(5, pool.length) }).slice(0, 3).map((_, idx) => {
-      const correct = pool[idx % pool.length];
-      const wrong1 = pool[(idx + 1) % pool.length] || "Skip the timer";
-      const wrong2 = pool[(idx + 2) % pool.length] || "Do nothing";
-      const options = [correct, wrong1, wrong2].sort(() => Math.random() - 0.5);
-      return {
-        q: `Which is a correct step for: ${m.title}?`,
-        options,
-        answer: options.indexOf(correct),
-        explain: "This comes directly from the module’s key steps."
-      };
-    });
+  return pick.slice(0, 3).map((t, idx) => {
+    const correct = t;
+    const wrong1 = items[(idx + 2) % items.length] || "Do nothing";
+    const wrong2 = items[(idx + 3) % items.length] || "Skip the timer";
+    const options = [correct, wrong1, wrong2].sort(() => Math.random() - 0.5);
 
-    return generated;
-  }
-
-  return [...base].sort(() => Math.random() - 0.5).slice(0, Math.min(5, base.length));
+    return {
+      q: `Which is a correct step for: ${m.title}?`,
+      options,
+      answer: options.indexOf(correct),
+      explain: "This comes directly from the module’s key steps."
+    };
+  });
 }
 
 function startQuizForModule(moduleId) {
@@ -808,7 +652,6 @@ function startQuizForModule(moduleId) {
     score: 0
   };
 
-  quizLocked = false;
   quizArea.style.display = "block";
   renderQuizQuestion();
 }
@@ -818,61 +661,56 @@ function renderQuizQuestion() {
 
   const qObj = activeQuiz.questions[activeQuiz.index];
 
-  // finished
   if (!qObj) {
     quizArea.innerHTML = `
-      <div style="font-weight:950; font-size:0.98rem;">Quiz complete ✅</div>
-      <div style="margin-top:8px; font-size:0.86rem; color:#374151;">
+      <div style="font-weight:900; font-size:0.95rem;">Quiz complete ✅</div>
+      <div style="margin-top:6px; font-size:0.82rem; color:#374151;">
         Score: <strong>${activeQuiz.score}/${activeQuiz.questions.length}</strong>
       </div>
-      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
         <button id="quizCloseBtn" class="btn-ghost" type="button">Close quiz</button>
         <button id="quizRetryBtn" class="btn-main" type="button">Retry quiz</button>
       </div>
     `;
-
     document.getElementById("quizCloseBtn")?.addEventListener("click", hideQuiz);
-    document.getElementById("quizRetryBtn")?.addEventListener("click", () => {
-      const mid = activeQuiz?.moduleId;
-      if (mid) startQuizForModule(mid);
-    });
+    document.getElementById("quizRetryBtn")?.addEventListener("click", () => startQuizForModule(activeQuiz.moduleId));
     return;
   }
 
-  quizLocked = false;
-
-  const optionsHTML = (qObj.options || []).map((opt, idx) => `
-    <button class="btn-ghost quiz-opt" data-idx="${idx}" type="button" style="justify-content:flex-start; width:100%;">
-      ${String.fromCharCode(65 + idx)}. ${escapeHTML(opt)}
+  const opts = (qObj.options || []).map((t, idx) => `
+    <button class="btn-ghost quiz-opt" data-idx="${idx}" type="button"
+      style="justify-content:flex-start; width:100%;">
+      ${String.fromCharCode(65 + idx)}. ${t}
     </button>
   `).join("");
 
   quizArea.innerHTML = `
     <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
-      <div style="font-weight:950; font-size:0.92rem;">Quiz ${activeQuiz.index + 1}/${activeQuiz.questions.length}</div>
-      <div style="font-size:0.82rem; color:#6b7280;">Score: ${activeQuiz.score}</div>
+      <div style="font-weight:900; font-size:0.95rem;">Quiz: ${activeQuiz.index + 1}/${activeQuiz.questions.length}</div>
+      <div style="font-size:0.8rem; color:#6b7280;">Score: ${activeQuiz.score}</div>
     </div>
 
-    <div style="margin-top:10px; font-size:0.9rem; color:#111827; font-weight:950;">
-      ${escapeHTML(qObj.q)}
+    <div style="margin-top:10px; font-size:0.86rem; color:#111827; font-weight:800;">
+      ${qObj.q}
     </div>
 
     <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
-      ${optionsHTML}
+      ${opts}
     </div>
 
-    <div id="quizExplain" style="display:none; margin-top:10px; padding:10px; border-radius:14px; border:1px solid #e5e7eb; background:#f9fafb;"></div>
+    <div id="quizExplain" style="display:none; margin-top:10px; padding:10px; border-radius:12px; border:1px solid #e5e7eb; background:#ffffff;"></div>
 
-    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
       <button id="quizNextBtn" class="btn-main" type="button" disabled>Next</button>
       <button id="quizExitBtn" class="btn-ghost" type="button">Exit quiz</button>
     </div>
   `;
 
-  const explainEl = document.getElementById("quizExplain");
+  const explain = document.getElementById("quizExplain");
   const nextBtn = document.getElementById("quizNextBtn");
 
-  // answer select
+  quizLocked = false;
+
   quizArea.querySelectorAll(".quiz-opt").forEach(btn => {
     btn.addEventListener("click", () => {
       if (quizLocked) return;
@@ -881,7 +719,7 @@ function renderQuizQuestion() {
       const chosen = Number(btn.dataset.idx);
       const correct = Number(qObj.answer);
 
-      // mark
+      // mark buttons
       quizArea.querySelectorAll(".quiz-opt").forEach(b => {
         const idx = Number(b.dataset.idx);
         const isCorrect = idx === correct;
@@ -898,12 +736,13 @@ function renderQuizQuestion() {
         showToast("Not quite ❌");
       }
 
-      if (explainEl) {
-        explainEl.style.display = "block";
-        explainEl.innerHTML = `<strong>Explanation:</strong> ${escapeHTML(safeText(qObj.explain, "Review the steps in the module."))}`;
+      if (explain) {
+        explain.style.display = "block";
+        explain.innerHTML = `<strong>Explanation:</strong> ${safeText(qObj.explain, "Review the module steps.")}`;
       }
 
-      if (nextBtn) nextBtn.disabled = false; // ✅ FIX: Next always unlocks after answering
+      // ✅ FIX: enable Next after answering
+      if (nextBtn) nextBtn.disabled = false;
     });
   });
 
@@ -916,7 +755,7 @@ function renderQuizQuestion() {
 }
 
 /* =========================
-   PROGRESS SAVE
+   PROGRESS SAVE (complete/reset)
 ========================= */
 
 async function markModuleComplete() {
@@ -989,54 +828,47 @@ async function resetModule() {
 }
 
 /* =========================
-   AI CHAT
+   AI CHAT (open module + quiz + ask)
 ========================= */
 
-function addChatMessage(text, from = "bot", { allowHTML = false } = {}) {
-  if (!trainingChat) return null;
-
+function addChatMessage(text, from = "bot") {
+  if (!trainingChat) return;
   const div = document.createElement("div");
   div.style.margin = "8px 0";
-
-  const bubble = document.createElement("div");
-  bubble.style.maxWidth = "100%";
-  bubble.style.display = "inline-block";
-  bubble.style.padding = "8px 10px";
-  bubble.style.borderRadius = "14px";
-  bubble.style.border = "1px solid #e5e7eb";
-  bubble.style.fontSize = "0.84rem";
-  bubble.style.lineHeight = "1.45";
-  bubble.style.background = from === "user" ? "#111827" : "#f9fafb";
-  bubble.style.color = from === "user" ? "#f9fafb" : "#111827";
-
-  const safe = allowHTML ? String(text || "") : escapeHTML(String(text || "")).replaceAll("\n", "<br>");
-  bubble.innerHTML = safe;
-
+  div.innerHTML = `
+    <div style="
+      max-width: 100%;
+      display:inline-block;
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid #e5e7eb;
+      background: ${from === "user" ? "#111827" : "#f9fafb"};
+      color: ${from === "user" ? "#f9fafb" : "#111827"};
+      font-size: 0.82rem;
+      line-height: 1.45;
+    ">
+      ${text}
+    </div>
+  `;
   if (from === "user") div.style.textAlign = "right";
-  div.appendChild(bubble);
-
   trainingChat.appendChild(div);
   trainingChat.scrollTop = trainingChat.scrollHeight;
-  return div;
 }
 
 function renderAIChips() {
   if (!trainingQuickChips) return;
-
   const chips = [
     "Open grill training module",
     "Open Big Mac UK build module",
     "Quiz me on food safety",
-    "Quiz me on fries holding",
     "What are the key steps for drive-thru speed?"
   ];
-
-  trainingQuickChips.innerHTML = chips
-    .map(t => `<button class="suggestion-chip" type="button">${escapeHTML(t)}</button>`)
-    .join("");
+  trainingQuickChips.innerHTML = chips.map(t => `
+    <button class="suggestion-chip" type="button">${t}</button>
+  `).join("");
 
   trainingQuickChips.querySelectorAll("button").forEach(btn => {
-    btn.addEventListener("click", () => handleTrainingAI(btn.textContent || ""));
+    btn.addEventListener("click", () => handleTrainingAI(btn.textContent));
   });
 }
 
@@ -1076,55 +908,45 @@ function parseAICommand(text) {
 }
 
 async function handleTrainingAI(text) {
-  const clean = String(text || "").trim();
-  if (!clean) return;
+  if (!text || !text.trim()) return;
+  const clean = text.trim();
 
   addChatMessage(clean, "user");
   if (trainingAiInput) trainingAiInput.value = "";
 
   const cmd = parseAICommand(clean);
 
-  // local: list modules
-  const lower = normalize(clean);
-  if (lower.includes("list modules") || lower.includes("what modules")) {
-    const list = MODULES.map(m => `• ${m.title} (${m.tag})`).join("\n");
-    addChatMessage(list, "bot");
-    return;
-  }
-
-  // OPEN
+  // open module
   if (cmd.type === "open") {
     const best = findBestModuleByText(cmd.query);
     if (!best) {
-      addChatMessage("I couldn’t find that module. Try: grill, fryer, big mac, food safety, drive-thru.", "bot");
+      addChatMessage("I couldn’t find that module. Try: Grill, Fryer, Big Mac, Food Safety, Drive-thru.", "bot");
       return;
     }
-    addChatMessage(`Opening: ${best.title} ✅`, "bot");
+    addChatMessage(`Opening: <strong>${best.title}</strong> ✅`, "bot");
     openModuleOverlay(best.id);
     return;
   }
 
-  // QUIZ
+  // quiz
   if (cmd.type === "quiz") {
     const best = findBestModuleByText(cmd.query || selectedModuleId || "");
     if (!best) {
       addChatMessage("Which module do you want a quiz on? Example: “Quiz me on grill station”.", "bot");
       return;
     }
-    addChatMessage(`Starting a quiz for ${best.title} 🧠`, "bot");
+    addChatMessage(`Starting a quiz for <strong>${best.title}</strong> 🧠`, "bot");
     openModuleOverlay(best.id);
     startQuizForModule(best.id);
     return;
   }
 
-  // ASK (send to backend)
+  // ask the backend (mcassist)
   const chosenModule = selectedModuleId ? MODULES.find(m => m.id === selectedModuleId) : null;
 
   const contextData = {
     page: "training",
     region: "UK",
-    guidance: "Use UK store training tone. If unsure on exact build/portion, tell the crew member to check the store build card/manager.",
-    user: sessionUser,
     selectedModule: chosenModule ? {
       id: chosenModule.id,
       title: chosenModule.title,
@@ -1145,11 +967,9 @@ async function handleTrainingAI(text) {
     }))
   };
 
-  let thinkingEl = null;
-
   try {
     if (trainingAiSend) trainingAiSend.disabled = true;
-    thinkingEl = addChatMessage("Thinking…", "bot");
+    addChatMessage(`<span style="opacity:0.7;">Thinking…</span>`, "bot");
 
     const res = await fetch("/api/mcassist", {
       method: "POST",
@@ -1164,14 +984,15 @@ async function handleTrainingAI(text) {
     let data = {};
     try { data = await res.json(); } catch { data = {}; }
 
-    // remove thinking
-    thinkingEl?.remove();
+    // remove last thinking bubble (best-effort)
+    if (trainingChat && trainingChat.lastElementChild) {
+      const html = trainingChat.lastElementChild.innerHTML || "";
+      if (html.includes("Thinking")) trainingChat.lastElementChild.remove();
+    }
 
-    const reply = data?.reply ? String(data.reply) : "I’m not sure. Try asking about a specific module.";
-    addChatMessage(reply, "bot");
+    addChatMessage(data.reply || "I’m not sure. Try asking about a module.", "bot");
   } catch (e) {
     console.error("Training AI error:", e);
-    thinkingEl?.remove();
     addChatMessage("Sorry, the training assistant had a problem. Try again.", "bot");
   } finally {
     if (trainingAiSend) trainingAiSend.disabled = false;
@@ -1182,20 +1003,16 @@ async function handleTrainingAI(text) {
    EVENTS
 ========================= */
 
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", async () => {
-    stopRealtime();
-    await signOut(auth);
-    localStorage.removeItem("mc_session_user");
-    window.location.href = "index.html";
-  });
-}
+logoutBtn?.addEventListener("click", async () => {
+  stopRealtime();
+  await signOut(auth);
+  localStorage.removeItem("mc_session_user");
+  window.location.href = "index.html";
+});
 
-if (sidebar && sidebarToggle) {
-  sidebarToggle.addEventListener("click", () => {
-    sidebar.classList.toggle("sidebar-open");
-  });
-}
+sidebarToggle?.addEventListener("click", () => {
+  sidebar?.classList.toggle("sidebar-open");
+});
 
 trainingSearchBtn?.addEventListener("click", () => {
   renderModuleGrid(trainingSearch?.value || "");
@@ -1225,13 +1042,6 @@ trainingAiForm?.addEventListener("submit", (e) => {
   handleTrainingAI(trainingAiInput?.value || "");
 });
 
-// Escape closes overlay
-window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && moduleOverlay?.classList.contains("show")) {
-    closeModuleOverlay();
-  }
-});
-
 /* =========================
    INIT
 ========================= */
@@ -1240,7 +1050,7 @@ function seedTrainingChat() {
   if (!trainingChat) return;
   trainingChat.innerHTML = "";
   addChatMessage(
-    "Hi 👋 Try: “open grill training module”, “open Big Mac UK build module”, or “quiz me on food safety”.",
+    "Hi 👋 Ask me anything about training. Try: <strong>“open grill training module”</strong> or <strong>“quiz me on food safety”</strong>.",
     "bot"
   );
 }
