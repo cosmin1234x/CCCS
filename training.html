@@ -6,564 +6,329 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 
-  <!-- Training v2 page-specific styles -->
   <style>
-    .learning-layout {
+    :root{
+      --card:#ffffff;
+      --border:#e5e7eb;
+      --muted:#6b7280;
+      --ink:#111827;
+      --shadow: 0 10px 25px rgba(15,23,42,.10);
+      --radius: 18px;
+      --gap: 14px;
+    }
+
+    /* ===== Page frame ===== */
+    .main-layout{
+      display:flex;
+      min-height:100vh;
+    }
+    .learning-layout{
       flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .learning-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .learning-header-left h2 {
-      font-size: 1.25rem;
-      font-weight: 800;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .learning-header-left h2::before {
-      content: "🎓";
-    }
-
-    .learning-header-left p {
-      font-size: 0.8rem;
-      color: #6b7280;
-    }
-
-    .learning-header-right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.75rem;
-      color: #6b7280;
-    }
-
-    .learning-level-pill {
-      border-radius: 999px;
-      padding: 5px 12px;
-      background: #111827;
-      color: #f9fafb;
-      font-size: 0.75rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .learning-level-pill span:first-child {
-      font-size: 0.95rem;
-    }
-
-    .learning-grid {
-      display: grid;
-      grid-template-columns: 1.1fr 2.2fr 1.2fr;
-      gap: 14px;
-      align-items: flex-start;
-    }
-
-    @media (max-width: 1024px) {
-      .learning-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    /* Path rail (left) */
-    .path-rail {
-      background: #ffffff;
-      border-radius: 18px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-      padding: 12px 12px 10px;
-      max-height: calc(100vh - 80px);
-      overflow-y: auto;
-    }
-
-    .path-rail h3 {
-      font-size: 0.9rem;
-      font-weight: 800;
-      margin-bottom: 4px;
-    }
-
-    .path-rail p {
-      font-size: 0.76rem;
-      color: #6b7280;
-      margin-bottom: 8px;
-    }
-
-    .path-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .path-item {
-      border-radius: 12px;
-      padding: 7px 9px;
-      border: 1px solid #e5e7eb;
-      background: #f9fafb;
-      cursor: pointer;
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      transition: transform 0.08s ease, box-shadow 0.08s ease,
-        border-color 0.08s ease, background 0.08s ease;
-      font-size: 0.8rem;
-    }
-
-    .path-item:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 13px rgba(15, 23, 42, 0.16);
-      border-color: #fbbf24;
-      background: #ffffff;
-    }
-
-    .path-item.active {
-      border-color: #d97706;
-      background: #fffbeb;
-    }
-
-    .path-step {
-      width: 20px;
-      height: 20px;
-      border-radius: 999px;
-      background: #e5e7eb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.72rem;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    .path-item.completed .path-step {
-      background: #22c55e;
-      color: #f9fafb;
-    }
-
-    .path-text {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .path-title-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 4px;
-      align-items: center;
-    }
-
-    .path-title-row span:first-child {
-      font-weight: 600;
-    }
-
-    .path-tag {
-      font-size: 0.68rem;
-      padding: 2px 7px;
-      border-radius: 999px;
-      background: #eff6ff;
-      color: #1d4ed8;
-      white-space: nowrap;
-    }
-
-    .path-meta {
-      font-size: 0.7rem;
-      color: #6b7280;
-    }
-
-    /* Lesson panel (center) */
-    .lesson-panel {
-      background: #ffffff;
-      border-radius: 18px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
-      padding: 14px 16px 14px;
-      min-height: 260px;
-      opacity: 0;
-      transform: translateY(4px);
-      animation: lessonFadeIn 0.18s ease-out forwards;
-    }
-
-    @keyframes lessonFadeIn {
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .lesson-header-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .lesson-header-main h3 {
-      font-size: 1rem;
-      font-weight: 800;
-    }
-
-    .lesson-header-main p {
-      font-size: 0.78rem;
-      color: #6b7280;
-    }
-
-    .lesson-tag-pill {
-      font-size: 0.7rem;
-      padding: 3px 9px;
-      border-radius: 999px;
-      background: #fef9c3;
-      color: #92400e;
-      border: 1px solid #fde68a;
-      align-self: flex-start;
-    }
-
-    .lesson-section {
-      margin-top: 8px;
-    }
-
-    .lesson-section h4 {
-      font-size: 0.82rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-weight: 700;
-      color: #9ca3af;
-      margin-bottom: 4px;
-    }
-
-    .lesson-section p,
-    .lesson-section li {
-      font-size: 0.8rem;
-      color: #374151;
-      line-height: 1.45;
-    }
-
-    .lesson-section ul {
-      padding-left: 16px;
-      margin-top: 4px;
-    }
-
-    .lesson-scenario {
-      margin-top: 8px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      background: #f9fafb;
-      border: 1px dashed #e5e7eb;
-      font-size: 0.78rem;
-      color: #4b5563;
-    }
-
-    .lesson-scenario strong {
-      display: block;
-      margin-bottom: 2px;
-    }
-
-    .lesson-highlight {
-      margin-top: 8px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      background: #fffbeb;
-      border: 1px solid #fde68a;
-      font-size: 0.78rem;
-      color: #92400e;
-    }
-
-    .lesson-placeholder {
-      font-size: 0.8rem;
-      color: #6b7280;
-    }
-
-    /* Progress / checklist (right) */
-    .progress-panel {
-      background: #ffffff;
-      border-radius: 18px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-      padding: 12px 14px 12px;
-      font-size: 0.8rem;
-    }
-
-    .progress-heading {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 6px;
-    }
-
-    .progress-heading h3 {
-      font-size: 0.9rem;
-      font-weight: 800;
-    }
-
-    .status-pill {
-      font-size: 0.7rem;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: #e5e7eb;
-      color: #374151;
-    }
-
-    .status-pill.completed {
-      background: #ecfdf5;
-      color: #15803d;
-    }
-
-    .xp-small {
-      font-size: 0.75rem;
-      color: #6b7280;
-      margin-bottom: 6px;
-    }
-
-    .xp-bar-shell-small {
+      display:flex;
+      flex-direction:column;
+      gap: var(--gap);
+      padding: 16px 18px;
+      max-width: 1400px;
+      margin: 0 auto;
       width: 100%;
-      height: 6px;
-      border-radius: 999px;
-      background: #e5e7eb;
-      overflow: hidden;
-      margin-top: 2px;
-      margin-bottom: 6px;
     }
 
-    .xp-bar-fill-small {
-      height: 100%;
-      width: 0%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, #22c55e, #facc15);
-      transition: width 0.3s ease-out;
+    /* ===== Sticky header ===== */
+    .learning-topbar{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+      background: rgba(247,247,247,.72);
+      border-bottom: 1px solid rgba(229,231,235,.8);
+      padding: 10px 0 12px;
     }
 
-    .checklist {
-      list-style: none;
-      margin-top: 4px;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+    .learning-header{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap: 12px;
     }
-
-    .check-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .check-item input[type="checkbox"] {
-      width: 14px;
-      height: 14px;
-    }
-
-    .check-item span {
-      font-size: 0.78rem;
-      color: #4b5563;
-    }
-
-    .mini-reflection {
-      margin-top: 8px;
-      padding-top: 6px;
-      border-top: 1px dashed #e5e7eb;
-      font-size: 0.78rem;
-      color: #4b5563;
-    }
-
-    .mini-reflection textarea {
-      width: 100%;
-      margin-top: 4px;
-      border-radius: 10px;
-      border: 1px solid #e5e7eb;
-      padding: 6px 8px;
-      font-size: 0.76rem;
-      resize: vertical;
-      min-height: 36px;
-    }
-
-    .progress-actions {
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .btn-main {
-      border-radius: 999px;
-      border: none;
-      padding: 7px 10px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #d9091c, #a30716);
-      color: #fefce8;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      box-shadow: 0 8px 16px rgba(148, 27, 12, 0.55);
-      transition: transform 0.08s, box-shadow 0.08s;
-    }
-
-    .btn-main:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 22px rgba(148, 27, 12, 0.6);
-    }
-
-    .btn-main:active {
-      transform: translateY(0);
-      box-shadow: 0 6px 13px rgba(148, 27, 12, 0.5);
-    }
-
-    .btn-main:disabled {
-      opacity: 0.6;
-      cursor: default;
-      box-shadow: none;
-    }
-
-    .btn-ghost {
-      border-radius: 999px;
-      border: 1px solid #e5e7eb;
-      padding: 6px 9px;
-      font-size: 0.78rem;
-      background: #f9fafb;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-
-    .btn-ghost:hover {
-      background: #f3f4f6;
-    }
-
-    /* Reward toast (simple, non-modal) */
-    .toast {
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      z-index: 1200;
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: #111827;
-      color: #f9fafb;
-      font-size: 0.8rem;
-      box-shadow: 0 14px 30px rgba(15, 23, 42, 0.8);
-      display: none;
-      max-width: 260px;
-    }
-
-    .toast.show {
-      display: block;
-      animation: toastFade 0.22s ease-out;
-    }
-
-    @keyframes toastFade {
-      from {
-        opacity: 0;
-        transform: translateY(6px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    /* Mobile tweaks */
-    @media (max-width: 640px) {
-      .learning-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 6px;
-      }
-      .learning-header-right {
-        align-self: stretch;
-        justify-content: space-between;
-      }
-    }
-
-    /* ===== ADDITIONS FOR AI + MODULE SEARCH + OVERLAY ===== */
-
-    .training-tools-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      align-items: start;
-    }
-    @media (max-width: 1024px) {
-      .training-tools-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .training-search-row {
-      display: flex;
+    .learning-header-left h2{
+      margin:0;
+      font-size: 1.35rem;
+      font-weight: 900;
+      letter-spacing: -.02em;
+      display:flex;
+      align-items:center;
       gap: 8px;
+      color: var(--ink);
+    }
+    .learning-header-left h2::before{ content:"🎓"; }
+    .learning-header-left p{
+      margin:6px 0 0;
+      font-size: .85rem;
+      color: var(--muted);
+      max-width: 62ch;
+      line-height: 1.35;
+    }
+
+    .learning-header-right{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      font-size:.8rem;
+      color: var(--muted);
       flex-wrap: wrap;
-      margin-top: 8px;
+      justify-content:flex-end;
     }
-    .training-search-row input {
-      flex: 1;
+    .learning-level-pill{
+      border-radius:999px;
+      padding: 7px 12px;
+      background: var(--ink);
+      color:#fff;
+      font-weight: 800;
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+    }
+
+    /* ===== Cards (consistent) ===== */
+    .card-surface{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .card-pad{ padding: 14px 14px; }
+    .card-title{
+      font-size: .95rem;
+      font-weight: 900;
+      margin: 0;
+      color: var(--ink);
+    }
+    .card-sub{
+      margin: 6px 0 0;
+      font-size: .82rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    /* ===== Main workspace grid ===== */
+    .workspace-grid{
+      display:grid;
+      grid-template-columns: 1.05fr 2.2fr 1.15fr;
+      gap: var(--gap);
+      align-items:start;
+    }
+
+    /* Make it feel “app-like” (taller panels) */
+    .rail, .lesson, .progress{
+      min-height: 340px;
+      max-height: calc(100vh - 170px);
+      overflow:auto;
+    }
+
+    /* Path rail */
+    .path-list{ list-style:none; padding:0; margin: 10px 0 0; display:flex; flex-direction:column; gap: 8px; }
+    .path-item{
+      display:flex;
+      gap:10px;
+      padding: 10px 10px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background:#f9fafb;
+      cursor:pointer;
+      transition: transform .08s ease, box-shadow .08s ease, border-color .08s ease, background .08s ease;
+      user-select:none;
+    }
+    .path-item:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 10px 18px rgba(15,23,42,.12);
+      border-color: #fbbf24;
+      background:#fff;
+    }
+    .path-item.active{
+      background:#fffbeb;
+      border-color:#d97706;
+    }
+    .path-step{
+      width: 22px; height: 22px;
+      border-radius: 999px;
+      background:#e5e7eb;
+      display:flex; align-items:center; justify-content:center;
+      font-size:.75rem; font-weight:900;
+      flex-shrink:0;
+    }
+    .path-item.completed .path-step{
+      background:#22c55e; color:#fff;
+    }
+    .path-title-row{
+      display:flex; justify-content:space-between; gap: 8px; align-items:center;
+    }
+    .path-tag{
+      font-size:.68rem;
+      padding: 3px 8px;
+      border-radius:999px;
+      background:#eff6ff;
+      color:#1d4ed8;
+      white-space:nowrap;
+    }
+    .path-meta{ margin-top:3px; font-size:.72rem; color: var(--muted); }
+
+    /* Lesson */
+    .lesson-header-row{
+      display:flex; justify-content:space-between; gap: 10px; align-items:flex-start;
+      margin-bottom: 10px;
+    }
+    .lesson-tag-pill{
+      font-size: .7rem;
+      padding: 4px 10px;
+      border-radius:999px;
+      background:#fef9c3;
+      border:1px solid #fde68a;
+      color:#92400e;
+      font-weight: 800;
+      white-space:nowrap;
+    }
+    .lesson-section h4{
+      margin: 12px 0 6px;
+      font-size:.78rem;
+      letter-spacing:.09em;
+      text-transform:uppercase;
+      color:#9ca3af;
+    }
+    .lesson-section li, .lesson-section p{ font-size:.84rem; color:#374151; line-height:1.45; }
+
+    /* Progress */
+    .progress-heading{
+      display:flex; justify-content:space-between; align-items:center; gap: 10px;
+      margin-bottom: 10px;
+    }
+    .status-pill{
+      font-size:.7rem;
+      padding: 4px 10px;
+      border-radius:999px;
+      background:#e5e7eb;
+      color:#374151;
+      font-weight:800;
+    }
+    .status-pill.completed{ background:#ecfdf5; color:#15803d; }
+
+    .xp-bar-shell-small{
+      width:100%;
+      height: 7px;
+      border-radius:999px;
+      background:#e5e7eb;
+      overflow:hidden;
+      margin-top: 6px;
+    }
+    .xp-bar-fill-small{
+      height:100%;
+      width:0%;
+      border-radius:inherit;
+      background: linear-gradient(90deg, #22c55e, #facc15);
+      transition: width .25s ease;
+    }
+
+    /* Buttons (clean) */
+    .btn-main{
+      border-radius:999px;
+      border:none;
+      padding: 9px 12px;
+      font-size:.82rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #d9091c, #a30716);
+      color:#fff7ed;
+      cursor:pointer;
+      box-shadow: 0 10px 20px rgba(148, 27, 12, 0.40);
+      transition: transform .08s ease, box-shadow .08s ease, opacity .08s ease;
+    }
+    .btn-main:hover{ transform: translateY(-1px); box-shadow: 0 14px 26px rgba(148, 27, 12, 0.45); }
+    .btn-main:disabled{ opacity:.55; cursor:default; box-shadow:none; }
+
+    .btn-ghost{
+      border-radius:999px;
+      border:1px solid var(--border);
+      padding: 8px 10px;
+      font-size:.8rem;
+      font-weight:800;
+      background:#f9fafb;
+      cursor:pointer;
+    }
+    .btn-ghost:hover{ background:#f3f4f6; }
+
+    /* ===== Bottom tools row ===== */
+    .tools-grid{
+      display:grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: var(--gap);
+      align-items:stretch;
+    }
+    .tools-grid .card-surface{ min-height: 360px; }
+
+    .training-search-row{
+      display:flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .training-search-row input{
+      flex:1;
       min-width: 220px;
       padding: 10px 12px;
-      border-radius: 999px;
-      border: 1px solid #e5e7eb;
-      outline: none;
-      font-size: 0.82rem;
+      border-radius:999px;
+      border:1px solid var(--border);
+      outline:none;
+      font-size:.84rem;
+      background:#fff;
     }
 
-    .chat-box {
+    .chat-box{
       margin-top: 10px;
-      border: 1px solid #e5e7eb;
+      border:1px solid var(--border);
       border-radius: 16px;
       padding: 10px;
-      min-height: 160px;
+      min-height: 210px;
       max-height: 260px;
-      overflow: auto;
-      background: #ffffff;
+      overflow:auto;
+      background:#fff;
     }
+    .suggestion-chip{
+      border-radius:999px;
+      border:1px solid var(--border);
+      padding: 7px 10px;
+      font-size: .78rem;
+      background:#f9fafb;
+      cursor:pointer;
+      font-weight: 800;
+    }
+    .suggestion-chip:hover{ background:#f3f4f6; }
 
-    .suggestion-chip {
-      border-radius: 999px;
-      border: 1px solid #e5e7eb;
-      padding: 6px 10px;
-      font-size: 0.78rem;
-      background: #f9fafb;
-      cursor: pointer;
-    }
-    .suggestion-chip:hover {
-      background: #f3f4f6;
-    }
-
-    /* Overlay (module viewer) */
-    .module-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.45);
-      display: none;
-      align-items: center;
-      justify-content: center;
+    /* Overlay */
+    .module-overlay{
+      position:fixed;
+      inset:0;
+      background: rgba(15,23,42,.50);
+      display:none;
+      align-items:center;
+      justify-content:center;
       z-index: 300;
+      padding: 18px;
     }
-    .module-overlay.show {
-      display: flex;
-    }
-    .module-card {
-      width: 100%;
-      max-width: 760px;
-      background: #ffffff;
+    .module-overlay.show{ display:flex; }
+    .module-card{
+      width:100%;
+      max-width: 820px;
+      background:#fff;
       border-radius: 18px;
       padding: 16px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+      border:1px solid var(--border);
+      box-shadow: 0 25px 60px rgba(0,0,0,.30);
       max-height: 85vh;
-      overflow: auto;
+      overflow:auto;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px){
+      .workspace-grid{ grid-template-columns: 1fr; }
+      .rail, .lesson, .progress{ max-height:none; }
+      .tools-grid{ grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -580,27 +345,18 @@
       </div>
       <button id="sidebarToggle" class="sidebar-toggle">☰</button>
     </div>
-<button class="btn-ghost" type="button" onclick="window.location.href='wrapped.html'">
-  🎁 View McTraining Wrapped
-</button>
 
     <nav class="sidebar-nav">
       <div class="nav-section-title">Main</div>
       <ul class="nav-list">
         <li class="nav-item" onclick="window.location.href='main.html'">
-          <span class="nav-dot"></span>
-          <span class="nav-icon">🏠</span>
-          <span class="nav-label">Dashboard</span>
+          <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
         </li>
         <li class="nav-item active" onclick="window.location.href='training.html'">
-          <span class="nav-dot"></span>
-          <span class="nav-icon">🎓</span>
-          <span class="nav-label">Training</span>
+          <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
         </li>
         <li class="nav-item" onclick="window.location.href='schedule.html'">
-          <span class="nav-dot"></span>
-          <span class="nav-icon">📅</span>
-          <span class="nav-label">Shifts</span>
+          <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
         </li>
       </ul>
     </nav>
@@ -618,98 +374,96 @@
   <div class="main-layout">
     <div class="learning-layout">
 
-      <header class="learning-header">
-        <div class="learning-header-left">
-          <h2>Learning Hub</h2>
-          <p>Work through bite-sized modules that teach real skills for your store.</p>
-        </div>
-        <div class="learning-header-right">
-          <div class="learning-level-pill">
-            <span id="headerLevel">1</span>
-            <span>Training level</span>
+      <!-- Sticky header area -->
+      <div class="learning-topbar">
+        <header class="learning-header">
+          <div class="learning-header-left">
+            <h2>Learning Hub</h2>
+            <p>Work through modules, open them instantly, and quiz yourself on the spot.</p>
           </div>
-          <span id="headerXP">0 XP total</span>
-        </div>
-      </header>
+          <div class="learning-header-right">
+            <div class="learning-level-pill">
+              <span id="headerLevel">1</span>
+              <span>Training level</span>
+            </div>
+            <span id="headerXP">0 XP total</span>
+          </div>
+        </header>
+      </div>
 
-      <section class="learning-grid">
-        <!-- LEFT: Path rail -->
-        <aside class="path-rail">
-          <h3>Your learning path</h3>
-          <p>Select a module to load the lesson.</p>
-          <ul id="pathList" class="path-list">
-            <!-- Filled by training.js -->
-          </ul>
+      <!-- Main “workspace” -->
+      <section class="workspace-grid">
+
+        <!-- LEFT -->
+        <aside class="card-surface card-pad rail">
+          <h3 class="card-title">Your learning path</h3>
+          <p class="card-sub">Pick a module to load the lesson.</p>
+          <ul id="pathList" class="path-list"></ul>
         </aside>
 
-        <!-- CENTER: Lesson content -->
-        <main id="lessonPanel" class="lesson-panel">
+        <!-- CENTER -->
+        <main id="lessonPanel" class="card-surface card-pad lesson">
           <div class="lesson-header-row">
-            <div class="lesson-header-main">
-              <h3 id="lessonTitle">Choose a module to get started</h3>
-              <p id="lessonSubtitle">
-                You’ll see a simple explanation, key steps and a real scenario for that part of the job.
+            <div>
+              <h3 id="lessonTitle" class="card-title">Choose a module to get started</h3>
+              <p id="lessonSubtitle" class="card-sub">
+                You’ll see key steps + a scenario so you can apply it on shift.
               </p>
             </div>
             <div id="lessonTag" class="lesson-tag-pill">Overview</div>
           </div>
 
           <div id="lessonContent">
-            <p class="lesson-placeholder">
-              Use the learning path on the left to pick where you’d like to focus first:
-              food safety, kitchen, front counter, drive-thru or customer experience.
-              As you complete modules you’ll build a solid base for certification.
+            <p class="card-sub" style="margin-top:0;">
+              Use the learning path to choose where to focus first: food safety, kitchen,
+              front counter, drive-thru, customer recovery.
             </p>
           </div>
         </main>
 
-        <!-- RIGHT: Progress panel -->
-        <aside class="progress-panel">
+        <!-- RIGHT -->
+        <aside class="card-surface card-pad progress">
           <div class="progress-heading">
-            <h3>Module progress</h3>
+            <h3 class="card-title">Module progress</h3>
             <span id="statusPill" class="status-pill">No module selected</span>
           </div>
 
-          <div class="xp-small">
-            <span id="moduleXPInfo">Select a module to see its XP value.</span>
+          <div style="margin-top:6px;">
+            <div id="moduleXPInfo" class="card-sub" style="margin:0;">Select a module to see its XP value.</div>
             <div class="xp-bar-shell-small">
               <div id="moduleXpFill" class="xp-bar-fill-small"></div>
             </div>
           </div>
 
-          <div>
-            <strong style="font-size:0.78rem;">Checklist for this lesson</strong>
-            <ul id="checklist" class="checklist">
-              <!-- Filled by training.js -->
-            </ul>
+          <div style="margin-top:12px;">
+            <strong style="font-size:.82rem;">Checklist</strong>
+            <ul id="checklist" class="checklist" style="margin-top:8px;"></ul>
           </div>
 
-          <div class="mini-reflection">
-            <strong>Quick note to self</strong>
-            <span style="display:block;margin-top:2px;">
-              What’s one thing you’ll do differently on your next shift?
-            </span>
-            <textarea id="reflectionInput" placeholder="Example: 'I’ll call out big orders before they’re ready.'"></textarea>
+          <div class="mini-reflection" style="margin-top:14px;">
+            <strong>Quick note</strong>
+            <div class="card-sub" style="margin-top:4px;">
+              What’s one thing you’ll do better next shift?
+            </div>
+            <textarea id="reflectionInput"
+              placeholder="Example: ‘I’ll call out big orders before they’re ready.’"
+              style="width:100%; margin-top:8px; border-radius:14px; border:1px solid var(--border); padding:10px 12px; font-size:.82rem; resize:vertical; min-height:48px;"></textarea>
           </div>
 
-          <div class="progress-actions">
-            <button id="completeModuleBtn" class="btn-main" disabled>
-              Mark module as complete
-            </button>
-            <button id="resetModuleBtn" class="btn-ghost" disabled>
-              Reset this module
-            </button>
+          <div class="progress-actions" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+            <button id="completeModuleBtn" class="btn-main" disabled>Mark module as complete</button>
+            <button id="resetModuleBtn" class="btn-ghost" disabled>Reset this module</button>
           </div>
         </aside>
       </section>
 
-      <!-- ===== NEW: MODULE SEARCH + AI TRAINING ASSISTANT ===== -->
-      <section class="training-tools-grid">
+      <!-- Tools row -->
+      <section class="tools-grid">
 
         <!-- Modules explorer -->
-        <section class="card section-card">
-          <div class="subsection-title">Training Modules</div>
-          <div class="subsection-sub">Search, open, and quiz instantly. (You can also ask the AI to open modules.)</div>
+        <section class="card-surface card-pad">
+          <h3 class="card-title">Training Modules</h3>
+          <p class="card-sub">Search and open modules instantly.</p>
 
           <div class="training-search-row">
             <input id="trainingSearch" placeholder="Search modules (e.g. grill, hygiene, drive-thru)…" />
@@ -717,43 +471,38 @@
           </div>
 
           <div id="trainingModuleGrid"
-               style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-top:12px;">
-            <!-- Filled by training.js -->
+               style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-top:12px;">
           </div>
         </section>
 
         <!-- AI assistant -->
-        <section class="card section-card">
-          <div class="subsection-title">McAssist – Training Help</div>
-          <div class="subsection-sub" id="trainingAiSubtitle">
-            Ask anything or say: “open grill training module”.
-          </div>
+        <section class="card-surface card-pad">
+          <h3 class="card-title">McAssist – Training Help</h3>
+          <p class="card-sub" id="trainingAiSubtitle">Ask anything or say: “open grill training module”.</p>
 
           <div id="trainingChat" class="chat-box"></div>
 
           <form id="trainingAiForm" style="display:flex; gap:8px; margin-top:10px;">
-            <input id="trainingAiInput" placeholder="Type a question…" style="flex:1; padding:10px 12px; border-radius:999px; border:1px solid #e5e7eb; outline:none;" />
+            <input id="trainingAiInput" placeholder="Type a question…"
+              style="flex:1; padding:10px 12px; border-radius:999px; border:1px solid var(--border); outline:none; font-size:.84rem;" />
             <button id="trainingAiSend" class="btn-main" type="submit">Send</button>
           </form>
 
-          <div id="trainingQuickChips" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;">
-            <!-- Filled by training.js -->
-          </div>
+          <div id="trainingQuickChips" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;"></div>
         </section>
 
       </section>
-      <!-- ===== END NEW SECTION ===== -->
 
     </div>
   </div>
 
-  <!-- ===== Module overlay (instant open + quiz) ===== -->
+  <!-- Overlay -->
   <div id="moduleOverlay" class="module-overlay">
     <div class="module-card">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
         <div>
-          <div id="moduleTitle" style="font-weight:900; font-size:1rem;">Module</div>
-          <div id="moduleMeta" style="font-size:0.78rem; color:#6b7280;">—</div>
+          <div id="moduleTitle" style="font-weight:900; font-size:1.05rem;">Module</div>
+          <div id="moduleMeta" style="font-size:.82rem; color:var(--muted); margin-top:2px;">—</div>
         </div>
         <div style="display:flex; gap:8px; align-items:center;">
           <button id="startQuizBtn" class="btn-ghost" type="button">🧠 Start quiz</button>
@@ -761,13 +510,11 @@
         </div>
       </div>
 
-      <div id="moduleBody" style="margin-top:12px;"></div>
-
-      <div id="quizArea" style="display:none; margin-top:14px; border-top:1px solid #e5e7eb; padding-top:12px;"></div>
+      <div id="moduleBody" style="margin-top:14px;"></div>
+      <div id="quizArea" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:12px;"></div>
     </div>
   </div>
 
-  <!-- Simple toast -->
   <div id="toast" class="toast"></div>
 
   <script type="module" src="training.js"></script>
