@@ -653,6 +653,13 @@ document.addEventListener("keydown", (e)=>{
   }
 });
 
+backBtn?.addEventListener("click", () => {
+  const params = new URLSearchParams(window.location.search);
+  const backTo = params.get("backTo") || "training.html";
+  window.location.href = backTo;
+});
+
+
 // Optional: double click / double tap toggles autoplay
 storyShell?.addEventListener("dblclick", (e)=>{
   if (shouldIgnoreTap(e.target)) return;

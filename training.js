@@ -84,6 +84,7 @@ const trainingQuickChips = document.getElementById("trainingQuickChips");
 
 // toast
 const toastEl = document.getElementById("toast");
+const wrappedBtn = document.getElementById("wrappedBtn");
 
 /* =========================
    STATE
@@ -1063,6 +1064,11 @@ logoutBtn?.addEventListener("click", async () => {
   localStorage.removeItem("mc_session_user");
   window.location.href = "index.html";
 });
+
+wrappedBtn?.addEventListener("click", () => {
+  window.location.href = "wrapped.html?backTo=training.html";
+});
+
 
 // search
 moduleSearchBtn?.addEventListener("click", renderModuleGrid);
