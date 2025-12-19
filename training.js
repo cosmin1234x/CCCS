@@ -5,7 +5,9 @@
 // - Quiz (Start + Next fixed)
 // - Firestore progress + XP/Level
 // - AI chat: open module / quiz / ask via /api/mcassist
+// - Wrapped button wired (top + sidebar)
 // ========================================
+
 import { MODULES } from "./modules-data.js";
 import { auth, db } from "./firebase-init.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -34,6 +36,10 @@ const headerLevel = document.getElementById("headerLevel");
 const headerXP = document.getElementById("headerXP");
 const xpProgressFill = document.getElementById("xpProgressFill");
 const quickQuizBtn = document.getElementById("quickQuizBtn");
+
+// Wrapped buttons (NEW in your training.html)
+const wrappedBtnTop = document.getElementById("wrappedBtnTop");      // top button
+const wrappedBtnSide = document.getElementById("wrappedBtnSide");    // sidebar item (li)
 
 // library
 const moduleSearch = document.getElementById("moduleSearch");
@@ -84,7 +90,6 @@ const trainingQuickChips = document.getElementById("trainingQuickChips");
 
 // toast
 const toastEl = document.getElementById("toast");
-const wrappedBtn = document.getElementById("wrappedBtn");
 
 /* =========================
    STATE
@@ -99,11 +104,6 @@ let activeFilter = "All";
 
 // quiz state
 let activeQuiz = null; // { moduleId, questions:[{q, options, answer, explain}], index, score, locked }
-
-/* =========================
-   MODULE LIBRARY (edit freely)
-========================= */
-
 
 /* =========================
    HELPERS
@@ -166,18 +166,20 @@ function findBestModuleByText(text) {
   const exact = MODULES.find(m => normalize(m.id) === q);
   if (exact) return exact;
 
-  const scored = MODULES.map(m => {
-    const hay = `${m.title} ${m.tag} ${(m.keywords || []).join(" ")} ${m.summary || ""}`.toLowerCase();
-    let score = 0;
-    q.split(/\s+/).forEach(w => {
-      if (!w) return;
-      if (hay.includes(w)) score += 2;
-      if (normalize(m.title).includes(w)) score += 3;
-      if (normalize(m.tag).includes(w)) score += 2;
-    });
-    if (normalize(m.title).includes(q)) score += 8;
-    return { m, score };
-  }).sort((a, b) => b.score - a.score);
+  const scored = MODULES
+    .map(m => {
+      const hay = `${m.title} ${m.tag} ${(m.keywords || []).join(" ")} ${m.summary || ""}`.toLowerCase();
+      let score = 0;
+      q.split(/\s+/).forEach(w => {
+        if (!w) return;
+        if (hay.includes(w)) score += 2;
+        if (normalize(m.title).includes(w)) score += 3;
+        if (normalize(m.tag).includes(w)) score += 2;
+      });
+      if (normalize(m.title).includes(q)) score += 8;
+      return { m, score };
+    })
+    .sort((a, b) => b.score - a.score);
 
   if (!scored.length || scored[0].score <= 0) return null;
   return scored[0].m;
@@ -346,7 +348,6 @@ function openModule(moduleId) {
   if (playerMeta) playerMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
 
   if (lessonSteps) {
-    // Your HTML uses a simple <ul> here, not the themed list rows
     lessonSteps.innerHTML = (m.steps || []).length
       ? m.steps.map(s => `<li>${escapeHTML(s)}</li>`).join("")
       : `<li>No steps added yet.</li>`;
@@ -360,11 +361,9 @@ function openModule(moduleId) {
   renderChecklist(m);
   refreshPlayer();
 
-  // Enable quiz
   if (startQuizBtn) startQuizBtn.disabled = false;
   resetQuizUI();
 
-  // little stage animation bump
   if (tabStage) {
     tabStage.style.animation = "none";
     void tabStage.offsetHeight;
@@ -624,7 +623,6 @@ function renderQuizQuestion() {
 
   const opts = (qObj.options || []).map((t, idx) => {
     const letter = String.fromCharCode(65 + idx);
-    // Use theme buttons, but keep them stacked
     return `
       <button class="btn optBtn" type="button" data-idx="${idx}" style="width:100%; justify-content:flex-start;">
         ${letter}. ${escapeHTML(t)}
@@ -642,7 +640,6 @@ function renderQuizQuestion() {
       const chosen = Number(btn.dataset.idx);
       const correct = Number(qObj.answer);
 
-      // lock and highlight
       quizOptions.querySelectorAll(".optBtn").forEach(b => {
         const idx = Number(b.dataset.idx);
         const isCorrect = idx === correct;
@@ -650,7 +647,6 @@ function renderQuizQuestion() {
 
         b.disabled = true;
 
-        // light theme-friendly highlight
         if (isCorrect) {
           b.style.background = "#ecfdf5";
           b.style.color = "#047857";
@@ -696,6 +692,7 @@ function addChatMessage(html, from = "bot") {
   if (!trainingChat) return;
 
   const div = document.createElement("div");
+  // mc-theme has .message + .msg-user/.msg-bot + .bubble styles already
   div.className = `message ${from === "user" ? "msg-user" : "msg-bot"}`;
   div.innerHTML = `<div class="bubble">${html}</div>`;
   trainingChat.appendChild(div);
@@ -711,7 +708,6 @@ function renderAIChips() {
     "Quiz me on fry station",
     "What are the key steps for drive-thru speed?"
   ];
-  // use your theme chip style
   trainingQuickChips.innerHTML = chips
     .map(t => `<button class="suggestion-chip" type="button">${escapeHTML(t)}</button>`)
     .join("");
@@ -821,12 +817,8 @@ async function handleTrainingAI(text) {
   try {
     if (trainingAiSend) trainingAiSend.disabled = true;
 
-    // thinking bubble
     const thinkingId = `think_${Date.now()}`;
-    addChatMessage(
-      `<span id="${thinkingId}" style="opacity:.75;">Thinking…</span>`,
-      "bot"
-    );
+    addChatMessage(`<span id="${thinkingId}" style="opacity:.75;">Thinking…</span>`, "bot");
 
     const res = await fetch("/api/mcassist", {
       method: "POST",
@@ -837,7 +829,6 @@ async function handleTrainingAI(text) {
     let data = {};
     try { data = await res.json(); } catch { data = {}; }
 
-    // remove thinking
     document.getElementById(thinkingId)?.closest(".message")?.remove?.();
 
     addChatMessage(
@@ -867,10 +858,14 @@ logoutBtn?.addEventListener("click", async () => {
   window.location.href = "index.html";
 });
 
-wrappedBtn?.addEventListener("click", () => {
+// Wrapped nav
+wrappedBtnTop?.addEventListener("click", () => {
   window.location.href = "wrapped.html?backTo=training.html";
 });
-
+// sidebar LI already has onclick in HTML, but this keeps it working even if you remove inline onclick
+wrappedBtnSide?.addEventListener?.("click", () => {
+  window.location.href = "wrapped.html?backTo=training.html";
+});
 
 // search
 moduleSearchBtn?.addEventListener("click", renderModuleGrid);
@@ -926,11 +921,17 @@ function seedChat() {
   );
 }
 
+function resetQuizUIIfNeeded() {
+  // keep it safe if DOM isn’t fully present yet
+  if (!quizQuestion || !quizOptions) return;
+  resetQuizUI();
+}
+
 function initialRender() {
   renderFilters();
   renderModuleGrid();
   renderAIChips();
-  resetQuizUI();
+  resetQuizUIIfNeeded();
   setActiveTab("lesson");
 
   if (!selectedModuleId && MODULES.length) openModule(MODULES[0].id);

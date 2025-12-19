@@ -196,7 +196,6 @@
 </head>
 
 <body class="app-page">
-<button id="wrappedBtn" class="btn" type="button">✨ Wrapped</button>
 
   <!-- SIDEBAR (same as other pages) -->
   <aside class="sidebar">
@@ -215,9 +214,16 @@
         <li class="nav-item" onclick="window.location.href='main.html'">
           <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
         </li>
+
         <li class="nav-item active" onclick="window.location.href='training.html'">
           <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
         </li>
+
+        <!-- ✨ Wrapped (NEW) -->
+        <li class="nav-item" id="wrappedBtnSide" onclick="window.location.href='wrapped.html'">
+          <span class="nav-dot"></span><span class="nav-icon">✨</span><span class="nav-label">Wrapped</span>
+        </li>
+
         <li class="nav-item" onclick="window.location.href='schedule.html'">
           <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
         </li>
@@ -242,13 +248,19 @@
         <div class="training-top">
           <div>
             <div class="subsection-title">Training</div>
-            <div class="subsection-sub">Search modules, complete lessons, and quiz yourself. Ask McAssist if you’re stuck.</div>
+            <div class="subsection-sub">
+              Search modules, complete lessons, and quiz yourself. Ask McAssist if you’re stuck.
+            </div>
           </div>
 
           <div class="training-top-right">
             <div class="chip"><span>⭐</span> Level: <strong id="headerLevel">1</strong></div>
             <div class="chip"><span>🏆</span> XP: <strong id="headerXP">0</strong></div>
             <div class="xpbar" title="Progress to next level"><div id="xpProgressFill"></div></div>
+
+            <!-- ✨ Wrapped (NEW) -->
+            <button id="wrappedBtnTop" class="pill-filter" type="button">✨ Wrapped</button>
+
             <button id="quickQuizBtn" class="btn" type="button">🧠 Quick quiz</button>
           </div>
         </div>
