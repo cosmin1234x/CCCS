@@ -1,6 +1,8 @@
-// wrapped.js — FULL VERSION
-// Reads: users/{uid}.trainingXP, trainingLevel, trainingProgress
-// Builds “Spotify Wrapped style” story + shareable image
+// wrapped.js — FULL VERSION (FIXED + ANIMATED)
+// - Buttons always clickable
+// - Tap navigation ignores buttons/inputs
+// - Smooth slide transitions
+// - Works with Firestore: users/{uid}
 
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -19,8 +21,7 @@ const storyShell = document.getElementById("storyShell");
 const toastEl = document.getElementById("toast");
 
 /* =========================
-   MODULES (must match training.js module IDs/titles/tags)
-   Keep this list in sync with your training page.
+   MODULES (keep in sync with training.js)
 ========================= */
 const MODULES = [
   { id:"food_safety_basics", title:"Food Safety Basics", tag:"Food safety", xp:40 },
@@ -43,9 +44,10 @@ let userDoc = null;
 let slides = [];
 let idx = 0;
 let unsub = null;
+let isAnimating = false;
 
 /* =========================
-   UI helpers
+   Helpers
 ========================= */
 function toast(msg){
   if(!toastEl) return;
@@ -53,52 +55,7 @@ function toast(msg){
   toastEl.classList.add("show");
   setTimeout(()=>toastEl.classList.remove("show"), 2200);
 }
-
 function n(x){ return Number(x) || 0; }
-
-function getProgressMap(){
-  const p = userDoc?.trainingProgress;
-  return (p && typeof p === "object") ? p : {};
-}
-
-function completedModules(){
-  const p = getProgressMap();
-  const completed = [];
-  for (const m of MODULES){
-    if (p[m.id]?.completed) completed.push(m);
-  }
-  return completed;
-}
-
-function categoryBreakdown(completed){
-  const map = {};
-  completed.forEach(m=>{
-    map[m.tag] = (map[m.tag] || 0) + 1;
-  });
-  const arr = Object.entries(map).map(([tag,count])=>({tag,count}))
-    .sort((a,b)=>b.count-a.count);
-  return arr;
-}
-
-function topModule(completed){
-  if (!completed.length) return null;
-  // pick highest XP, tie-break by title
-  return [...completed].sort((a,b)=>{
-    const dx = n(b.xp) - n(a.xp);
-    if (dx !== 0) return dx;
-    return a.title.localeCompare(b.title);
-  })[0];
-}
-
-function trainingPersonality({xp, completedCount, topTag}){
-  // simple fun titles
-  if (completedCount === 0) return { title:"Just Getting Started", sub:"Your training story begins now." };
-  if (xp >= 450) return { title:"Shift Legend", sub:"You’re stacking skills like a pro." };
-  if (topTag === "Kitchen") return { title:"Kitchen Machine", sub:"Fast hands. Clean builds. Solid rhythm." };
-  if (topTag === "Drive-thru") return { title:"Drive-thru Commander", sub:"Clarity + speed under pressure." };
-  if (topTag === "Food safety") return { title:"Safety First Star", sub:"You keep standards tight and customers safe." };
-  return { title:"All-Rounder", sub:"You’re building skills across the floor." };
-}
 
 function calcLevelFromXP(xp){
   xp = n(xp);
@@ -109,8 +66,43 @@ function calcLevelFromXP(xp){
   return 5;
 }
 
+function getProgressMap(){
+  const p = userDoc?.trainingProgress;
+  return (p && typeof p === "object") ? p : {};
+}
+
+function completedModules(){
+  const p = getProgressMap();
+  return MODULES.filter(m => !!p[m.id]?.completed);
+}
+
+function categoryBreakdown(completed){
+  const map = {};
+  completed.forEach(m => map[m.tag] = (map[m.tag] || 0) + 1);
+  return Object.entries(map).map(([tag,count])=>({tag,count}))
+    .sort((a,b)=>b.count-a.count);
+}
+
+function topModule(completed){
+  if (!completed.length) return null;
+  return [...completed].sort((a,b)=>{
+    const d = n(b.xp) - n(a.xp);
+    if (d !== 0) return d;
+    return a.title.localeCompare(b.title);
+  })[0];
+}
+
+function trainingPersonality({xp, completedCount, topTag}){
+  if (completedCount === 0) return { title:"Just Getting Started", sub:"Pick a module and start your story today." };
+  if (xp >= 450) return { title:"Shift Legend", sub:"You’re stacking skills like a pro." };
+  if (topTag === "Kitchen") return { title:"Kitchen Machine", sub:"Fast hands. Clean builds. Solid rhythm." };
+  if (topTag === "Drive-thru") return { title:"Drive-thru Commander", sub:"Clear comms + speed under pressure." };
+  if (topTag === "Food safety") return { title:"Safety First Star", sub:"You keep standards tight and customers safe." };
+  return { title:"All-Rounder", sub:"You’re building skills across the floor." };
+}
+
 /* =========================
-   Slide builder
+   Slides
 ========================= */
 function buildSlides(){
   const xp = n(userDoc?.trainingXP);
@@ -118,27 +110,29 @@ function buildSlides(){
 
   const completed = completedModules();
   const completedCount = completed.length;
-  const top = topModule(completed);
 
   const breakdown = categoryBreakdown(completed);
   const topTag = breakdown[0]?.tag || "—";
-
-  const personality = trainingPersonality({ xp, completedCount, topTag });
+  const top = topModule(completed);
 
   const totalPossible = MODULES.length;
   const completionPct = totalPossible ? Math.round((completedCount/totalPossible)*100) : 0;
 
+  const personality = trainingPersonality({ xp, completedCount, topTag });
+
+  const firstName = userDoc?.name ? String(userDoc.name).split(" ")[0] : "crew";
+
   slides = [
     {
       kicker: "McTraining Wrapped",
-      title: `Hey ${userDoc?.name ? String(userDoc.name).split(" ")[0] : "crew"} 👋`,
+      title: `Hey ${firstName} 👋`,
       sub: "Here’s your training recap — tap Next to start.",
       cards: [
         { label:"Your level", value:`Level ${level}`, mini:`Based on ${xp} XP` },
         { label:"XP earned", value:`${xp} XP`, mini:"Keep going to level up" },
         { label:"Modules done", value:`${completedCount}/${totalPossible}`, mini:`${completionPct}% complete` }
       ],
-      tags: ["UK training style", "Fast recap", "Built from your progress"]
+      tags: ["UK training style", "Quick recap", "Built from your progress"]
     },
 
     {
@@ -146,11 +140,11 @@ function buildSlides(){
       title: `${completedCount} modules completed`,
       sub: completedCount
         ? "That’s real momentum. Keep your streak going next shift."
-        : "No modules marked complete yet — pick one and smash it today.",
+        : "No modules marked complete yet — open one and smash it today.",
       cards: [
         { label:"Completion", value:`${completionPct}%`, mini:"Across your library" },
         { label:"Top category", value: topTag, mini: breakdown[0] ? `${breakdown[0].count} module(s)` : "—" },
-        { label:"Next target", value: completedCount ? "Level up" : "Complete 1 module", mini:"Small wins stack up" }
+        { label:"Next target", value: completedCount ? "Quiz mode" : "Complete 1 module", mini:"Small wins stack up" }
       ],
       tags: breakdown.slice(0,3).map(x=>`${x.tag}: ${x.count}`),
     },
@@ -158,15 +152,13 @@ function buildSlides(){
     {
       kicker: "Top module",
       title: top ? top.title : "No top module yet",
-      sub: top
-        ? `Your biggest XP win so far: +${top.xp} XP.`
-        : "Complete a module to unlock your top pick.",
+      sub: top ? `Biggest XP win so far: +${top.xp} XP.` : "Complete a module to unlock this slide.",
       cards: [
         { label:"Category", value: top ? top.tag : "—", mini:"" },
         { label:"XP value", value: top ? `${top.xp} XP` : "—", mini:"" },
-        { label:"Tip", value:"Do it twice", mini:"Repeat = speed + consistency" }
+        { label:"Tip", value:"Repeat it twice", mini:"Repeat = speed + consistency" }
       ],
-      tags: top ? ["Try a quiz next", "Keep builds clean"] : ["Open Grill Station", "Open Food Safety Basics"]
+      tags: top ? ["Try a quiz next", "Keep builds clean"] : ["Open Grill Station", "Open Food Safety"]
     },
 
     {
@@ -176,7 +168,7 @@ function buildSlides(){
       cards: [
         { label:"Strength", value: topTag, mini:"Where you focused most" },
         { label:"Consistency", value: completedCount ? "Building" : "Starting", mini:"Complete → quiz → repeat" },
-        { label:"Next upgrade", value:"Quiz mode", mini:"Lock the steps into muscle memory" }
+        { label:"Next upgrade", value:"Accuracy", mini:"Repeat orders / follow cards" }
       ],
       tags: ["Accuracy", "Clean station", "Good comms"]
     },
@@ -196,7 +188,7 @@ function buildSlides(){
             `).join("")}
           </div>`
         : `<div class="stat"><div class="label">No data yet</div><div class="value">Start with Grill or Food Safety</div><div class="mini">Then try a quiz.</div></div>`,
-      tags: ["Tap Share to save a card", "Send to your manager 😄"]
+      tags: ["Tap Share to save a card", "Keep levelling up"]
     },
 
     {
@@ -208,28 +200,52 @@ function buildSlides(){
         { label:"XP", value:`${xp}`, mini:"" },
         { label:"Done", value:`${completedCount}/${totalPossible}`, mini:"" }
       ],
-      tags: ["McTraining Wrapped", "Your progress", "Keep levelling up"]
+      tags: ["McTraining Wrapped", "Your progress", "Made with McAssist"]
     }
   ];
 
-  // rebuild progress bars
+  // progress bars
   if (progressBars){
     progressBars.innerHTML = slides.map(()=>`<div class="bar"><div></div></div>`).join("");
   }
 }
 
 /* =========================
-   Render slide
+   Render + Animation
 ========================= */
-function render(){
-  if (!storyEl || !slides.length) return;
+function setButtons(){
+  const ready = slides.length > 0;
+  const many = slides.length > 1;
+
+  if (prevBtn) prevBtn.disabled = !ready || !many || idx === 0;
+  if (nextBtn) nextBtn.disabled = !ready || !many || idx === slides.length - 1;
+  if (shareBtn) shareBtn.disabled = !ready;
+}
+
+function render(direction = "right"){
+  if (!storyEl) return;
+
+  if (!slides.length){
+    storyEl.innerHTML = `
+      <div class="story-kicker">Loading…</div>
+      <div class="story-title">Getting your Wrapped</div>
+      <div class="story-sub">One sec — pulling your training progress.</div>
+      <div class="grid">
+        <div class="stat"><div class="label">Tip</div><div class="value">If this hangs</div><div class="mini">Check Firebase auth + Firestore rules.</div></div>
+        <div class="stat"><div class="label">Tip</div><div class="value">Make sure</div><div class="mini">users/{uid} exists.</div></div>
+        <div class="stat"><div class="label">Tip</div><div class="value">Then reload</div><div class="mini">and try again.</div></div>
+      </div>
+    `;
+    setButtons();
+    return;
+  }
 
   const s = slides[idx];
 
-  // progress bars
-  const bars = progressBars?.querySelectorAll(".bar > div") || [];
-  bars.forEach((b,i)=>{
-    b.style.width = i < idx ? "100%" : (i === idx ? "50%" : "0%");
+  // progress bars fill
+  const fills = progressBars?.querySelectorAll(".bar > div") || [];
+  fills.forEach((f, i) => {
+    f.style.width = i < idx ? "100%" : (i === idx ? "50%" : "0%");
   });
 
   const cardsHTML = s.cards
@@ -249,50 +265,81 @@ function render(){
     ? `<div class="tagrow">${tags.map(t=>`<span class="pill">${t}</span>`).join("")}</div>`
     : "";
 
-  storyEl.innerHTML = `
-    <div class="story-kicker">${s.kicker || ""}</div>
-    <div class="story-title">${s.title || ""}</div>
-    <div class="story-sub">${s.sub || ""}</div>
+  // animate out/in
+  if (isAnimating) return;
+  isAnimating = true;
 
-    ${s.customHTML || cardsHTML}
-    ${tagsHTML}
+  const exitClass = direction === "right" ? "slide-exit-left" : "slide-exit-right";
+  const enterClass = direction === "right" ? "slide-enter-right" : "slide-enter-left";
 
-    <div class="navhint">
-      <span>${idx+1}/${slides.length}</span>
-      <span>Tap right = next • Tap left = prev</span>
-    </div>
-  `;
+  storyEl.classList.remove("slide-enter-right","slide-enter-left","slide-exit-left","slide-exit-right");
+  storyEl.classList.add(exitClass);
 
-  prevBtn && (prevBtn.disabled = idx === 0);
-  nextBtn && (nextBtn.disabled = idx === slides.length - 1);
+  setTimeout(() => {
+    storyEl.innerHTML = `
+      <div class="story-kicker">${s.kicker || ""}</div>
+      <div class="story-title">${s.title || ""}</div>
+      <div class="story-sub">${s.sub || ""}</div>
+      ${s.customHTML || cardsHTML}
+      ${tagsHTML}
+      <div class="navhint">
+        <span>${idx+1}/${slides.length}</span>
+        <span>Tap right = next • Tap left = prev</span>
+      </div>
+    `;
+
+    storyEl.classList.remove(exitClass);
+    storyEl.classList.add(enterClass);
+
+    setButtons();
+
+    setTimeout(() => {
+      storyEl.classList.remove(enterClass);
+      isAnimating = false;
+    }, 300);
+  }, 190);
 }
 
 /* =========================
    Navigation
 ========================= */
 function next(){
+  if (!slides.length) return;
   if (idx < slides.length - 1){
     idx++;
-    render();
+    render("right");
   }
 }
 function prev(){
+  if (!slides.length) return;
   if (idx > 0){
     idx--;
-    render();
+    render("left");
   }
 }
 
+/* =========================
+   Tap navigation (FIXED)
+   Ignore taps on buttons/inputs/links/forms.
+========================= */
+function shouldIgnoreTap(target){
+  if (!target) return false;
+  return !!target.closest("button, a, input, textarea, select, form, label");
+}
+
 function onTapNavigate(e){
-  // Click/tap inside story shell -> left half prev, right half next
+  if (shouldIgnoreTap(e.target)) return;
+
   const rect = storyShell.getBoundingClientRect();
-  const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  const clientX = e.changedTouches?.[0]?.clientX ?? e.clientX;
+  const x = clientX - rect.left;
+
   if (x < rect.width * 0.45) prev();
   else next();
 }
 
 /* =========================
-   Share image (canvas)
+   Share card (canvas)
 ========================= */
 async function saveShareCard(){
   if (!userDoc) return;
@@ -308,14 +355,12 @@ async function saveShareCard(){
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  // background
   const g = ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0, "#0b1220");
   g.addColorStop(1, "#111827");
   ctx.fillStyle = g;
   ctx.fillRect(0,0,W,H);
 
-  // glow blobs
   function blob(x,y,r, col){
     const rg = ctx.createRadialGradient(x,y,0,x,y,r);
     rg.addColorStop(0, col);
@@ -328,7 +373,6 @@ async function saveShareCard(){
   blob(220,220,360,"rgba(250,204,21,0.22)");
   blob(900,300,420,"rgba(34,197,94,0.18)");
 
-  // card
   ctx.fillStyle = "rgba(255,255,255,0.06)";
   roundRect(ctx, 70, 110, W-140, H-220, 36);
   ctx.fill();
@@ -336,7 +380,6 @@ async function saveShareCard(){
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // title
   ctx.fillStyle = "#f9fafb";
   ctx.font = "900 64px system-ui, -apple-system, Segoe UI, Roboto, Arial";
   ctx.fillText("McTraining Wrapped", 120, 220);
@@ -346,14 +389,12 @@ async function saveShareCard(){
   const name = userDoc?.name ? String(userDoc.name).split(" ")[0] : "Crew";
   ctx.fillText(`${name} • UK Training`, 120, 270);
 
-  // stats
   ctx.fillStyle = "#f9fafb";
   ctx.font = "900 54px system-ui, -apple-system, Segoe UI, Roboto, Arial";
   ctx.fillText(`Level ${level}`, 120, 400);
   ctx.fillText(`${xp} XP`, 120, 470);
   ctx.fillText(`${completedCount} Modules`, 120, 540);
 
-  // top module
   ctx.fillStyle = "rgba(249,250,251,0.75)";
   ctx.font = "800 30px system-ui, -apple-system, Segoe UI, Roboto, Arial";
   ctx.fillText("Top module:", 120, 640);
@@ -362,7 +403,6 @@ async function saveShareCard(){
   ctx.font = "900 36px system-ui, -apple-system, Segoe UI, Roboto, Arial";
   wrapText(ctx, top ? top.title : "—", 120, 690, W-240, 44);
 
-  // footer
   ctx.fillStyle = "rgba(249,250,251,0.65)";
   ctx.font = "800 26px system-ui, -apple-system, Segoe UI, Roboto, Arial";
   ctx.fillText("Made with McAssist", 120, H-170);
@@ -375,7 +415,6 @@ async function saveShareCard(){
   toast("Saved ✅");
 }
 
-// helpers for canvas
 function roundRect(ctx, x, y, w, h, r){
   const rr = Math.min(r, w/2, h/2);
   ctx.beginPath();
@@ -389,15 +428,14 @@ function roundRect(ctx, x, y, w, h, r){
 function wrapText(ctx, text, x, y, maxWidth, lineHeight){
   const words = String(text).split(" ");
   let line = "";
-  for (let n=0; n<words.length; n++){
-    const testLine = line + words[n] + " ";
-    const w = ctx.measureText(testLine).width;
-    if (w > maxWidth && n > 0){
+  for (let i=0; i<words.length; i++){
+    const test = line + words[i] + " ";
+    if (ctx.measureText(test).width > maxWidth && i > 0){
       ctx.fillText(line, x, y);
-      line = words[n] + " ";
+      line = words[i] + " ";
       y += lineHeight;
     } else {
-      line = testLine;
+      line = test;
     }
   }
   ctx.fillText(line, x, y);
@@ -417,8 +455,12 @@ function start(uid){
     if(!snap.exists()) return;
     userDoc = snap.data() || {};
     buildSlides();
-    idx = Math.min(idx, slides.length-1);
-    render();
+
+    // keep idx valid
+    if (idx >= slides.length) idx = Math.max(0, slides.length - 1);
+
+    // render without exit animation on data refresh
+    render("right");
   });
 }
 
@@ -426,14 +468,15 @@ function start(uid){
    Events
 ========================= */
 backBtn?.addEventListener("click", ()=> window.location.href = "training.html");
-nextBtn?.addEventListener("click", next);
-prevBtn?.addEventListener("click", prev);
+nextBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); next(); });
+prevBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); prev(); });
+shareBtn?.addEventListener("click", (e)=>{ e.stopPropagation(); saveShareCard(); });
 
+// Tap navigation (click + touch)
 storyShell?.addEventListener("click", onTapNavigate);
 storyShell?.addEventListener("touchend", onTapNavigate, { passive:true });
 
-shareBtn?.addEventListener("click", saveShareCard);
-
+// Keyboard
 document.addEventListener("keydown", (e)=>{
   if (e.key === "ArrowRight") next();
   if (e.key === "ArrowLeft") prev();
@@ -442,6 +485,8 @@ document.addEventListener("keydown", (e)=>{
 /* =========================
    Auth init
 ========================= */
+render("right"); // show loading UI instantly
+
 onAuthStateChanged(auth, async (user)=>{
   if(!user){
     window.location.href = "index.html";
@@ -449,11 +494,12 @@ onAuthStateChanged(auth, async (user)=>{
   }
   uid = user.uid;
 
-  // quick first load (so UI isn't blank before snapshot)
+  // quick first load
   const snap = await getDoc(doc(db,"users",uid));
   userDoc = snap.exists() ? (snap.data() || {}) : {};
   buildSlides();
-  render();
+  idx = 0;
 
+  render("right");
   start(uid);
 });
