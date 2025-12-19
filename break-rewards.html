@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining – Break Rewards</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="mc-theme.css" />
+
+  <style>
+    .rewards-page{
+      flex: 1;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      width:100%;
+    }
+
+    .rewards-grid{
+      display:grid;
+      grid-template-columns: 1.35fr .95fr;
+      gap: 14px;
+      align-items:start;
+    }
+    @media (max-width: 1024px){
+      .rewards-grid{ grid-template-columns: 1fr; }
+    }
+
+    .menu-grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .menu-card h3{
+      margin:0 0 4px;
+      font-size:0.95rem;
+      font-weight:900;
+    }
+    .menu-card p{
+      margin:0;
+      font-size:0.82rem;
+      color:#6b7280;
+      line-height:1.35;
+    }
+
+    .price-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-top:10px;
+      gap:10px;
+      font-size:0.82rem;
+      color:#374151;
+    }
+
+    .qty-row{
+      margin-top:10px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:flex-end;
+      flex-wrap:wrap;
+    }
+
+    .qty-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      border-radius:999px;
+      padding:4px 10px;
+      font-weight:800;
+      font-size:.78rem;
+      color:#111827;
+    }
+    .qty-btn{
+      border:none;
+      cursor:pointer;
+      border-radius:999px;
+      padding:6px 10px;
+      background:#111827;
+      color:#f9fafb;
+      font-weight:900;
+      font-size:.78rem;
+    }
+    .qty-btn:disabled{ opacity:.5; cursor:default; }
+
+    .cart-list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-top:10px;
+    }
+    .cart-item{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+      padding:10px 10px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      border-radius:14px;
+    }
+    .cart-item .name{
+      font-weight:900;
+      font-size:.85rem;
+      color:#111827;
+      margin-bottom:2px;
+    }
+    .cart-item .sub{
+      font-size:.76rem;
+      color:#6b7280;
+    }
+
+    .row-actions{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      margin-top:10px;
+    }
+
+    .small-note{
+      font-size:.78rem;
+      color:#6b7280;
+      line-height:1.35;
+    }
+
+    .ach-grid{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:10px;
+    }
+
+    .ach-btn{
+      border-radius:999px;
+      border:1px solid #fed7aa;
+      background:#fffbeb;
+      color:#92400e;
+      font-weight:900;
+      padding:7px 10px;
+      cursor:pointer;
+      font-size:.78rem;
+    }
+    .ach-btn:hover{ background:#fef3c7; }
+
+    /* toast uses your existing #toast styles if present,
+       but your training.html used .toast with show class.
+       We'll keep it compatible. */
+    .toast{
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 999;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.78);
+      color: #fff;
+      font-size: .85rem;
+      border: 1px solid rgba(255,255,255,.16);
+      box-shadow: 0 18px 40px rgba(0,0,0,.45);
+      display:none;
+    }
+    .toast.show{ display:block; }
+  </style>
+</head>
+
+<body class="app-page">
+
+  <!-- SIDEBAR (same style as your other pages) -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Training &amp; Development</p>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
+      <ul class="nav-list">
+        <li class="nav-item" onclick="window.location.href='main.html'">
+          <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
+        </li>
+        <li class="nav-item" onclick="window.location.href='training.html'">
+          <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
+        </li>
+        <li class="nav-item" onclick="window.location.href='schedule.html'">
+          <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
+        </li>
+        <li class="nav-item active" onclick="window.location.href='break-rewards.html'">
+          <span class="nav-dot"></span><span class="nav-icon">🍟</span><span class="nav-label">Break Rewards</span>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
+      </div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main-layout">
+    <div class="rewards-page">
+
+      <!-- Header -->
+      <section class="card section-card">
+        <div class="top-bar">
+          <div class="top-bar-left">
+            <h2>Break Rewards</h2>
+            <p>Redeem your daily points for break food. Earn bonus points for achievements.</p>
+          </div>
+
+          <div class="top-bar-right">
+            <div class="chip"><span>🎟️</span> Points: <strong id="pointsBalance">0</strong></div>
+            <div class="chip"><span>⏱️</span> Daily reset: <strong id="resetLabel">—</strong></div>
+            <button id="goTrainingBtn" class="btn" type="button">← Back to Training</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="rewards-grid">
+
+        <!-- LEFT: Menu -->
+        <section class="card section-card">
+          <div class="subsection-title">Menu</div>
+          <div class="subsection-sub">Choose items, then redeem with points.</div>
+
+          <div id="menuGrid" class="menu-grid"></div>
+
+          <div class="small-note" style="margin-top:10px;">
+            Daily points reset to <strong>4</strong> once per day. Bonus points are added separately.
+          </div>
+        </section>
+
+        <!-- RIGHT: Cart + Achievements -->
+        <section class="card section-card">
+          <div class="subsection-title">Your Cart</div>
+          <div class="subsection-sub">Redeem creates a record for the shift manager to approve/prepare.</div>
+
+          <div class="mini-pill" id="cartTotalPill" style="display:inline-flex;">Total: 0 pts</div>
+
+          <div id="cartList" class="cart-list"></div>
+
+          <div class="row-actions">
+            <button id="clearCartBtn" class="btn" type="button">Clear</button>
+            <button id="redeemBtn" class="btn-primary" type="button" disabled>Redeem</button>
+          </div>
+
+          <div class="error" id="cartError" style="display:none;"></div>
+          <div class="success" id="cartSuccess" style="display:none;"></div>
+
+          <hr style="border:none; border-top:1px dashed #facc15; margin:14px 0;"/>
+
+          <div class="subsection-title">Earn +1 point</div>
+          <div class="subsection-sub">Starter “achievement” buttons (good for demo/testing).</div>
+
+          <div class="ach-grid">
+            <button class="ach-btn" data-ach="rush_help">🏃 Helped in rush</button>
+            <button class="ach-btn" data-ach="perfect_builds">🍔 Perfect builds</button>
+            <button class="ach-btn" data-ach="clean_station">🧼 Clean station</button>
+            <button class="ach-btn" data-ach="great_comms">🎧 Great comms</button>
+          </div>
+
+          <div class="small-note" style="margin-top:10px;">
+            For real customers/store use: awarding points should be restricted to managers/server rules.
+          </div>
+        </section>
+
+      </section>
+
+      <div id="toast" class="toast"></div>
+      <script type="module" src="break-rewards.js"></script>
+    </div>
+  </div>
+
+</body>
+</html>
