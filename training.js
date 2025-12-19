@@ -1,7 +1,7 @@
 // ========================================
-// training.js — McTraining 3.0 (MATCHES YOUR HTML)
+// training.js — McTraining (MATCHES mc-theme.css + your training.html)
 // - Module library + filters + search
-// - Module player (tabs) + checklist + reflection
+// - Module player tabs + checklist + reflection
 // - Quiz (Start + Next fixed)
 // - Firestore progress + XP/Level
 // - AI chat: open module / quiz / ask via /api/mcassist
@@ -33,9 +33,6 @@ const sidebarToggle = document.getElementById("sidebarToggle");
 const headerLevel = document.getElementById("headerLevel");
 const headerXP = document.getElementById("headerXP");
 const xpProgressFill = document.getElementById("xpProgressFill");
-const topUserName = document.getElementById("topUserName");
-const topUserRole = document.getElementById("topUserRole");
-const userAvatar = document.getElementById("userAvatar");
 const quickQuizBtn = document.getElementById("quickQuizBtn");
 
 // library
@@ -51,8 +48,8 @@ const playerSubtitle = document.getElementById("playerSubtitle");
 const playerMeta = document.getElementById("playerMeta");
 const playerStatus = document.getElementById("playerStatus");
 
-// tabs
-const tabs = Array.from(document.querySelectorAll(".tab"));
+// tabs (HTML uses .tab-btn + data-tab, panels use .tabPanel + data-panel)
+const tabs = Array.from(document.querySelectorAll(".tab-btn"));
 const tabPanels = Array.from(document.querySelectorAll(".tabPanel"));
 const tabStage = document.getElementById("tabStage");
 
@@ -70,7 +67,6 @@ const resetModuleBtn = document.getElementById("resetModuleBtn");
 const checklistEl = document.getElementById("checklist");
 
 // quiz
-const quizArea = document.getElementById("quizArea");
 const quizCounter = document.getElementById("quizCounter");
 const quizScore = document.getElementById("quizScore");
 const quizQuestion = document.getElementById("quizQuestion");
@@ -102,7 +98,6 @@ let activeFilter = "All";
 
 // quiz state
 let activeQuiz = null; // { moduleId, questions:[{q, options, answer, explain}], index, score, locked }
-let lastQuizModuleId = null;
 
 /* =========================
    MODULE LIBRARY (edit freely)
@@ -322,6 +317,15 @@ function normalize(s) {
   return String(s || "").toLowerCase().trim();
 }
 
+function escapeHTML(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function calcLevelFromXP(xp) {
   xp = Number(xp) || 0;
   if (xp < 200) return 1;
@@ -332,7 +336,6 @@ function calcLevelFromXP(xp) {
 }
 
 function levelRange(level) {
-  // keep in sync with calcLevelFromXP
   if (level <= 1) return { min: 0, max: 200 };
   if (level === 2) return { min: 200, max: 450 };
   if (level === 3) return { min: 450, max: 800 };
@@ -346,8 +349,7 @@ function getProgressMap() {
 }
 
 function isCompleted(moduleId) {
-  const p = getProgressMap()[moduleId];
-  return !!p?.completed;
+  return !!getProgressMap()[moduleId]?.completed;
 }
 
 function getSelectedModule() {
@@ -372,19 +374,10 @@ function findBestModuleByText(text) {
     });
     if (normalize(m.title).includes(q)) score += 8;
     return { m, score };
-  }).sort((a,b) => b.score - a.score);
+  }).sort((a, b) => b.score - a.score);
 
   if (!scored.length || scored[0].score <= 0) return null;
   return scored[0].m;
-}
-
-function escapeHTML(str) {
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 /* =========================
@@ -432,23 +425,25 @@ function startRealtime(uid) {
     if (!snap.exists()) return;
     userDocCache = snap.data() || {};
 
-    // top bar + user
     const xp = Number(userDocCache.trainingXP) || 0;
-    const lvlStored = Number(userDocCache.trainingLevel) || calcLevelFromXP(xp);
     const lvl = calcLevelFromXP(xp);
+    const lvlStored = Number(userDocCache.trainingLevel) || lvl;
 
     if (headerXP) headerXP.textContent = String(xp);
     if (headerLevel) headerLevel.textContent = String(lvl);
 
     const range = levelRange(lvl);
-    const pct = range.max > range.min ? Math.max(0, Math.min(1, (xp - range.min) / (range.max - range.min))) : 0;
+    const pct = range.max > range.min
+      ? Math.max(0, Math.min(1, (xp - range.min) / (range.max - range.min)))
+      : 0;
+
     if (xpProgressFill) xpProgressFill.style.width = `${Math.round(pct * 100)}%`;
 
     if (lvlStored !== lvl) {
       updateDoc(doc(db, "users", uid), { trainingLevel: lvl }).catch(() => {});
     }
 
-    // re-render UI pieces that depend on completion
+    // UI updates (completion changes)
     renderFilters();
     renderModuleGrid();
     refreshPlayer();
@@ -456,7 +451,7 @@ function startRealtime(uid) {
 }
 
 /* =========================
-   RENDER: FILTERS + GRID
+   RENDER: FILTERS + MODULE GRID (old theme)
 ========================= */
 
 function renderFilters() {
@@ -467,13 +462,12 @@ function renderFilters() {
 
   filterRow.innerHTML = all.map(t => {
     const active = t === activeFilter ? "active" : "";
-    return `<button class="chip ${active}" type="button" data-tag="${escapeHTML(t)}">${escapeHTML(t)}</button>`;
+    return `<button class="pill-filter ${active}" type="button" data-tag="${escapeHTML(t)}">${escapeHTML(t)}</button>`;
   }).join("");
 
-  // (re)bind clicks via delegation once
   if (!filterRow.dataset.bound) {
     filterRow.addEventListener("click", (e) => {
-      const btn = e.target.closest(".chip");
+      const btn = e.target.closest(".pill-filter");
       if (!btn) return;
       activeFilter = btn.dataset.tag || "All";
       renderFilters();
@@ -496,33 +490,36 @@ function renderModuleGrid() {
 
   moduleGrid.innerHTML = list.length ? list.map(m => {
     const done = isCompleted(m.id);
+
     return `
-      <div class="mcard" data-id="${escapeHTML(m.id)}">
-        <div class="top">
+      <div class="card" data-id="${escapeHTML(m.id)}" style="padding:12px 13px;">
+        <div class="card-header" style="margin-bottom:8px;">
           <div>
-            <h3>${escapeHTML(m.title)}</h3>
-            <div class="meta">
-              <span class="tag">${escapeHTML(m.tag)}</span>
-              <span>${m.xp} XP</span>
-              <span>~${m.durationMins || 8}m</span>
-              <span>Lvl ${m.level || 1}</span>
+            <div style="font-size:0.9rem; font-weight:800;">${escapeHTML(m.title)}</div>
+            <div style="font-size:0.75rem; color:#6b7280; margin-top:3px;">
+              ${escapeHTML(m.tag)} • ${m.xp} XP • ~${m.durationMins || 8} min • L${m.level || 1}
             </div>
           </div>
-          ${done ? `<span class="badgeDone">Completed</span>` : ``}
+          <div>
+            ${done ? `<span class="badge-soft-success">Completed</span>` : `<span class="badge-soft">Open</span>`}
+          </div>
         </div>
-        <p>${escapeHTML(m.summary || "")}</p>
-        <div class="actions">
-          <button class="btn btn-ghost openBtn" type="button" data-id="${escapeHTML(m.id)}">Open</button>
+
+        <div style="font-size:0.8rem; color:#374151;">
+          ${escapeHTML(m.summary || "")}
+        </div>
+
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+          <button class="btn-primary openBtn" type="button" data-id="${escapeHTML(m.id)}">Open</button>
         </div>
       </div>
     `;
-  }).join("") : `<div style="color:rgba(238,242,255,.72); font-size:.9rem;">No modules found.</div>`;
+  }).join("") : `<div style="font-size:0.82rem; color:#6b7280;">No modules found.</div>`;
 
-  // bind open via delegation once
   if (!moduleGrid.dataset.bound) {
     moduleGrid.addEventListener("click", (e) => {
       const btn = e.target.closest(".openBtn");
-      const card = e.target.closest(".mcard");
+      const card = e.target.closest(".card");
       const id = btn?.dataset.id || card?.dataset.id;
       if (!id) return;
       openModule(id);
@@ -532,7 +529,7 @@ function renderModuleGrid() {
 }
 
 /* =========================
-   PLAYER (LESSON/CHECKLIST/QUIZ/ASK)
+   PLAYER
 ========================= */
 
 function openModule(moduleId) {
@@ -540,15 +537,13 @@ function openModule(moduleId) {
   if (!m) return;
 
   selectedModuleId = m.id;
-  lastQuizModuleId = m.id;
 
-  // hero
   if (playerTitle) playerTitle.textContent = m.title;
   if (playerSubtitle) playerSubtitle.textContent = m.summary || "Training module";
-  if (playerMeta) playerMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8}m • Level ${m.level || 1}`;
+  if (playerMeta) playerMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
 
-  // lesson lists
   if (lessonSteps) {
+    // Your HTML uses a simple <ul> here, not the themed list rows
     lessonSteps.innerHTML = (m.steps || []).length
       ? m.steps.map(s => `<li>${escapeHTML(s)}</li>`).join("")
       : `<li>No steps added yet.</li>`;
@@ -559,20 +554,16 @@ function openModule(moduleId) {
   if (doList) doList.innerHTML = doItems.length ? doItems.map(s => `<li>${escapeHTML(s)}</li>`).join("") : `<li>—</li>`;
   if (dontList) dontList.innerHTML = dontItems.length ? dontItems.map(s => `<li>${escapeHTML(s)}</li>`).join("") : `<li>—</li>`;
 
-  // checklist
   renderChecklist(m);
-
-  // progress UI
   refreshPlayer();
 
-  // quiz buttons
+  // Enable quiz
   if (startQuizBtn) startQuizBtn.disabled = false;
   resetQuizUI();
 
-  // small animation restart
+  // little stage animation bump
   if (tabStage) {
     tabStage.style.animation = "none";
-    // force reflow
     void tabStage.offsetHeight;
     tabStage.style.animation = "";
   }
@@ -581,14 +572,18 @@ function openModule(moduleId) {
 function renderChecklist(m) {
   if (!checklistEl) return;
   const items = Array.isArray(m.checklist) ? m.checklist : [];
-  checklistEl.innerHTML = items.length ? items.map((t, idx) => {
-    return `
-      <div class="checkitem">
-        <input type="checkbox" id="ck_${idx}" />
-        <span>${escapeHTML(t)}</span>
-      </div>
-    `;
-  }).join("") : `<div style="color:rgba(238,242,255,.75)">No checklist items.</div>`;
+  checklistEl.innerHTML = items.length
+    ? items.map((t, idx) => `
+        <div class="checkitem" style="
+          display:flex; gap:10px; align-items:flex-start;
+          padding:10px 10px; border-radius:14px;
+          border:1px solid #e5e7eb; background:#ffffff;
+        ">
+          <input type="checkbox" id="ck_${idx}" style="margin-top:3px;" />
+          <span style="font-size:0.88rem; color:#374151; line-height:1.35;">${escapeHTML(t)}</span>
+        </div>
+      `).join("")
+    : `<div style="color:#6b7280; font-size:0.85rem;">No checklist items.</div>`;
 }
 
 function refreshPlayer() {
@@ -613,9 +608,10 @@ function refreshPlayer() {
   if (completeModuleBtn) completeModuleBtn.disabled = done;
   if (resetModuleBtn) resetModuleBtn.disabled = !done;
 
-  // restore reflection
   const prog = getProgressMap()[m.id];
   if (reflectionInput) reflectionInput.value = prog?.reflection || "";
+
+  if (startQuizBtn) startQuizBtn.disabled = !selectedModuleId;
 }
 
 /* =========================
@@ -629,7 +625,6 @@ function setActiveTab(name) {
     p.style.display = show ? "" : "none";
   });
 
-  // little stage animation bump
   if (tabStage) {
     tabStage.style.animation = "none";
     void tabStage.offsetHeight;
@@ -719,7 +714,6 @@ function buildQuizFromModule(m) {
   const base = Array.isArray(m.quiz) ? m.quiz : [];
   if (base.length) return [...base].sort(() => Math.random() - 0.5).slice(0, Math.min(6, base.length));
 
-  // fallback generator from steps/checklist
   const items = [...(m.steps || []), ...(m.checklist || [])].filter(Boolean);
   const pick = items.slice(0, 6);
   if (!pick.length) return [];
@@ -790,18 +784,20 @@ function renderQuizQuestion() {
   // finished
   if (!qObj) {
     const total = activeQuiz.questions.length;
-    if (quizCounter) quizCounter.textContent = `Complete`;
+    if (quizCounter) quizCounter.textContent = "Complete";
     if (quizQuestion) quizQuestion.textContent = `Quiz complete ✅ You scored ${activeQuiz.score}/${total}.`;
+
     if (quizOptions) {
       quizOptions.innerHTML = `
-        <div style="margin-top:10px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-          <button id="retryQuizBtn" class="btn btn-primary" type="button">Retry</button>
-          <button id="reviewLessonBtn" class="btn btn-ghost" type="button">Back to lesson</button>
+        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
+          <button id="retryQuizBtn" class="btn-primary" type="button">Retry</button>
+          <button id="reviewLessonBtn" class="btn" type="button">Back to lesson</button>
         </div>
       `;
-      document.getElementById("retryQuizBtn")?.addEventListener("click", () => startQuiz());
+      document.getElementById("retryQuizBtn")?.addEventListener("click", startQuiz);
       document.getElementById("reviewLessonBtn")?.addEventListener("click", () => setActiveTab("lesson"));
     }
+
     if (quizExplain) {
       quizExplain.style.display = "none";
       quizExplain.textContent = "";
@@ -825,13 +821,17 @@ function renderQuizQuestion() {
 
   const opts = (qObj.options || []).map((t, idx) => {
     const letter = String.fromCharCode(65 + idx);
-    return `<button class="opt" type="button" data-idx="${idx}">${letter}. ${escapeHTML(t)}</button>`;
+    // Use theme buttons, but keep them stacked
+    return `
+      <button class="btn optBtn" type="button" data-idx="${idx}" style="width:100%; justify-content:flex-start;">
+        ${letter}. ${escapeHTML(t)}
+      </button>
+    `;
   }).join("");
 
   if (quizOptions) quizOptions.innerHTML = opts;
 
-  // clicking an option enables NEXT
-  quizOptions?.querySelectorAll(".opt").forEach(btn => {
+  quizOptions?.querySelectorAll(".optBtn").forEach(btn => {
     btn.addEventListener("click", () => {
       if (!activeQuiz || activeQuiz.locked) return;
       activeQuiz.locked = true;
@@ -839,14 +839,28 @@ function renderQuizQuestion() {
       const chosen = Number(btn.dataset.idx);
       const correct = Number(qObj.answer);
 
-      quizOptions.querySelectorAll(".opt").forEach(b => {
+      // lock and highlight
+      quizOptions.querySelectorAll(".optBtn").forEach(b => {
         const idx = Number(b.dataset.idx);
         const isCorrect = idx === correct;
         const isChosen = idx === chosen;
 
         b.disabled = true;
-        b.style.borderColor = isCorrect ? "rgba(34,197,94,.60)" : "rgba(255,255,255,.12)";
-        b.style.background = isCorrect ? "rgba(34,197,94,.14)" : (isChosen ? "rgba(218,41,28,.12)" : "rgba(255,255,255,.06)");
+
+        // light theme-friendly highlight
+        if (isCorrect) {
+          b.style.background = "#ecfdf5";
+          b.style.color = "#047857";
+          b.style.border = "1px solid #bbf7d0";
+          b.style.boxShadow = "none";
+        } else if (isChosen) {
+          b.style.background = "#fee2e2";
+          b.style.color = "#b91c1c";
+          b.style.border = "1px solid #fecaca";
+          b.style.boxShadow = "none";
+        } else {
+          b.style.opacity = "0.85";
+        }
       });
 
       if (chosen === correct) {
@@ -872,15 +886,16 @@ function renderQuizQuestion() {
 }
 
 /* =========================
-   AI CHAT
+   AI CHAT (theme bubbles)
 ========================= */
 
-function addChatMessage(text, from = "bot") {
+function addChatMessage(html, from = "bot") {
   if (!trainingChat) return;
-  const wrap = document.createElement("div");
-  wrap.className = `msg ${from === "user" ? "user" : ""}`;
-  wrap.innerHTML = `<div class="bubble">${text}</div>`;
-  trainingChat.appendChild(wrap);
+
+  const div = document.createElement("div");
+  div.className = `message ${from === "user" ? "msg-user" : "msg-bot"}`;
+  div.innerHTML = `<div class="bubble">${html}</div>`;
+  trainingChat.appendChild(div);
   trainingChat.scrollTop = trainingChat.scrollHeight;
 }
 
@@ -893,7 +908,11 @@ function renderAIChips() {
     "Quiz me on fry station",
     "What are the key steps for drive-thru speed?"
   ];
-  trainingQuickChips.innerHTML = chips.map(t => `<button class="chip" type="button">${escapeHTML(t)}</button>`).join("");
+  // use your theme chip style
+  trainingQuickChips.innerHTML = chips
+    .map(t => `<button class="suggestion-chip" type="button">${escapeHTML(t)}</button>`)
+    .join("");
+
   trainingQuickChips.querySelectorAll("button").forEach(btn => {
     btn.addEventListener("click", () => handleTrainingAI(btn.textContent));
   });
@@ -928,6 +947,7 @@ function parseAICommand(text) {
       .replace("questions", "")
       .replace("quiz", "")
       .trim();
+
     return { type: "quiz", query: cleaned || t };
   }
 
@@ -975,7 +995,6 @@ async function handleTrainingAI(text) {
   const contextData = {
     page: "training",
     region: "UK",
-    tone: "McDonald's UK training assistant",
     user: sessionUser,
     selectedModule: selected ? {
       id: selected.id,
@@ -999,27 +1018,29 @@ async function handleTrainingAI(text) {
   try {
     if (trainingAiSend) trainingAiSend.disabled = true;
 
-    const thinkingId = `t_${Date.now()}`;
-    addChatMessage(`<span id="${thinkingId}" style="opacity:.75;">Thinking…</span>`, "bot");
+    // thinking bubble
+    const thinkingId = `think_${Date.now()}`;
+    addChatMessage(
+      `<span id="${thinkingId}" style="opacity:.75;">Thinking…</span>`,
+      "bot"
+    );
 
     const res = await fetch("/api/mcassist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: clean,
-        user: sessionUser,
-        contextData
-      })
+      body: JSON.stringify({ message: clean, user: sessionUser, contextData })
     });
 
     let data = {};
     try { data = await res.json(); } catch { data = {}; }
 
     // remove thinking
-    const thinkingEl = document.getElementById(thinkingId);
-    thinkingEl?.closest(".msg")?.remove?.();
+    document.getElementById(thinkingId)?.closest(".message")?.remove?.();
 
-    addChatMessage(data.reply ? data.reply : "I’m not sure — try asking about a module or say “open … module”.", "bot");
+    addChatMessage(
+      data.reply ? data.reply : "I’m not sure — try asking about a module or say “open … module”.",
+      "bot"
+    );
   } catch (e) {
     console.error("AI error:", e);
     addChatMessage("Sorry — McAssist had a problem. Try again.", "bot");
@@ -1044,12 +1065,12 @@ logoutBtn?.addEventListener("click", async () => {
 });
 
 // search
-moduleSearchBtn?.addEventListener("click", () => renderModuleGrid());
-moduleSearch?.addEventListener("input", () => renderModuleGrid());
+moduleSearchBtn?.addEventListener("click", renderModuleGrid);
+moduleSearch?.addEventListener("input", renderModuleGrid);
 
 // refresh
 refreshModulesBtn?.addEventListener("click", () => {
-  moduleSearch.value = "";
+  if (moduleSearch) moduleSearch.value = "";
   activeFilter = "All";
   renderFilters();
   renderModuleGrid();
@@ -1064,7 +1085,7 @@ completeModuleBtn?.addEventListener("click", markModuleComplete);
 resetModuleBtn?.addEventListener("click", resetModule);
 
 // quiz buttons
-startQuizBtn?.addEventListener("click", () => startQuiz());
+startQuizBtn?.addEventListener("click", startQuiz);
 nextQuizBtn?.addEventListener("click", () => {
   if (!activeQuiz) return;
   activeQuiz.index += 1;
@@ -1104,7 +1125,6 @@ function initialRender() {
   resetQuizUI();
   setActiveTab("lesson");
 
-  // default pick
   if (!selectedModuleId && MODULES.length) openModule(MODULES[0].id);
 }
 
@@ -1131,12 +1151,8 @@ onAuthStateChanged(auth, async (user) => {
   sessionUser.storeId = d.storeId || sessionUser.storeId;
   saveSessionUser(sessionUser);
 
-  // sidebar + topbar user
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name || "User Name";
   if (sidebarUserRole) sidebarUserRole.textContent = sessionUser.role === "crew" ? "Crew Member" : "Staff";
-  if (topUserName) topUserName.textContent = sessionUser.name || "User";
-  if (topUserRole) topUserRole.textContent = sessionUser.role === "crew" ? "Crew Member" : "Staff";
-  if (userAvatar) userAvatar.textContent = (sessionUser.name || "U").trim().slice(0, 1).toUpperCase();
 
   seedChat();
   initialRender();
