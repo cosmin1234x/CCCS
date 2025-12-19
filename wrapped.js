@@ -1,5 +1,5 @@
 // wrapped.js — FULL VERSION (FIXED + ANIMATED + AUTOPLAY + SWIPE + HOLD-TO-PAUSE)
-
+import { MODULES_MIN as MODULES } from "./modules-data.js";
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -19,18 +19,7 @@ const toastEl = document.getElementById("toast");
 /* =========================
    MODULES (keep in sync with training.js)
 ========================= */
-const MODULES = [
-  { id:"food_safety_basics", title:"Food Safety Basics", tag:"Food safety", xp:40 },
-  { id:"grill_station", title:"Grill Station – Core", tag:"Kitchen", xp:55 },
-  { id:"fryer_station", title:"Fry Station – Quality & Safety", tag:"Kitchen", xp:50 },
-  { id:"uk_build_big_mac", title:"Build – Big Mac (UK training)", tag:"Product build", xp:70 },
-  { id:"uk_build_cheeseburger", title:"Build – Cheeseburger (UK training)", tag:"Product build", xp:55 },
-  { id:"uk_build_quarter_pounder", title:"Build – Quarter Pounder (UK training)", tag:"Product build", xp:70 },
-  { id:"uk_fries_holding", title:"Fries – Holding, Rotation & Presentation (UK training)", tag:"Kitchen", xp:60 },
-  { id:"front_counter_greeting", title:"Front Counter – Greeting & Order Accuracy", tag:"Front counter", xp:45 },
-  { id:"drive_thru_speed", title:"Drive-thru – Speed & Clarity", tag:"Drive-thru", xp:60 },
-  { id:"customer_recovery", title:"Customer Recovery – Fixing Mistakes", tag:"Customer experience", xp:55 }
-];
+
 
 /* =========================
    STATE
