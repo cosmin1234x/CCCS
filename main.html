@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 </head>
+
 <body class="app-page">
 
   <!-- ========= SIDEBAR ========= -->
@@ -19,33 +20,43 @@
       <button id="sidebarToggle" class="sidebar-toggle">☰</button>
     </div>
 
-
     <nav class="sidebar-nav">
       <div class="nav-section-title">MAIN</div>
       <ul class="nav-list">
+
         <li class="nav-item active" onclick="window.location.href='main.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">🏠</span>
           <span class="nav-label">Dashboard</span>
         </li>
+
         <li class="nav-item" onclick="window.location.href='training.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">🎓</span>
           <span class="nav-label">Training</span>
         </li>
+
         <li class="nav-item" onclick="window.location.href='schedule.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">📅</span>
           <span class="nav-label">Shifts</span>
         </li>
 
-        <!-- Only visible for shiftCreator (hidden by default, shown via JS) -->
+        <!-- 🔥 NEW: Break Rewards -->
+        <li class="nav-item" onclick="window.location.href='break-rewards.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🍔</span>
+          <span class="nav-label">Break Rewards</span>
+        </li>
+
+        <!-- Shift Creator (shown via JS for role) -->
         <li class="nav-item" id="navShiftCreator" style="display:none;"
             onclick="window.location.href='shifts-admin.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">🛠️</span>
           <span class="nav-label">Shift creator</span>
         </li>
+
       </ul>
     </nav>
 
@@ -61,21 +72,23 @@
   <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
 
-    <!-- ====== LEFT CONTENT AREA ====== -->
+    <!-- ====== CONTENT AREA ====== -->
     <div class="content-area">
 
       <!-- Top bar -->
       <div class="top-bar">
         <div class="top-bar-left">
           <h2 id="welcomeTitle">Welcome back</h2>
-          <p id="welcomeSubtitle">Here’s your week at a glance.</p>
+          <p id="welcomeSubtitle">Here’s your shift and progress overview.</p>
         </div>
 
         <div class="top-bar-right">
           <span id="roleBadge" class="badge-role">CREW</span>
 
-          <!-- My profile (only for crew role) -->
-          <button id="myProfileBtn" class="crew-profile-top-btn" style="display:none;">
+          <!-- Crew profile -->
+          <button id="myProfileBtn"
+                  class="crew-profile-top-btn"
+                  style="display:none;">
             My profile
           </button>
 
@@ -83,18 +96,19 @@
         </div>
       </div>
 
-      <!-- Top metric cards -->
+      <!-- ===== DASHBOARD CARDS ===== -->
       <section id="topCards" class="cards-grid">
-        <!-- JS renders cards here -->
+        <!-- Injected by main.js -->
       </section>
 
-      <!-- Bottom section -->
+      <!-- ===== LOWER SECTION ===== -->
       <section id="bottomSection" class="card section-card">
-        <!-- JS injects schedule OR crew summary here -->
+        <!-- Injected by main.js -->
       </section>
+
     </div>
 
-    <!-- ====== RIGHT SIDE – AI PANEL ====== -->
+    <!-- ===== AI PANEL ===== -->
     <aside class="ai-panel">
 
       <div class="ai-header">
@@ -102,7 +116,7 @@
           <div class="ai-avatar">A</div>
           <div class="ai-header-text">
             <h3>McAssist</h3>
-            <p id="aiSubtitle">Ask about your hours, pay or training.</p>
+            <p id="aiSubtitle">Ask about shifts, training or rewards</p>
           </div>
         </div>
 
@@ -112,36 +126,34 @@
         </div>
       </div>
 
-      <!-- Suggestions -->
       <div id="aiSuggestions" class="ai-suggestions"></div>
-
-      <!-- Chat messages -->
       <div id="aiChat" class="ai-chat"></div>
 
-      <!-- Input row -->
       <form id="aiForm" class="ai-input-row">
-        <input id="aiInput" type="text" placeholder="Ask McAssist something…"/>
+        <input id="aiInput"
+               type="text"
+               placeholder="Ask McAssist something…" />
         <button id="aiSendBtn" type="submit" class="ai-send-btn">
-          <span>Send</span> ➤
+          Send ➤
         </button>
         <button type="button" id="aiMicBtn" class="voice-btn">🎤</button>
       </form>
 
       <label class="wake-toggle">
-        <input type="checkbox" id="wakeToggle"/>
+        <input type="checkbox" id="wakeToggle" />
         <span>Enable “Hey Amy”</span>
       </label>
 
     </aside>
   </div>
 
-  <!-- ========= VOICE OVERLAY ========= -->
+  <!-- ===== VOICE OVERLAY ===== -->
   <div id="voiceOverlay" class="voice-overlay">
     <div id="overlayText" class="overlay-text">Ask me anything</div>
     <button id="overlayMic" class="overlay-mic-btn">🎤</button>
   </div>
 
-  <!-- ========= CREW PROFILE OVERLAY ========= -->
+  <!-- ===== CREW PROFILE OVERLAY ===== -->
   <div id="crewProfileOverlay" class="crew-profile-overlay">
     <div class="crew-profile-card">
 
@@ -194,5 +206,6 @@
 
   <!-- ========= JS ========= -->
   <script type="module" src="main.js"></script>
+
 </body>
 </html>

@@ -11,6 +11,7 @@
 // ✅ FIX: Detect "On shift now"
 // ✅ FIX: Fallback match by name if old shifts saved with wrong userId
 // ✅ FIX: Chat does NOT reset on every realtime update
+// ✅ NEW: Break Rewards card (crew) + AI suggestion + click to break-rewards.html
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -199,7 +200,7 @@ function shiftWindow(shift) {
 }
 
 function dayShort(d) {
-  return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
 }
 
 // ✅ Returns { kind: "current"|"next", shift } OR null
@@ -341,7 +342,6 @@ function startRealtime() {
     crewData.badge = d.badge || "—";
     crewData.stars = typeof d.stars === "number" ? d.stars : 0;
 
-    // Don’t spam-reset chat; just refresh visible dashboard
     refreshDashboardUIOnly();
   });
 
@@ -455,7 +455,6 @@ function computeCrewMetrics(myShifts) {
       scheduleMap[s.date].push(`${s.start}–${s.end} (Break ${breakMin}m)`);
     }
 
-    // Compute next shift (upcoming) for cards/self profile
     const shiftDateTime = new Date(`${s.date}T${s.start || "00:00"}:00`);
     if (shiftDateTime > now) {
       if (!nextShiftObj || shiftDateTime < nextShiftObj._dt) {
@@ -585,7 +584,7 @@ function initialiseDashboard(seedChat) {
 
   if (aiSubtitle) {
     aiSubtitle.textContent = isCrew
-      ? "Ask about hours, pay, breaks and shifts."
+      ? "Ask about hours, pay, breaks, shifts and rewards."
       : "Ask about waste, sales, staffing and crew info.";
   }
 
@@ -600,7 +599,6 @@ function initialiseDashboard(seedChat) {
   renderBottomSection(isCrew, profile);
   renderSuggestions(isCrew);
 
-  // ✅ only seed intro once (or when explicitly requested at startup)
   if (seedChat && !introSeeded) {
     seedIntroMessages(isCrew);
     introSeeded = true;
@@ -635,12 +633,21 @@ function renderTopCards(isCrew, profile) {
         icon: "⭐",
         main: describeStars(profile.stars),
         sub: profile.badge && profile.badge !== "—" ? `Badge: ${profile.badge}` : "No badge assigned yet"
+      },
+
+      // ✅ NEW: Break Rewards card
+      {
+        title: "Break Rewards",
+        icon: "🍟",
+        main: "Spend your points",
+        sub: "Order food with daily points"
       }
     ];
 
     cards.forEach((c) => {
       const card = document.createElement("div");
       card.className = "card";
+      card.style.cursor = c.title === "Break Rewards" ? "pointer" : "";
       card.innerHTML = `
         <div class="card-header">
           <div class="card-title">${c.title}</div>
@@ -649,6 +656,13 @@ function renderTopCards(isCrew, profile) {
         <div class="card-main-value">${c.main}</div>
         <div class="card-subtext">${c.sub}</div>
       `;
+
+      if (c.title === "Break Rewards") {
+        card.addEventListener("click", () => {
+          window.location.href = "break-rewards.html";
+        });
+      }
+
       topCards.appendChild(card);
     });
   } else {
@@ -806,11 +820,9 @@ async function openCrewProfile(id) {
   crewProfileAvatar.textContent = crew.name.charAt(0).toUpperCase();
   crewProfileStars.textContent = describeStars(crew.stars);
 
-  // ✅ current or next shift (with fallback name match)
   const result = getCurrentOrNextShiftForUser(id, crew.name, allShifts);
   crewProfileNextShift.textContent = result ? formatShiftLine(result.kind, result.shift) : "No upcoming shift on file.";
 
-  // ✅ Station display: prefer station from shift, else show user stations list
   const shiftStation = result?.shift?.station ? String(result.shift.station).trim() : "";
 
   crewProfileStations.textContent = "Loading…";
@@ -818,9 +830,7 @@ async function openCrewProfile(id) {
 
   if (shiftStation) {
     crewProfileStations.textContent =
-      stations.length
-        ? `${shiftStation} · ${stations.join(" · ")}`
-        : shiftStation;
+      stations.length ? `${shiftStation} · ${stations.join(" · ")}` : shiftStation;
   } else {
     crewProfileStations.textContent = stations.length ? stations.join(" · ") : "No stations assigned yet.";
   }
@@ -852,13 +862,13 @@ function openSelfProfile() {
   crewProfileAvatar.textContent = String(sessionUser.name || "U").charAt(0).toUpperCase();
   crewProfileStars.textContent = describeStars(crewData.stars);
 
-  // ✅ Self: show current/next shift too (not only week calc)
   const result = getCurrentOrNextShiftForUser(sessionUser.id, sessionUser.name, allShifts);
 
   if (result) {
     crewProfileNextShift.textContent = formatShiftLine(result.kind, result.shift);
   } else if (crewData.nextShift && crewData.nextShift.start) {
-    crewProfileNextShift.textContent = `${crewData.nextShift.day} ${crewData.nextShift.start}-${crewData.nextShift.end}${crewData.nextShift.station ? " · " + crewData.nextShift.station : ""}`;
+    crewProfileNextShift.textContent =
+      `${crewData.nextShift.day} ${crewData.nextShift.start}-${crewData.nextShift.end}${crewData.nextShift.station ? " · " + crewData.nextShift.station : ""}`;
   } else {
     crewProfileNextShift.textContent = "No upcoming shift on file.";
   }
@@ -883,8 +893,19 @@ function renderSuggestions(isCrew) {
   aiSuggestions.innerHTML = "";
 
   const suggestions = isCrew
-    ? ["How many hours do I work this week?", "How much will I earn?", "When is my next shift?", "What training do I need?"]
-    : ["Show me today’s waste.", "Which crew need training?", "Who are my top performers?", "How many staff are working today?"];
+    ? [
+        "How many hours do I work this week?",
+        "How much will I earn?",
+        "When is my next shift?",
+        "What training do I need?",
+        "How do Break Rewards points work?"
+      ]
+    : [
+        "Show me today’s waste.",
+        "Which crew need training?",
+        "Who are my top performers?",
+        "How many staff are working today?"
+      ];
 
   suggestions.forEach((text) => {
     const chip = document.createElement("button");
@@ -951,7 +972,7 @@ function seedIntroMessages(isCrew) {
   if (!aiChat) return;
 
   const first = isCrew
-    ? `Hi ${String(sessionUser.name).split(" ")[0]} 👋 I can help with hours, pay, breaks and shifts.`
+    ? `Hi ${String(sessionUser.name).split(" ")[0]} 👋 I can help with hours, pay, breaks, shifts and rewards.`
     : `Hi ${String(sessionUser.name).split(" ")[0]} 👋 I can help with waste, sales, staffing and crew info.`;
 
   addMessage(first, "bot");
