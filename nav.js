@@ -1,17 +1,17 @@
-// nav.js — shared sidebar/nav logic (mobile-safe + clean routes + role UI)
-// ✅ Works with <li onclick="window.location.href='main.html'"> style nav
-// ✅ Also supports clean routes (/main) on Vercel
-// ✅ Shows Shift Creator only for role === "shiftCreator"
-// ✅ Mobile sidebar toggle + closes after nav tap
-// ✅ Active highlight works even without <a> tags
+// nav.js — shared sidebar/nav logic for ALL pages (CLEAN ROUTES + HTML)
+// ✅ Shift Creator only for role === "shiftCreator"
+// ✅ Sidebar mobile toggle
+// ✅ Works on Vercel clean routes (/main) AND local html (main.html)
+// ✅ Active nav highlight
+// ✅ No reliance on <a> tags; works with your <li onclick="...">
 
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-/* -------------------------
+/* =========================
    Helpers
-------------------------- */
+========================= */
 
 function loadSessionUser() {
   try { return JSON.parse(localStorage.getItem("mc_session_user")); }
@@ -22,15 +22,15 @@ function saveSessionUser(u) {
   localStorage.setItem("mc_session_user", JSON.stringify(u));
 }
 
-function currentPathLeaf() {
+function currentLeaf() {
   const parts = window.location.pathname.split("/").filter(Boolean);
-  return parts[parts.length - 1] || "";
+  return (parts[parts.length - 1] || "").split("?")[0];
 }
 
 function isCleanRouteMode() {
-  const leaf = currentPathLeaf();
-  // "/" or "/main" etc => clean route
-  return !leaf || !leaf.includes(".html");
+  const leaf = currentLeaf();
+  if (!leaf) return true;             // "/" (root)
+  return !leaf.includes(".html");     // "/main" style
 }
 
 function htmlToCleanRoute(file) {
@@ -41,61 +41,77 @@ function htmlToCleanRoute(file) {
     "break-rewards.html": "/break-rewards",
     "shifts-admin.html": "/shifts-admin",
     "wrapped.html": "/wrapped",
-    "index.html": "/",
+    "index.html": "/"
   };
   return map[file] || `/${String(file).replace(".html", "")}`;
 }
 
-function filenameForActive() {
-  const leaf = currentPathLeaf();
-  if (!leaf) return "main.html";
-
-  // if we are on .html pages
-  if (leaf.includes(".html")) return leaf.split("?")[0];
-
-  // clean route -> map to matching html name
+function routeToHtml(routeLeaf) {
   const map = {
+    "": "main.html",
     "main": "main.html",
     "training": "training.html",
     "schedule": "schedule.html",
     "break-rewards": "break-rewards.html",
     "shifts-admin": "shifts-admin.html",
-    "wrapped": "wrapped.html",
+    "wrapped": "wrapped.html"
   };
-  return map[leaf.split("?")[0]] || "main.html";
+  return map[routeLeaf] || "main.html";
+}
+
+function activeKey() {
+  // returns "main.html" etc so we can highlight consistently
+  const leaf = currentLeaf();
+
+  if (!leaf) return "main.html"; // root
+  if (leaf.includes(".html")) return leaf.split("?")[0];
+  return routeToHtml(leaf.split("?")[0]);
 }
 
 function extractHrefFromOnclick(onclickStr) {
   const s = String(onclickStr || "");
 
-  // supports: window.location.href='x' OR location.href="x" OR window.location='x'
-  let m = s.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
-  if (m?.[1]) return m[1];
+  const m1 = s.match(/location\.href\s*=\s*['"]([^'"]+)['"]/i);
+  if (m1?.[1]) return m1[1];
 
-  m = s.match(/location\.href\s*=\s*['"]([^'"]+)['"]/i);
-  if (m?.[1]) return m[1];
+  const m2 = s.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
+  if (m2?.[1]) return m2[1];
 
-  m = s.match(/window\.location\s*=\s*['"]([^'"]+)['"]/i);
-  if (m?.[1]) return m[1];
+  const m3 = s.match(/window\.location\s*=\s*['"]([^'"]+)['"]/i);
+  if (m3?.[1]) return m3[1];
 
   return null;
 }
+
+/* =========================
+   DOM
+========================= */
 
 function dom() {
   return {
     sidebar: document.querySelector(".sidebar"),
     sidebarToggle: document.getElementById("sidebarToggle"),
+    navList: document.querySelector(".sidebar .nav-list"),
     navShiftCreator: document.getElementById("navShiftCreator"),
     sidebarUserName: document.getElementById("sidebarUserName"),
     sidebarUserRole: document.getElementById("sidebarUserRole"),
     logoutBtn: document.getElementById("logoutBtn"),
-    navList: document.querySelector(".sidebar .nav-list"),
   };
 }
 
-/* -------------------------
+/* =========================
    UI
-------------------------- */
+========================= */
+
+function setActiveNav() {
+  const want = activeKey();
+
+  document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
+    const onclick = li.getAttribute("onclick") || "";
+    const href = extractHrefFromOnclick(onclick);
+    li.classList.toggle("active", href === want);
+  });
+}
 
 function applyRoleUI(role) {
   const { navShiftCreator, sidebarUserRole } = dom();
@@ -117,19 +133,9 @@ function applyNameUI(name) {
   if (sidebarUserName && name) sidebarUserName.textContent = name;
 }
 
-function setActiveNav() {
-  const wantFile = filenameForActive();
-
-  document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
-    const onclick = li.getAttribute("onclick") || "";
-    const href = extractHrefFromOnclick(onclick) || "";
-    li.classList.toggle("active", href.endsWith(wantFile));
-  });
-}
-
-/* -------------------------
-   Mobile-safe routing (ignore inline onclick)
-------------------------- */
+/* =========================
+   Click routing (fixes /break-rewards -> main)
+========================= */
 
 function bindNavRoutingOnce() {
   const { navList, sidebar } = dom();
@@ -141,30 +147,28 @@ function bindNavRoutingOnce() {
 
     const onclick = item.getAttribute("onclick") || "";
     const href = extractHrefFromOnclick(onclick);
+    if (!href) return;
 
-    // always close sidebar on tap (mobile)
-    sidebar?.classList.remove("sidebar-open");
-
-    if (!href) return; // let it behave normally if no target
-
-    // we handle navigation ourselves (more reliable than inline onclick)
+    // ALWAYS handle navigation ourselves (consistent everywhere)
     e.preventDefault();
     e.stopPropagation();
 
-    if (isCleanRouteMode()) {
-      const dest = href.includes(".html") ? htmlToCleanRoute(href) : href;
-      window.location.href = dest;
-    } else {
-      window.location.href = href; // .html mode
-    }
+    const dest = isCleanRouteMode()
+      ? (href.includes(".html") ? htmlToCleanRoute(href) : href)
+      : href;
+
+    // close sidebar on mobile
+    sidebar?.classList.remove("sidebar-open");
+
+    window.location.href = dest;
   }, true);
 
   navList.dataset.boundRouting = "1";
 }
 
-/* -------------------------
+/* =========================
    Firestore hydrate
-------------------------- */
+========================= */
 
 async function hydrateFromFirestore(firebaseUser) {
   try {
@@ -191,9 +195,9 @@ async function hydrateFromFirestore(firebaseUser) {
   }
 }
 
-/* -------------------------
+/* =========================
    Bind events
-------------------------- */
+========================= */
 
 function bindEventsOnce() {
   const { sidebar, sidebarToggle, logoutBtn } = dom();
@@ -213,9 +217,9 @@ function bindEventsOnce() {
   }
 }
 
-/* -------------------------
+/* =========================
    Init
-------------------------- */
+========================= */
 
 function initNav() {
   bindEventsOnce();
