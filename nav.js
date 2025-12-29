@@ -87,28 +87,15 @@ function dom() {
 ========================= */
 
 function setActiveNav() {
-  const file = filenameForActive();
-
-  const targets = {
-    "main.html": "main.html",
-    "training.html": "training.html",
-    "schedule.html": "schedule.html",
-    "break-rewards.html": "break-rewards.html",
-    "wrapped.html": "wrapped.html",
-    "shifts-admin.html": "shifts-admin.html",
-  };
-
-  const want = targets[file];
-  if (!want) return;
+  const file = filename() || "main.html";
 
   document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
-    const onClick = li.getAttribute("onclick") || "";
-    const isMatch =
-      onClick.includes(`'${want}'`) ||
-      onClick.includes(`"${want}"`);
-    li.classList.toggle("active", isMatch);
+    const a = li.querySelector("a[href]");
+    const href = a ? (a.getAttribute("href") || "") : "";
+    li.classList.toggle("active", href.endsWith(file));
   });
 }
+
 
 function applyRoleUI(role) {
   const { navShiftCreator, sidebarUserRole } = dom();
