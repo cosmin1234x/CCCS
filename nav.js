@@ -1,20 +1,17 @@
-// nav.js — shared sidebar/nav logic for ALL pages
+// nav.js — shared sidebar/nav logic for ALL pages (bulletproof)
 // ✅ Shows Shift Creator only for role === "shiftCreator"
 // ✅ Sidebar mobile toggle
 // ✅ Highlights active nav item (by current filename)
-// ✅ (Optional) sets sidebar user name/role if elements exist
+// ✅ Sets sidebar user name/role if elements exist
+// ✅ Runs safely even if DOM isn't ready yet
 
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const sidebar = document.querySelector(".sidebar");
-const sidebarToggle = document.getElementById("sidebarToggle");
-
-const navShiftCreator = document.getElementById("navShiftCreator");
-const sidebarUserName = document.getElementById("sidebarUserName");
-const sidebarUserRole = document.getElementById("sidebarUserRole");
-const logoutBtn = document.getElementById("logoutBtn");
+/* =========================
+   Helpers
+========================= */
 
 function loadSessionUser() {
   try { return JSON.parse(localStorage.getItem("mc_session_user")); }
@@ -30,10 +27,28 @@ function filename() {
   return p.split("?")[0];
 }
 
+/* =========================
+   DOM getters (safe)
+========================= */
+
+function dom() {
+  return {
+    sidebar: document.querySelector(".sidebar"),
+    sidebarToggle: document.getElementById("sidebarToggle"),
+    navShiftCreator: document.getElementById("navShiftCreator"),
+    sidebarUserName: document.getElementById("sidebarUserName"),
+    sidebarUserRole: document.getElementById("sidebarUserRole"),
+    logoutBtn: document.getElementById("logoutBtn"),
+  };
+}
+
+/* =========================
+   UI
+========================= */
+
 function setActiveNav() {
   const file = filename();
 
-  // Map filenames to nav hrefs used in onclick handlers
   const targets = {
     "main.html": "main.html",
     "training.html": "training.html",
@@ -54,21 +69,30 @@ function setActiveNav() {
 }
 
 function applyRoleUI(role) {
-  // Shift Creator visibility
+  const { navShiftCreator, sidebarUserRole } = dom();
+  const r = String(role || "crew");
+
   if (navShiftCreator) {
-    navShiftCreator.style.display = (role === "shiftCreator") ? "" : "none";
+    navShiftCreator.style.display = (r === "shiftCreator") ? "" : "none";
   }
 
-  // Sidebar role label
   if (sidebarUserRole) {
-    if (role === "crew") sidebarUserRole.textContent = "Crew Member";
-    else if (role === "shiftCreator") sidebarUserRole.textContent = "Shift Creator";
+    if (r === "crew") sidebarUserRole.textContent = "Crew Member";
+    else if (r === "shiftCreator") sidebarUserRole.textContent = "Shift Creator";
     else sidebarUserRole.textContent = "Restaurant Manager";
   }
 }
 
+function applyNameUI(name) {
+  const { sidebarUserName } = dom();
+  if (sidebarUserName && name) sidebarUserName.textContent = name;
+}
+
+/* =========================
+   Firestore hydrate
+========================= */
+
 async function hydrateFromFirestore(firebaseUser) {
-  // Try to keep sidebar name/role accurate on ALL pages
   try {
     const snap = await getDoc(doc(db, "users", firebaseUser.uid));
     if (!snap.exists()) return;
@@ -85,45 +109,62 @@ async function hydrateFromFirestore(firebaseUser) {
 
     saveSessionUser(merged);
 
-    if (sidebarUserName) sidebarUserName.textContent = merged.name;
+    applyNameUI(merged.name);
     applyRoleUI(merged.role);
+    setActiveNav(); // re-run after UI is sure
   } catch (e) {
     console.warn("nav.js hydrateFromFirestore error:", e);
   }
 }
 
 /* =========================
-   Bind events
+   Bind events (safe)
 ========================= */
 
-sidebarToggle?.addEventListener("click", () => {
-  sidebar?.classList.toggle("sidebar-open");
-});
+function bindEventsOnce() {
+  const { sidebar, sidebarToggle, logoutBtn } = dom();
 
-logoutBtn?.addEventListener("click", async () => {
-  try { await signOut(auth); } catch {}
-  localStorage.removeItem("mc_session_user");
-  window.location.href = "index.html";
-});
+  if (sidebarToggle && !sidebarToggle.dataset.bound) {
+    sidebarToggle.addEventListener("click", () => sidebar?.classList.toggle("sidebar-open"));
+    sidebarToggle.dataset.bound = "1";
+  }
+
+  if (logoutBtn && !logoutBtn.dataset.bound) {
+    logoutBtn.addEventListener("click", async () => {
+      try { await signOut(auth); } catch {}
+      localStorage.removeItem("mc_session_user");
+      window.location.href = "index.html";
+    });
+    logoutBtn.dataset.bound = "1";
+  }
+}
 
 /* =========================
-   Init
+   Init (runs even if DOM not ready)
 ========================= */
 
-// set active nav immediately
-setActiveNav();
+function initNav() {
+  bindEventsOnce();
+  setActiveNav();
 
-// apply role from cached session immediately (fast)
-const cached = loadSessionUser();
-if (cached?.name && sidebarUserName) sidebarUserName.textContent = cached.name;
-applyRoleUI(cached?.role || "crew");
+  // fast path: cached session
+  const cached = loadSessionUser();
+  if (cached?.name) applyNameUI(cached.name);
+  applyRoleUI(cached?.role || "crew");
 
-// confirm with Firebase auth + Firestore (accurate)
-onAuthStateChanged(auth, (user) => {
-  if (!user) {
-    // if not logged in, bounce
-    window.location.href = "index.html";
-    return;
-  }
-  hydrateFromFirestore(user);
-});
+  // accurate path: auth + firestore
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      window.location.href = "index.html";
+      return;
+    }
+    hydrateFromFirestore(user);
+  });
+}
+
+// If nav.js is loaded before DOM exists, wait.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initNav);
+} else {
+  initNav();
+}
