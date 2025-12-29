@@ -1,9 +1,9 @@
-// nav.js — shared sidebar/nav logic for ALL pages (bulletproof + clean routes support)
+// nav.js — shared sidebar/nav logic for ALL pages (routes + role UI)
 // ✅ Shows Shift Creator only for role === "shiftCreator"
 // ✅ Sidebar mobile toggle
-// ✅ Highlights active nav item (supports /main AND main.html)
-// ✅ Sets sidebar user name/role if elements exist
-// ✅ Overrides inline onclick routing so mobile clean routes work
+// ✅ Highlights active nav item
+// ✅ Fixes navigation on hosted clean routes (/main) even if HTML uses main.html
+// ✅ Runs safely even if DOM isn't ready yet
 
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -23,28 +23,47 @@ function saveSessionUser(u) {
 }
 
 function currentPathLeaf() {
-  // returns "main", "main.html", "training", etc (no query)
-  const leaf = (window.location.pathname.split("/").filter(Boolean).pop() || "");
-  return leaf.split("?")[0];
+  const p = window.location.pathname.split("/").filter(Boolean);
+  return p[p.length - 1] || "";
 }
 
-function isUsingCleanRoutes() {
-  // If you're on /main or /training (no .html), treat as clean routes
+function isCleanRouteMode() {
+  // If you're on /main or /training etc, you're in clean route mode
   const leaf = currentPathLeaf();
-  if (!leaf) return true; // root -> treat as clean
+  if (!leaf) return true;
   return !leaf.includes(".html");
 }
 
-function toRoute(fileOrPath) {
-  // fileOrPath might be "main.html" or "/main" etc
-  const raw = String(fileOrPath || "").trim();
+function htmlToCleanRoute(file) {
+  const map = {
+    "main.html": "/main",
+    "training.html": "/training",
+    "schedule.html": "/schedule",
+    "break-rewards.html": "/break-rewards",
+    "shifts-admin.html": "/shifts-admin",
+    "wrapped.html": "/wrapped",
+    "index.html": "/",
+  };
+  return map[file] || (file.startsWith("/") ? file : `/${file.replace(".html", "")}`);
+}
 
-  // If already absolute (/main) just use it
-  if (raw.startsWith("/")) return raw;
+function filenameForActive() {
+  // Normalize active nav even on clean routes
+  const leaf = currentPathLeaf();
 
-  // Convert "main.html" -> "/main" on clean routes, otherwise keep "main.html"
-  const clean = raw.replace(".html", "");
-  return isUsingCleanRoutes() ? `/${clean}` : raw;
+  if (!leaf) return "main.html"; // root -> treat as dashboard
+  if (leaf.includes(".html")) return leaf.split("?")[0];
+
+  // clean route mode
+  const map = {
+    "main": "main.html",
+    "training": "training.html",
+    "schedule": "schedule.html",
+    "break-rewards": "break-rewards.html",
+    "shifts-admin": "shifts-admin.html",
+    "wrapped": "wrapped.html",
+  };
+  return map[leaf.split("?")[0]] || "main.html";
 }
 
 /* =========================
@@ -59,91 +78,37 @@ function dom() {
     sidebarUserName: document.getElementById("sidebarUserName"),
     sidebarUserRole: document.getElementById("sidebarUserRole"),
     logoutBtn: document.getElementById("logoutBtn"),
+    navList: document.querySelector(".sidebar .nav-list"),
   };
 }
 
 /* =========================
-   Routing: override inline onclick links
-========================= */
-
-function bindNavRoutingOnce() {
-  // Convert <li onclick="window.location.href='main.html'"> into real click handlers
-  document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
-    if (li.dataset.navBound === "1") return;
-
-    const onClick = li.getAttribute("onclick") || "";
-    const match = onClick.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/);
-
-    if (!match) {
-      li.dataset.navBound = "1";
-      return;
-    }
-
-    const target = match[1]; // e.g. main.html
-    li.removeAttribute("onclick");
-
-    li.addEventListener("click", () => {
-      window.location.href = toRoute(target);
-    });
-
-    li.dataset.navBound = "1";
-  });
-}
-
-/* =========================
-   Active nav highlighting
+   UI
 ========================= */
 
 function setActiveNav() {
-  const leaf = currentPathLeaf();     // "main" or "main.html"
-  const cleanLeaf = leaf.replace(".html", "");
+  const file = filenameForActive();
 
   const targets = {
-    main: ["main", "main.html"],
-    training: ["training", "training.html"],
-    schedule: ["schedule", "schedule.html"],
-    "break-rewards": ["break-rewards", "break-rewards.html"],
-    wrapped: ["wrapped", "wrapped.html"],
-    "shifts-admin": ["shifts-admin", "shifts-admin.html"],
-    // add more pages here if needed
+    "main.html": "main.html",
+    "training.html": "training.html",
+    "schedule.html": "schedule.html",
+    "break-rewards.html": "break-rewards.html",
+    "wrapped.html": "wrapped.html",
+    "shifts-admin.html": "shifts-admin.html",
   };
 
-  // Find which key matches current leaf
-  const pageKey = Object.keys(targets).find((k) => targets[k].includes(cleanLeaf) || targets[k].includes(leaf));
-  if (!pageKey) return;
-
-  const possibles = targets[pageKey]; // array of matching forms
+  const want = targets[file];
+  if (!want) return;
 
   document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
-    // We bound click handlers, but some pages might still have inline onclick (older)
     const onClick = li.getAttribute("onclick") || "";
     const isMatch =
-      possibles.some((p) => onClick.includes(`'${p}'`) || onClick.includes(`"${p}"`)) ||
-      // also match our bound handler via dataset target (fallback)
-      possibles.some((p) => (li.dataset.navTarget || "").includes(p));
-
-    // If we removed onclick, detect using inner navigation target from our regex
-    // (We can store it once if we want)
+      onClick.includes(`'${want}'`) ||
+      onClick.includes(`"${want}"`);
     li.classList.toggle("active", isMatch);
   });
-
-  // Better: since onclick can be removed, do a smarter "active" set based on actual route mapping:
-  // We'll attempt to match by comparing the intended route of the onclick target if present.
-  document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
-    const onClick2 = li.getAttribute("onclick") || "";
-    const match2 = onClick2.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/);
-    const rawTarget = match2 ? match2[1] : null;
-    if (!rawTarget) return;
-
-    const rawLeaf = String(rawTarget).split("/").pop().replace(".html", "");
-    const shouldBeActive = rawLeaf === cleanLeaf;
-    li.classList.toggle("active", shouldBeActive);
-  });
 }
-
-/* =========================
-   Role UI
-========================= */
 
 function applyRoleUI(role) {
   const { navShiftCreator, sidebarUserRole } = dom();
@@ -163,6 +128,63 @@ function applyRoleUI(role) {
 function applyNameUI(name) {
   const { sidebarUserName } = dom();
   if (sidebarUserName && name) sidebarUserName.textContent = name;
+}
+
+/* =========================
+   Routing fix (THIS fixes mobile)
+========================= */
+
+function extractHrefFromOnclick(onclickStr) {
+  // supports: window.location.href='x' OR location.href="x" OR window.location='x'
+  const s = String(onclickStr || "");
+
+  const m1 = s.match(/location\.href\s*=\s*['"]([^'"]+)['"]/i);
+  if (m1?.[1]) return m1[1];
+
+  const m2 = s.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
+  if (m2?.[1]) return m2[1];
+
+  const m3 = s.match(/window\.location\s*=\s*['"]([^'"]+)['"]/i);
+  if (m3?.[1]) return m3[1];
+
+  return null;
+}
+
+function bindNavRoutingOnce() {
+  const { navList, sidebar } = dom();
+  if (!navList || navList.dataset.boundRouting) return;
+
+  navList.addEventListener("click", (e) => {
+    const item = e.target.closest(".nav-item");
+    if (!item) return;
+
+    // let logout button work normally
+    if (item.id === "logoutBtn") return;
+
+    const onclick = item.getAttribute("onclick") || "";
+    const href = extractHrefFromOnclick(onclick);
+    if (!href) return; // fallback to original behavior
+
+    // If hosted clean routes, convert main.html -> /main
+    if (isCleanRouteMode()) {
+      const dest = href.includes(".html") ? htmlToCleanRoute(href) : href;
+      e.preventDefault();
+      e.stopPropagation();
+      window.location.href = dest;
+      return;
+    }
+
+    // Local .html mode – allow default onclick navigation
+  }, true);
+
+  // also close sidebar after clicking (nice on mobile)
+  navList.addEventListener("click", (e) => {
+    const item = e.target.closest(".nav-item");
+    if (!item) return;
+    sidebar?.classList.remove("sidebar-open");
+  });
+
+  navList.dataset.boundRouting = "1";
 }
 
 /* =========================
@@ -188,9 +210,6 @@ async function hydrateFromFirestore(firebaseUser) {
 
     applyNameUI(merged.name);
     applyRoleUI(merged.role);
-
-    // Re-bind after role might reveal shift creator nav item
-    bindNavRoutingOnce();
     setActiveNav();
   } catch (e) {
     console.warn("nav.js hydrateFromFirestore error:", e);
@@ -213,7 +232,7 @@ function bindEventsOnce() {
     logoutBtn.addEventListener("click", async () => {
       try { await signOut(auth); } catch {}
       localStorage.removeItem("mc_session_user");
-      window.location.href = toRoute("index.html");
+      window.location.href = isCleanRouteMode() ? "/" : "index.html";
     });
     logoutBtn.dataset.bound = "1";
   }
@@ -225,28 +244,22 @@ function bindEventsOnce() {
 
 function initNav() {
   bindEventsOnce();
-
-  // ✅ critical: make sidebar items work on clean routes
   bindNavRoutingOnce();
-
   setActiveNav();
 
-  // fast path: cached session
   const cached = loadSessionUser();
   if (cached?.name) applyNameUI(cached.name);
   applyRoleUI(cached?.role || "crew");
 
-  // accurate path: auth + firestore
   onAuthStateChanged(auth, (user) => {
     if (!user) {
-      window.location.href = toRoute("index.html");
+      window.location.href = isCleanRouteMode() ? "/" : "index.html";
       return;
     }
     hydrateFromFirestore(user);
   });
 }
 
-// If nav.js is loaded before DOM exists, wait.
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initNav);
 } else {
