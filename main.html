@@ -5,91 +5,42 @@
   <title>McTraining Portal – Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
-
-  <!-- Small nav fix for <a> sidebar links -->
-  <style>
-    .nav-item { padding: 0; } /* link holds padding */
-    .nav-link{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      width:100%;
-      padding:12px 14px;
-      text-decoration:none;
-      color:inherit;
-      -webkit-tap-highlight-color: transparent;
-    }
-  </style>
 </head>
 
 <body class="app-page">
 
-  <!-- ========= SIDEBAR ========= -->
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-circle">M</div>
-      <div class="sidebar-header-text">
-        <h1>McTraining</h1>
-        <p>Crew & Manager portal</p>
-      </div>
-      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
-    </div>
+  <ul class="nav-list">
+  <li class="nav-item">
+    <a class="nav-link" href="main.html">
+      <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
+    </a>
+  </li>
 
-    <nav class="sidebar-nav">
-      <div class="nav-section-title">MAIN</div>
+  <li class="nav-item">
+    <a class="nav-link" href="training.html">
+      <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
+    </a>
+  </li>
 
-      <ul class="nav-list">
-        <li class="nav-item active">
-          <a class="nav-link" href="main.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🏠</span>
-            <span class="nav-label">Dashboard</span>
-          </a>
-        </li>
+  <li class="nav-item">
+    <a class="nav-link" href="schedule.html">
+      <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
+    </a>
+  </li>
 
-        <li class="nav-item">
-          <a class="nav-link" href="training.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🎓</span>
-            <span class="nav-label">Training</span>
-          </a>
-        </li>
+  <li class="nav-item">
+    <a class="nav-link" href="break-rewards.html">
+      <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
+    </a>
+  </li>
 
-        <li class="nav-item">
-          <a class="nav-link" href="schedule.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">📅</span>
-            <span class="nav-label">Shifts</span>
-          </a>
-        </li>
+  <li class="nav-item" id="navShiftCreator" style="display:none;">
+    <a class="nav-link" href="shifts-admin.html">
+      <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
+    </a>
+  </li>
+</ul>
 
-        <li class="nav-item">
-          <a class="nav-link" href="break-rewards.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🍔</span>
-            <span class="nav-label">Break Rewards</span>
-          </a>
-        </li>
-
-        <!-- Shift Creator (shown via JS for role) -->
-        <li class="nav-item" id="navShiftCreator" style="display:none;">
-          <a class="nav-link" href="shifts-admin.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🛠️</span>
-            <span class="nav-label">Shift creator</span>
-          </a>
-        </li>
-      </ul>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user-label">
-        <strong id="sidebarUserName">User Name</strong><br />
-        <span id="sidebarUserRole">Crew Member</span>
-      </div>
-      <button id="logoutBtn" type="button">Log out</button>
-    </div>
-  </aside>
 
   <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
@@ -108,7 +59,9 @@
           <span id="roleBadge" class="badge-role">CREW</span>
 
           <!-- Crew profile -->
-          <button id="myProfileBtn" class="crew-profile-top-btn" style="display:none;" type="button">
+          <button id="myProfileBtn"
+                  class="crew-profile-top-btn"
+                  style="display:none;">
             My profile
           </button>
 
@@ -130,6 +83,7 @@
 
     <!-- ===== AI PANEL ===== -->
     <aside class="ai-panel">
+
       <div class="ai-header">
         <div class="ai-header-left">
           <div class="ai-avatar">A</div>
@@ -149,8 +103,12 @@
       <div id="aiChat" class="ai-chat"></div>
 
       <form id="aiForm" class="ai-input-row">
-        <input id="aiInput" type="text" placeholder="Ask McAssist something…" />
-        <button id="aiSendBtn" type="submit" class="ai-send-btn">Send ➤</button>
+        <input id="aiInput"
+               type="text"
+               placeholder="Ask McAssist something…" />
+        <button id="aiSendBtn" type="submit" class="ai-send-btn">
+          Send ➤
+        </button>
         <button type="button" id="aiMicBtn" class="voice-btn">🎤</button>
       </form>
 
@@ -158,18 +116,20 @@
         <input type="checkbox" id="wakeToggle" />
         <span>Enable “Hey Amy”</span>
       </label>
+
     </aside>
   </div>
 
   <!-- ===== VOICE OVERLAY ===== -->
   <div id="voiceOverlay" class="voice-overlay">
     <div id="overlayText" class="overlay-text">Ask me anything</div>
-    <button id="overlayMic" class="overlay-mic-btn" type="button">🎤</button>
+    <button id="overlayMic" class="overlay-mic-btn">🎤</button>
   </div>
 
   <!-- ===== CREW PROFILE OVERLAY ===== -->
   <div id="crewProfileOverlay" class="crew-profile-overlay">
     <div class="crew-profile-card">
+
       <div class="crew-profile-header">
         <div class="crew-profile-main">
           <div id="crewProfileAvatar" class="crew-profile-avatar">C</div>
@@ -179,7 +139,7 @@
             <p id="crewProfileStore" class="crew-profile-store"></p>
           </div>
         </div>
-        <button id="crewProfileClose" class="crew-profile-close" type="button">✕</button>
+        <button id="crewProfileClose" class="crew-profile-close">✕</button>
       </div>
 
       <div class="crew-profile-body">
@@ -213,11 +173,14 @@
           <p id="crewProfileNotes"></p>
         </div>
       </div>
+
     </div>
   </div>
 
   <!-- ========= JS ========= -->
   <script type="module" src="main.js"></script>
   <script type="module" src="nav.js"></script>
+
+
 </body>
 </html>
