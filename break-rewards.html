@@ -7,130 +7,142 @@
   <link rel="stylesheet" href="mc-theme.css" />
 
   <style>
-    .page-wrap{
+    /* Page layout (matches your app shell) */
+    .rewards-page{
+      flex:1;
       display:flex;
       flex-direction:column;
       gap:14px;
       width:100%;
-      flex:1;
     }
 
-    .top-row{
+    .rewards-top{
       display:flex;
-      align-items:flex-start;
       justify-content:space-between;
+      align-items:flex-start;
       gap:12px;
       flex-wrap:wrap;
     }
 
-    .top-actions{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-      justify-content:flex-end;
-    }
-
-    .points-card{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-    }
-
-    .points-big{
-      font-size:1.6rem;
+    .rewards-title{
+      font-size:1.35rem;
       font-weight:900;
-      letter-spacing:-0.4px;
-      display:flex;
-      align-items:baseline;
-      gap:10px;
+      letter-spacing:-0.3px;
+      margin:0;
     }
-    .points-big small{
-      font-size:.85rem;
-      font-weight:800;
-      opacity:.7;
+    .rewards-sub{
+      margin:6px 0 0;
+      color:#6b7280;
+      font-size:.9rem;
+      line-height:1.35;
     }
 
-    .mini-row{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
+    /* Big "balance" pill like your sketch */
+    .balance-pill{
+      display:inline-flex;
       align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      font-weight:900;
+      white-space:nowrap;
+    }
+    .balance-pill strong{
+      font-size:1.05rem;
     }
 
-    .grid-2{
+    .balance-meta{
+      font-size:.78rem;
+      color:#6b7280;
+      margin-top:6px;
+    }
+
+    /* Two panels: Menu (left) + Cart (right) */
+    .rewards-grid{
       display:grid;
-      grid-template-columns: 1.4fr 1fr;
+      grid-template-columns: 1.8fr 1.1fr;
       gap:14px;
       align-items:start;
     }
     @media (max-width: 1024px){
-      .grid-2{ grid-template-columns: 1fr; }
+      .rewards-grid{ grid-template-columns: 1fr; }
     }
 
-    .menu-grid{
-      display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap:12px;
+    /* Menu header row */
+    .menu-toolbar{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
       margin-top:10px;
     }
+    .menu-toolbar input{
+      flex:1;
+      min-width:220px;
+    }
 
+    /* Food tiles */
+    #menuGrid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap:12px;
+      margin-top:12px;
+    }
     .menu-item-title{
+      font-size:0.95rem;
       font-weight:900;
-      font-size:.95rem;
-      margin-bottom:6px;
+      margin:0 0 6px;
     }
     .menu-item-meta{
       display:flex;
       gap:8px;
       flex-wrap:wrap;
       align-items:center;
-      font-size:.78rem;
-      color:#6b7280;
       margin-bottom:8px;
     }
-
     .tag{
       display:inline-flex;
       align-items:center;
       gap:6px;
-      border-radius:999px;
-      padding:4px 10px;
-      font-weight:800;
-      font-size:.75rem;
       border:1px solid #e5e7eb;
       background:#f9fafb;
-      color:#111827;
-      white-space:nowrap;
+      padding:4px 8px;
+      border-radius:999px;
+      font-size:.78rem;
+      font-weight:800;
+      color:#374151;
     }
 
-    .cart-row{
+    /* Cart */
+    .cart-box{
+      position:sticky;
+      top:14px;
+    }
+    .cart-top{
       display:flex;
       justify-content:space-between;
-      gap:12px;
       align-items:center;
+      gap:10px;
       flex-wrap:wrap;
-      margin-top:8px;
     }
-
-    .cart-list{
+    .cart-total{
       display:flex;
-      flex-direction:column;
       gap:8px;
-      margin-top:10px;
+      align-items:center;
+      font-weight:900;
     }
 
     .cart-line{
       display:flex;
       justify-content:space-between;
-      align-items:center;
       gap:10px;
       padding:10px 10px;
-      border-radius:14px;
       border:1px solid #e5e7eb;
+      border-radius:14px;
       background:#fff;
     }
-
     .cart-left{
       display:flex;
       flex-direction:column;
@@ -139,76 +151,60 @@
     }
     .cart-left strong{
       font-size:.9rem;
-      font-weight:900;
-      line-height:1.15;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
     .cart-left small{
-      font-size:.78rem;
       color:#6b7280;
+      font-size:.78rem;
+      line-height:1.25;
     }
-
     .qty-row{
       display:flex;
-      gap:8px;
+      gap:6px;
       align-items:center;
-      flex-wrap:nowrap;
     }
-
     .qty{
-      min-width:28px;
+      min-width:18px;
       text-align:center;
       font-weight:900;
     }
 
-    .history-list{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      margin-top:10px;
-    }
-
+    /* History list */
     .history-line{
-      padding:10px 10px;
-      border-radius:14px;
-      border:1px solid #e5e7eb;
-      background:#fff;
       display:flex;
       justify-content:space-between;
-      gap:10px;
-      align-items:flex-start;
-      flex-wrap:wrap;
+      gap:12px;
+      padding:10px 10px;
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      background:#fff;
+      margin-top:8px;
     }
-
     .history-line .right{
       text-align:right;
-      font-size:.8rem;
       color:#6b7280;
-      font-weight:800;
+      font-size:.78rem;
       white-space:nowrap;
     }
 
+    /* Toast (same style you use elsewhere) */
     .toast{
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      z-index: 999;
-      padding: 10px 12px;
-      border-radius: 14px;
+      position:fixed;
+      right:16px;
+      bottom:16px;
+      z-index:999;
+      padding:10px 12px;
+      border-radius:14px;
       background: rgba(0,0,0,.78);
-      color: #fff;
-      font-size: .85rem;
-      border: 1px solid rgba(255,255,255,.16);
+      color:#fff;
+      font-size:.85rem;
+      border:1px solid rgba(255,255,255,.16);
       box-shadow: 0 18px 40px rgba(0,0,0,.45);
       display:none;
     }
-    .toast.show{
-      display:block;
-      animation: toastIn .2s ease-out;
-    }
-    @keyframes toastIn{
-      from{ opacity:0; transform: translateY(8px); }
-      to{ opacity:1; transform: translateY(0); }
-    }
+    .toast.show{ display:block; }
   </style>
 </head>
 
@@ -220,13 +216,13 @@
       <div class="logo-circle">M</div>
       <div class="sidebar-header-text">
         <h1>McTraining</h1>
-        <p>Crew & Manager portal</p>
+        <p>Training &amp; Rewards</p>
       </div>
       <button id="sidebarToggle" class="sidebar-toggle">☰</button>
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-title">MAIN</div>
+      <div class="nav-section-title">Main</div>
       <ul class="nav-list">
         <li class="nav-item" onclick="window.location.href='main.html'">
           <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
@@ -238,11 +234,12 @@
           <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
         </li>
 
+        <!-- NEW PAGE -->
         <li class="nav-item active" onclick="window.location.href='break-rewards.html'">
-          <span class="nav-dot"></span><span class="nav-icon">🍟</span><span class="nav-label">Break Rewards</span>
+          <span class="nav-dot"></span><span class="nav-icon">🍟</span><span class="nav-label">Break rewards</span>
         </li>
 
-        <!-- Only visible for shiftCreator -->
+        <!-- Shift creator (optional) -->
         <li class="nav-item" id="navShiftCreator" style="display:none;" onclick="window.location.href='shifts-admin.html'">
           <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
         </li>
@@ -258,115 +255,83 @@
     </div>
   </aside>
 
-  <!-- ========= MAIN LAYOUT ========= -->
+  <!-- ========= MAIN ========= -->
   <div class="main-layout">
-
     <div class="content-area">
-      <!-- Top bar -->
-      <div class="top-bar">
-        <div class="top-bar-left">
-          <h2>Break Rewards</h2>
-          <p>Use your points on your break. Daily points reset automatically.</p>
-        </div>
+      <div class="rewards-page">
 
-        <div class="top-bar-right">
-          <button id="backBtn" class="crew-profile-top-btn">← Back</button>
-          <div id="avatarCircle" class="avatar">U</div>
-        </div>
-      </div>
-
-      <div class="page-wrap">
-
-        <!-- Summary -->
+        <!-- Header (Title + Balance) -->
         <section class="card section-card">
-          <div class="top-row">
-            <div class="points-card">
-              <div class="subsection-title">Your points</div>
-              <div class="points-big">
-                <span id="pointsNow">—</span>
-                <small>pts</small>
-              </div>
-              <div class="subsection-sub" id="pointsMeta">Daily reset: —</div>
-
-              <div class="mini-row" style="margin-top:6px;">
-                <span class="badge-soft">Daily base: <strong>4</strong> pts</span>
-                <span class="badge-soft-warn">Bonus: <strong>+1</strong>/day</span>
-                <span class="badge-soft-success">Spend on menu</span>
-              </div>
+          <div class="rewards-top">
+            <div>
+              <h2 class="rewards-title">Break Rewards</h2>
+              <p class="rewards-sub">
+                Use your daily <strong>4 points</strong> to grab break food. Earn <strong>+1</strong> bonus for hard work / achievements.
+              </p>
             </div>
 
-            <div class="top-actions">
-              <button id="claimBonusBtn" class="btn-primary" type="button">💪 Claim +1 bonus</button>
-              <button id="clearCartBtn" class="btn" type="button">🗑️ Clear cart</button>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+              <div class="balance-pill" title="Your points reset daily">
+                ⭐ Points: <strong id="pointsNow">—</strong>
+              </div>
+
+              <button id="claimBonusBtn" class="btn-primary" type="button">
+                +1 Bonus (hard work)
+              </button>
+
+              <div id="pointsMeta" class="balance-meta">Daily reset: — • Bonus claimed: —</div>
+
+              <button id="backBtn" class="btn" type="button">← Back to dashboard</button>
             </div>
           </div>
         </section>
 
-        <section class="grid-2">
+        <!-- Panels -->
+        <section class="rewards-grid">
 
-          <!-- LEFT: Menu -->
+          <!-- LEFT: Food Items (your sketch middle panel) -->
           <section class="card section-card">
-            <div class="subsection-title">Menu</div>
-            <div class="subsection-sub">Pick items for your break. Costs are in points.</div>
+            <div class="subsection-title">Food items</div>
+            <div class="subsection-sub">Tap + to add. Checkout uses points.</div>
 
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-              <input id="menuSearch" placeholder="Search menu (fries, nugget, drink, wrap)…" />
+            <div class="menu-toolbar">
+              <input id="menuSearch" placeholder="Search (fries, burger, nuggets, drink)..." />
               <button id="menuSearchBtn" class="btn-primary" type="button">Search</button>
               <button id="menuResetBtn" class="btn" type="button">Reset</button>
             </div>
 
-            <div id="menuGrid" class="menu-grid"></div>
+            <div id="menuGrid"></div>
           </section>
 
-          <!-- RIGHT: Cart + History -->
-          <section class="card section-card">
-            <div class="subsection-title">Your cart</div>
-            <div class="subsection-sub">Checkout will deduct points and save the order.</div>
+          <!-- RIGHT: Cart + Recent Orders -->
+          <aside class="card section-card cart-box">
+            <div class="cart-top">
+              <div>
+                <div class="subsection-title" style="margin:0;">Your cart</div>
+                <div class="subsection-sub" style="margin:4px 0 0;">Total must be ≤ your points.</div>
+              </div>
 
-            <div class="cart-row">
-              <span class="badge-soft">Cart total: <strong id="cartTotal">0</strong> pts</span>
-              <button id="checkoutBtn" class="btn-primary" type="button" disabled>✅ Checkout</button>
+              <div class="cart-total">
+                <span class="tag">⭐</span>
+                <span><span id="cartTotal">0</span> pts</span>
+              </div>
             </div>
 
-            <div id="cartList" class="cart-list"></div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
+              <button id="clearCartBtn" class="btn" type="button">Clear</button>
+              <button id="checkoutBtn" class="btn-primary" type="button" disabled>Checkout</button>
+            </div>
 
-            <div class="subsection-title" style="margin-top:18px;">Order history</div>
-            <div class="subsection-sub">Your latest break orders.</div>
-            <div id="historyList" class="history-list"></div>
-          </section>
+            <div id="cartList" style="margin-top:12px;"></div>
+
+            <div class="subsection-title" style="margin-top:16px;">Recent orders</div>
+            <div id="historyList"></div>
+          </aside>
 
         </section>
 
       </div>
     </div>
-
-    <!-- Right side (optional): you can later add a manager log panel here -->
-    <aside class="ai-panel" style="opacity:.95;">
-      <div class="ai-header">
-        <div class="ai-header-left">
-          <div class="ai-avatar">🍟</div>
-          <div class="ai-header-text">
-            <h3>How it works</h3>
-            <p>Daily 4 points reset • Bonus +1/day • Spend on break.</p>
-          </div>
-        </div>
-        <div class="ai-status">
-          <span class="ai-status-dot"></span>
-          <span>Live</span>
-        </div>
-      </div>
-
-      <div class="card" style="box-shadow:none; border:1px solid #e5e7eb;">
-        <div class="subsection-title">Rules</div>
-        <ul class="list">
-          <li><span>Daily points reset to <strong>4</strong></span><span class="badge-soft">Auto</span></li>
-          <li><span>Bonus claim: <strong>+1</strong> once/day</span><span class="badge-soft-warn">Manual</span></li>
-          <li><span>Checkout deducts points</span><span class="badge-soft-success">Logged</span></li>
-        </ul>
-        <div class="subsection-title" style="margin-top:14px;">Tip</div>
-        <div class="subsection-sub">If points look wrong, refresh the page — it will re-check daily reset.</div>
-      </div>
-    </aside>
   </div>
 
   <div id="toast" class="toast"></div>
