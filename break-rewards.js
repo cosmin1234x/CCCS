@@ -654,3 +654,10 @@ onAuthStateChanged(auth, async (user) => {
   renderMenu();
   renderCart();
 });
+const pointsInfoBtn = document.getElementById("pointsInfoBtn");
+
+pointsInfoBtn?.addEventListener("click", () => {
+  showToast(
+    "You get 4 break points per shift. Managers can award +1 bonus for hard work. Points reset daily and can be spent on break food only."
+  );
+});
