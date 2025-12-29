@@ -1987,3 +1987,27 @@ select:focus {
     pointer-events: auto;
   }
 }
+/* Nav links (tap-safe) */
+.nav-item { padding: 0; cursor: default; }
+.nav-link{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  padding:7px 12px;
+  border-radius:999px;
+  color:inherit;
+  text-decoration:none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* keep your hover/active visuals */
+.nav-item:hover .nav-link{
+  background: rgba(0, 0, 0, 0.18);
+  transform: translateX(2px);
+}
+.nav-item.active .nav-link{
+  background: #fef9c3;
+  color: var(--mc-red-dark);
+}
