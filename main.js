@@ -1049,15 +1049,6 @@ if (aiForm) {
   });
 }
 
-/* ============================================================
-   SIDEBAR MOBILE TOGGLE
-============================================================ */
-
-if (sidebar && sidebarToggle) {
-  sidebarToggle.addEventListener("click", () => {
-    sidebar.classList.toggle("sidebar-open");
-  });
-}
 
 /* ============================================================
    VOICE MODE + WAKE WORD ("HEY AMY")
