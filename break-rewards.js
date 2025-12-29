@@ -1,57 +1,83 @@
+// ========================================
 // break-rewards.js — McTraining Break Rewards
-// - Daily reset to 4 points
-// - Redeem menu items with points
-// - Earn +1 point for achievements (demo)
-// Uses: users/{uid} doc fields:
-//   breakPoints: number
-//   breakPointsDate: "YYYY-MM-DD" (local date string)
-// Also writes orders to: users/{uid}/breakOrders/{orderId}
+// - Daily reset: 4 points per day (auto)
+// - Bonus: +1 claim once per day (hard work / achievement)
+// - Menu + cart + checkout (deduct points)
+// - Saves orders:
+//    users/{uid}/breakOrders/{orderId}
+//    stores/{storeId}/BreakOrders/{orderId}
+// ========================================
 
 import { auth, db } from "./firebase-init.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  doc, getDoc, setDoc, updateDoc, onSnapshot,
-  collection, addDoc, serverTimestamp
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  limit,
+  onSnapshot,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* =========================
    DOM
 ========================= */
-const sidebar = document.querySelector(".sidebar");
-const sidebarToggle = document.getElementById("sidebarToggle");
-const logoutBtn = document.getElementById("logoutBtn");
-
 const sidebarUserName = document.getElementById("sidebarUserName");
 const sidebarUserRole = document.getElementById("sidebarUserRole");
+const navShiftCreator = document.getElementById("navShiftCreator");
 
-const goTrainingBtn = document.getElementById("goTrainingBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const sidebar = document.querySelector(".sidebar");
+const sidebarToggle = document.getElementById("sidebarToggle");
 
-const pointsBalance = document.getElementById("pointsBalance");
-const resetLabel = document.getElementById("resetLabel");
+const avatarCircle = document.getElementById("avatarCircle");
+const backBtn = document.getElementById("backBtn");
 
+const pointsNowEl = document.getElementById("pointsNow");
+const pointsMetaEl = document.getElementById("pointsMeta");
+const claimBonusBtn = document.getElementById("claimBonusBtn");
+
+const menuSearch = document.getElementById("menuSearch");
+const menuSearchBtn = document.getElementById("menuSearchBtn");
+const menuResetBtn = document.getElementById("menuResetBtn");
 const menuGrid = document.getElementById("menuGrid");
 
+const cartTotalEl = document.getElementById("cartTotal");
 const cartList = document.getElementById("cartList");
-const cartTotalPill = document.getElementById("cartTotalPill");
+const checkoutBtn = document.getElementById("checkoutBtn");
 const clearCartBtn = document.getElementById("clearCartBtn");
-const redeemBtn = document.getElementById("redeemBtn");
 
-const cartError = document.getElementById("cartError");
-const cartSuccess = document.getElementById("cartSuccess");
-
+const historyList = document.getElementById("historyList");
 const toastEl = document.getElementById("toast");
 
 /* =========================
-   MENU (edit freely)
-   Costs are in points
+   CONFIG
 ========================= */
+const DAILY_BASE_POINTS = 4;
+const DAILY_BONUS_POINTS = 1;
+
+// Simple rewards menu (edit freely)
 const MENU = [
-  { id: "fries_small", name: "Small Fries", desc: "Classic fries (small).", cost: 2 },
-  { id: "fries_medium", name: "Medium Fries", desc: "Classic fries (medium).", cost: 3 },
-  { id: "mcflurry_snack", name: "Snack McFlurry", desc: "Snack-size treat.", cost: 4 },
-  { id: "cheeseburger", name: "Cheeseburger", desc: "Standard build.", cost: 4 },
-  { id: "hash_brown", name: "Hash Brown", desc: "Breakfast item (if available).", cost: 2 },
-  { id: "small_drink", name: "Small Soft Drink", desc: "Any small cup drink.", cost: 2 },
+  { id: "small_fries", title: "Small Fries", category: "Sides", points: 1, desc: "Quick break classic." },
+  { id: "medium_fries", title: "Medium Fries", category: "Sides", points: 2, desc: "More fuel for your shift." },
+  { id: "apple_pie", title: "Apple Pie", category: "Dessert", points: 2, desc: "Warm + sweet." },
+  { id: "mcflurry_snack", title: "McFlurry Snack", category: "Dessert", points: 3, desc: "Small treat." },
+
+  { id: "cheeseburger", title: "Cheeseburger", category: "Burgers", points: 3, desc: "Simple and solid." },
+  { id: "hamburger", title: "Hamburger", category: "Burgers", points: 2, desc: "Light bite." },
+
+  { id: "nuggets_4", title: "4 Chicken McNuggets", category: "Chicken", points: 3, desc: "Dip + go." },
+  { id: "wrap_snack", title: "Snack Wrap", category: "Chicken", points: 3, desc: "Quick wrap option." },
+
+  { id: "small_soft_drink", title: "Small Soft Drink", category: "Drinks", points: 1, desc: "Any fountain drink." },
+  { id: "water", title: "Water", category: "Drinks", points: 0, desc: "Stay hydrated." },
+  { id: "hot_drink", title: "Tea / Coffee", category: "Drinks", points: 1, desc: "Warm boost." }
 ];
 
 /* =========================
@@ -59,12 +85,14 @@ const MENU = [
 ========================= */
 let sessionUser = null;
 let userDocCache = null;
-let unsubUser = null;
+let uid = null;
 
-let cart = {}; // { itemId: qty }
+let cart = {}; // { menuId: qty }
+let unsubUser = null;
+let unsubHistory = null;
 
 /* =========================
-   Helpers
+   HELPERS
 ========================= */
 function toast(msg) {
   if (!toastEl) return;
@@ -73,27 +101,21 @@ function toast(msg) {
   setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
 
-function showError(msg) {
-  if (!cartError) return;
-  cartError.style.display = "block";
-  cartError.textContent = msg;
-  if (cartSuccess) cartSuccess.style.display = "none";
+function escapeHTML(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function showSuccess(msg) {
-  if (!cartSuccess) return;
-  cartSuccess.style.display = "block";
-  cartSuccess.textContent = msg;
-  if (cartError) cartError.style.display = "none";
-}
-
-function hideMessages() {
-  if (cartError) cartError.style.display = "none";
-  if (cartSuccess) cartSuccess.style.display = "none";
+function normalize(s) {
+  return String(s || "").toLowerCase().trim();
 }
 
 function todayKeyLocal() {
-  // local device date -> YYYY-MM-DD
+  // Local “day key” (YYYY-MM-DD)
   const d = new Date();
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -101,277 +123,429 @@ function todayKeyLocal() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function n(x) { return Number(x) || 0; }
-
-function userRef() {
-  return doc(db, "users", sessionUser.id);
+function loadSessionUser() {
+  try { return JSON.parse(localStorage.getItem("mc_session_user")); }
+  catch { return null; }
 }
 
-function getPoints() {
-  return n(userDocCache?.breakPoints);
-}
-
-function cartItems() {
-  return Object.entries(cart)
-    .map(([id, qty]) => ({ item: MENU.find(m => m.id === id), qty: n(qty) }))
-    .filter(x => x.item && x.qty > 0);
+function saveSessionUser(u) {
+  localStorage.setItem("mc_session_user", JSON.stringify(u));
 }
 
 function cartTotalPoints() {
-  return cartItems().reduce((sum, x) => sum + (n(x.item.cost) * x.qty), 0);
+  let total = 0;
+  for (const [id, qty] of Object.entries(cart)) {
+    const item = MENU.find(m => m.id === id);
+    if (!item) continue;
+    total += (Number(item.points) || 0) * (Number(qty) || 0);
+  }
+  return total;
+}
+
+function setCheckoutEnabled() {
+  const total = cartTotalPoints();
+  if (cartTotalEl) cartTotalEl.textContent = String(total);
+
+  const available = Number(userDocCache?.breakPoints ?? 0) || 0;
+  const hasItems = total > 0;
+  const canAfford = total <= available;
+
+  if (checkoutBtn) checkoutBtn.disabled = !(hasItems && canAfford);
+}
+
+function renderPoints() {
+  const pts = Number(userDocCache?.breakPoints ?? 0) || 0;
+  const lastReset = userDocCache?.breakPointsLastReset || "—";
+  const bonusKey = userDocCache?.breakBonusClaimedOn || "—";
+
+  if (pointsNowEl) pointsNowEl.textContent = String(pts);
+  if (pointsMetaEl) pointsMetaEl.textContent = `Daily reset: ${lastReset} • Bonus claimed: ${bonusKey}`;
+
+  const canClaim = bonusKey !== todayKeyLocal();
+  if (claimBonusBtn) claimBonusBtn.disabled = !canClaim;
+
+  setCheckoutEnabled();
 }
 
 /* =========================
-   Ensure user doc exists (safe fallback)
+   FIRESTORE: ensure user doc fields
 ========================= */
 async function ensureUserDoc(firebaseUser) {
-  const ref = doc(db, "users", firebaseUser.uid);
-  const snap = await getDoc(ref);
-  if (snap.exists()) return snap.data();
+  const userRef = doc(db, "users", firebaseUser.uid);
+  const snap = await getDoc(userRef);
 
-  const payload = {
-    name: firebaseUser.displayName || firebaseUser.email || "User",
-    email: String(firebaseUser.email || "").toLowerCase(),
-    role: "crew",
-    storeId: "store001",
-    createdAt: serverTimestamp(),
+  // create minimal doc if missing
+  if (!snap.exists()) {
+    const cached = loadSessionUser() || {};
+    const payload = {
+      name: cached.name || firebaseUser.displayName || firebaseUser.email || "User",
+      email: String(firebaseUser.email || "").toLowerCase(),
+      role: cached.role || "crew",
+      storeId: cached.storeId || "store001",
+      createdAt: serverTimestamp(),
 
-    // training fields might exist already, but safe defaults:
-    trainingXP: 0,
-    trainingLevel: 1,
-    trainingProgress: {},
-
-    // break points:
-    breakPoints: 4,
-    breakPointsDate: todayKeyLocal(),
-  };
-
-  await setDoc(ref, payload);
-  return payload;
-}
-
-/* =========================
-   Daily reset to 4 points
-========================= */
-async function ensureDailyPointsReset() {
-  const key = todayKeyLocal();
-  const last = String(userDocCache?.breakPointsDate || "");
-
-  // first-time or new day: reset to 4
-  if (!last || last !== key) {
-    try {
-      await updateDoc(userRef(), {
-        breakPoints: 4,
-        breakPointsDate: key
-      });
-      toast("Daily points reset to 4 ✅");
-    } catch (e) {
-      console.error("Daily reset failed:", e);
-    }
+      // Break Rewards fields
+      breakPoints: DAILY_BASE_POINTS,
+      breakPointsLastReset: todayKeyLocal(),
+      breakBonusClaimedOn: null
+    };
+    await setDoc(userRef, payload);
+    return payload;
   }
 
-  if (resetLabel) resetLabel.textContent = key;
+  // patch missing fields without overwriting existing
+  const d = snap.data() || {};
+  const patch = {};
+  if (typeof d.breakPoints !== "number") patch.breakPoints = DAILY_BASE_POINTS;
+  if (typeof d.breakPointsLastReset !== "string") patch.breakPointsLastReset = todayKeyLocal();
+  if (!("breakBonusClaimedOn" in d)) patch.breakBonusClaimedOn = null;
+
+  if (Object.keys(patch).length) {
+    await updateDoc(userRef, patch);
+    return { ...d, ...patch };
+  }
+
+  return d;
 }
 
 /* =========================
-   Render
+   DAILY RESET (transaction)
+========================= */
+async function ensureDailyReset() {
+  if (!uid) return;
+
+  const userRef = doc(db, "users", uid);
+  const today = todayKeyLocal();
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists()) return;
+
+    const d = snap.data() || {};
+    const last = d.breakPointsLastReset;
+
+    if (last !== today) {
+      // New day: reset points back to 4, clear bonus claim
+      tx.update(userRef, {
+        breakPoints: DAILY_BASE_POINTS,
+        breakPointsLastReset: today,
+        breakBonusClaimedOn: null
+      });
+    }
+  });
+}
+
+/* =========================
+   BONUS CLAIM (+1/day)
+========================= */
+async function claimBonus() {
+  if (!uid) return;
+
+  const userRef = doc(db, "users", uid);
+  const today = todayKeyLocal();
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists()) return;
+
+      const d = snap.data() || {};
+      const claimed = d.breakBonusClaimedOn;
+
+      if (claimed === today) {
+        throw new Error("already_claimed");
+      }
+
+      const current = Number(d.breakPoints ?? 0) || 0;
+
+      tx.update(userRef, {
+        breakPoints: current + DAILY_BONUS_POINTS,
+        breakBonusClaimedOn: today
+      });
+    });
+
+    toast("+1 bonus point ✅");
+  } catch (e) {
+    if (String(e?.message).includes("already_claimed")) {
+      toast("Bonus already claimed today.");
+      return;
+    }
+    console.error("claimBonus error:", e);
+    toast("Could not claim bonus.");
+  }
+}
+
+/* =========================
+   MENU RENDER
 ========================= */
 function renderMenu() {
   if (!menuGrid) return;
 
-  menuGrid.innerHTML = MENU.map(m => {
-    const qty = n(cart[m.id]);
+  const q = normalize(menuSearch?.value || "");
+  const list = MENU.filter(m => {
+    if (!q) return true;
+    const hay = `${m.title} ${m.category} ${m.desc}`.toLowerCase();
+    return hay.includes(q);
+  });
+
+  menuGrid.innerHTML = list.length ? list.map(m => {
+    const qty = Number(cart[m.id] || 0);
     return `
-      <div class="card menu-card" style="padding:12px 13px;">
-        <div class="card-header" style="margin-bottom:6px;">
-          <div class="card-title">${m.cost} pts</div>
-          <div class="card-icon">🍔</div>
+      <div class="card" style="padding:12px 13px;">
+        <div class="menu-item-title">${escapeHTML(m.title)}</div>
+        <div class="menu-item-meta">
+          <span class="tag">🏷️ ${escapeHTML(m.category)}</span>
+          <span class="tag">⭐ ${m.points} pts</span>
+          ${m.points === 0 ? `<span class="badge-soft-success">Free</span>` : ``}
+        </div>
+        <div class="subsection-sub" style="margin:0; color:#374151;">
+          ${escapeHTML(m.desc || "")}
         </div>
 
-        <h3>${m.name}</h3>
-        <p>${m.desc}</p>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px; align-items:center;">
+          <button class="btn qtyMinus" type="button" data-id="${escapeHTML(m.id)}">−</button>
+          <span class="tag" title="In cart">${qty}</span>
+          <button class="btn-primary qtyPlus" type="button" data-id="${escapeHTML(m.id)}">+</button>
+        </div>
+      </div>
+    `;
+  }).join("") : `<div class="subsection-sub">No menu items found.</div>`;
 
-        <div class="price-row">
-          <span><strong>${m.cost}</strong> points</span>
-          <span style="color:#6b7280; font-size:.78rem;">ID: ${m.id}</span>
+  // bind clicks
+  menuGrid.querySelectorAll(".qtyPlus").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      cart[id] = (Number(cart[id] || 0) || 0) + 1;
+      renderMenu();
+      renderCart();
+      toast("Added to cart");
+    });
+  });
+  menuGrid.querySelectorAll(".qtyMinus").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const next = (Number(cart[id] || 0) || 0) - 1;
+      if (next <= 0) delete cart[id];
+      else cart[id] = next;
+      renderMenu();
+      renderCart();
+    });
+  });
+}
+
+/* =========================
+   CART RENDER
+========================= */
+function renderCart() {
+  if (!cartList) return;
+
+  const entries = Object.entries(cart)
+    .map(([id, qty]) => {
+      const item = MENU.find(m => m.id === id);
+      if (!item) return null;
+      return { item, qty: Number(qty || 0) };
+    })
+    .filter(Boolean);
+
+  if (!entries.length) {
+    cartList.innerHTML = `<div class="subsection-sub" style="margin-top:10px;">Cart is empty. Add something from the menu.</div>`;
+    setCheckoutEnabled();
+    return;
+  }
+
+  cartList.innerHTML = entries.map(({ item, qty }) => {
+    const linePts = (Number(item.points) || 0) * qty;
+    return `
+      <div class="cart-line">
+        <div class="cart-left">
+          <strong>${escapeHTML(item.title)}</strong>
+          <small>${escapeHTML(item.category)} • ${item.points} pts each • <strong>${linePts} pts</strong></small>
         </div>
 
         <div class="qty-row">
-          <span class="qty-pill">Qty: <strong>${qty}</strong></span>
-          <button class="qty-btn" type="button" data-act="dec" data-id="${m.id}" ${qty <= 0 ? "disabled" : ""}>−</button>
-          <button class="qty-btn" type="button" data-act="inc" data-id="${m.id}">+</button>
+          <button class="btn lineMinus" type="button" data-id="${escapeHTML(item.id)}">−</button>
+          <span class="qty">${qty}</span>
+          <button class="btn-primary linePlus" type="button" data-id="${escapeHTML(item.id)}">+</button>
+          <button class="btn lineRemove" type="button" data-id="${escapeHTML(item.id)}">✕</button>
         </div>
       </div>
     `;
   }).join("");
 
-  if (!menuGrid.dataset.bound) {
-    menuGrid.addEventListener("click", (e) => {
-      const btn = e.target.closest(".qty-btn");
-      if (!btn) return;
+  cartList.querySelectorAll(".linePlus").forEach(btn => {
+    btn.addEventListener("click", () => {
       const id = btn.dataset.id;
-      const act = btn.dataset.act;
-      if (!id || !act) return;
-
-      hideMessages();
-
-      const cur = n(cart[id]);
-      if (act === "inc") cart[id] = cur + 1;
-      if (act === "dec") cart[id] = Math.max(0, cur - 1);
-
-      renderAll();
+      cart[id] = (Number(cart[id] || 0) || 0) + 1;
+      renderMenu();
+      renderCart();
+      toast("Updated cart");
     });
-    menuGrid.dataset.bound = "1";
-  }
-}
+  });
 
-function renderCart() {
-  if (!cartList || !cartTotalPill || !redeemBtn) return;
+  cartList.querySelectorAll(".lineMinus").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const next = (Number(cart[id] || 0) || 0) - 1;
+      if (next <= 0) delete cart[id];
+      else cart[id] = next;
+      renderMenu();
+      renderCart();
+    });
+  });
 
-  const items = cartItems();
-  const total = cartTotalPoints();
-  const balance = getPoints();
-  const remaining = balance - total;
+  cartList.querySelectorAll(".lineRemove").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      delete cart[id];
+      renderMenu();
+      renderCart();
+    });
+  });
 
-  cartTotalPill.textContent = `Total: ${total} pts`;
-
-  if (!items.length) {
-    cartList.innerHTML = `<div style="color:#6b7280; font-size:.85rem;">Your cart is empty. Add an item from the menu.</div>`;
-  } else {
-    cartList.innerHTML = items.map(x => `
-      <div class="cart-item">
-        <div>
-          <div class="name">${x.item.name} × ${x.qty}</div>
-          <div class="sub">${x.item.cost} pts each • ${x.item.tag ? x.item.tag : "Break item"}</div>
-        </div>
-        <div style="font-weight:900; white-space:nowrap;">${x.item.cost * x.qty} pts</div>
-      </div>
-    `).join("");
-  }
-
-  // redeem logic
-  redeemBtn.disabled = !items.length || total <= 0 || total > balance;
-
-  if (items.length && total > balance) {
-    showError(`Not enough points. You need ${total} pts but you have ${balance} pts.`);
-  } else {
-    if (cartError) cartError.style.display = "none";
-  }
-
-  // nice hint
-  if (items.length) {
-    if (remaining >= 0) {
-      showSuccess(`After redeem: ${remaining} points left.`);
-    } else {
-      if (cartSuccess) cartSuccess.style.display = "none";
-    }
-  } else {
-    if (cartSuccess) cartSuccess.style.display = "none";
-  }
-}
-
-function renderHeader() {
-  if (pointsBalance) pointsBalance.textContent = String(getPoints());
-  if (resetLabel) resetLabel.textContent = String(userDocCache?.breakPointsDate || todayKeyLocal());
-}
-
-function renderAll() {
-  renderHeader();
-  renderMenu();
-  renderCart();
+  setCheckoutEnabled();
 }
 
 /* =========================
-   Redeem (creates an order + subtracts points)
+   CHECKOUT
 ========================= */
-async function redeemCart() {
-  hideMessages();
+async function checkout() {
+  if (!uid || !sessionUser) return;
 
-  const items = cartItems();
   const total = cartTotalPoints();
-  const balance = getPoints();
-
-  if (!items.length || total <= 0) {
-    showError("Your cart is empty.");
-    return;
-  }
-  if (total > balance) {
-    showError(`Not enough points. You need ${total} pts but you have ${balance} pts.`);
+  if (total <= 0) {
+    toast("Cart is empty.");
     return;
   }
 
-  redeemBtn.disabled = true;
+  const userRef = doc(db, "users", uid);
+  const today = todayKeyLocal();
+
+  // build order payload
+  const items = Object.entries(cart).map(([id, qty]) => {
+    const item = MENU.find(m => m.id === id);
+    return item ? ({
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      pointsEach: item.points,
+      qty: Number(qty || 0),
+      linePoints: (Number(item.points) || 0) * (Number(qty || 0))
+    }) : null;
+  }).filter(Boolean);
+
+  const order = {
+    createdAt: serverTimestamp(),
+    createdOn: today,
+    userId: uid,
+    userName: sessionUser.name || "Crew",
+    role: sessionUser.role || "crew",
+    storeId: sessionUser.storeId || "store001",
+    totalPoints: total,
+    items
+  };
 
   try {
-    // Write an order record (for manager/approval)
-    const orderPayload = {
-      createdAt: serverTimestamp(),
-      status: "requested", // requested -> approved -> completed (your choice)
-      totalPoints: total,
-      items: items.map(x => ({
-        id: x.item.id,
-        name: x.item.name,
-        cost: x.item.cost,
-        qty: x.qty
-      })),
-      user: {
-        uid: sessionUser.id,
-        name: userDocCache?.name || sessionUser.name || "User",
-        role: userDocCache?.role || sessionUser.role || "crew",
-        storeId: userDocCache?.storeId || sessionUser.storeId || "store001"
+    // Deduct points safely
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists()) throw new Error("no_user");
+
+      const d = snap.data() || {};
+      const last = d.breakPointsLastReset;
+
+      // If day changed mid-session, force reset then re-check
+      if (last !== today) {
+        tx.update(userRef, {
+          breakPoints: DAILY_BASE_POINTS,
+          breakPointsLastReset: today,
+          breakBonusClaimedOn: null
+        });
+        if (total > DAILY_BASE_POINTS) throw new Error("not_enough_points");
+        tx.update(userRef, { breakPoints: DAILY_BASE_POINTS - total });
+        return;
       }
-    };
 
-    await addDoc(collection(db, "users", sessionUser.id, "breakOrders"), orderPayload);
+      const current = Number(d.breakPoints ?? 0) || 0;
+      if (total > current) throw new Error("not_enough_points");
 
-    // Subtract points
-    await updateDoc(userRef(), {
-      breakPoints: balance - total
+      tx.update(userRef, { breakPoints: current - total });
     });
+
+    // Save order records
+    const userOrdersRef = collection(db, "users", uid, "breakOrders");
+    const storeOrdersRef = collection(db, "stores", sessionUser.storeId || "store001", "BreakOrders");
+
+    await Promise.all([
+      addDoc(userOrdersRef, order),
+      addDoc(storeOrdersRef, order)
+    ]);
 
     cart = {};
-    renderAll();
-    showSuccess("Redeem request sent ✅ Show this to your shift manager if needed.");
-    toast("Order requested ✅");
+    renderMenu();
+    renderCart();
+    toast("Order saved ✅");
   } catch (e) {
-    console.error("redeemCart error:", e);
-    showError("Could not redeem right now. Try again.");
-  } finally {
-    redeemBtn.disabled = false;
+    console.error("checkout error:", e);
+    if (String(e?.message).includes("not_enough_points")) {
+      toast("Not enough points for that cart.");
+      return;
+    }
+    toast("Checkout failed.");
   }
 }
 
 /* =========================
-   Earn +1 point (Achievement buttons)
-   NOTE: For production you should restrict who can call this.
+   ORDER HISTORY (realtime)
 ========================= */
-async function awardAchievementPoint(achKey) {
-  hideMessages();
+function startHistory(uid) {
+  try { unsubHistory?.(); } catch {}
+  unsubHistory = null;
 
-  // Simple anti-spam (client-side only): one claim per key per day
-  const key = todayKeyLocal();
-  const claimId = `${achKey}_${key}`;
-  const claimed = userDocCache?.breakAchievementsClaimed || {};
-  if (claimed && claimed[claimId]) {
-    showError("Already claimed today.");
-    return;
-  }
+  const qy = query(
+    collection(db, "users", uid, "breakOrders"),
+    orderBy("createdAt", "desc"),
+    limit(10)
+  );
 
-  try {
-    const current = getPoints();
-    await updateDoc(userRef(), {
-      breakPoints: current + 1,
-      [`breakAchievementsClaimed.${claimId}`]: true
+  unsubHistory = onSnapshot(qy, (qs) => {
+    const rows = [];
+    qs.forEach(docSnap => {
+      rows.push({ id: docSnap.id, ...(docSnap.data() || {}) });
     });
-    toast("+1 point ✅");
-  } catch (e) {
-    console.error("awardAchievementPoint error:", e);
-    showError("Could not add point.");
-  }
+
+    if (!historyList) return;
+
+    if (!rows.length) {
+      historyList.innerHTML = `<div class="subsection-sub">No orders yet.</div>`;
+      return;
+    }
+
+    historyList.innerHTML = rows.map(o => {
+      const title = (o.items || [])
+        .slice(0, 2)
+        .map(x => `${x.qty}× ${x.title}`)
+        .join(", ") + ((o.items || []).length > 2 ? "…" : "");
+
+      const when = o.createdOn || "—";
+      const pts = Number(o.totalPoints || 0);
+
+      return `
+        <div class="history-line">
+          <div>
+            <strong>${escapeHTML(title || "Order")}</strong>
+            <div class="subsection-sub" style="margin:2px 0 0; color:#374151;">
+              ${escapeHTML((o.items || []).map(x => `${x.qty}× ${x.title}`).join(" • "))}
+            </div>
+          </div>
+          <div class="right">${when}<br/>${pts} pts</div>
+        </div>
+      `;
+    }).join("");
+  });
 }
 
 /* =========================
-   Realtime
+   REALTIME USER DOC
 ========================= */
 function stopRealtime() {
   try { unsubUser?.(); } catch {}
@@ -380,67 +554,103 @@ function stopRealtime() {
 
 function startRealtime(uid) {
   stopRealtime();
-  unsubUser = onSnapshot(doc(db, "users", uid), async (snap) => {
+  unsubUser = onSnapshot(doc(db, "users", uid), (snap) => {
     if (!snap.exists()) return;
     userDocCache = snap.data() || {};
-
-    // ensure daily reset after doc is present
-    await ensureDailyPointsReset();
-
-    renderAll();
+    renderPoints();
   });
 }
 
 /* =========================
-   Events
+   EVENTS
 ========================= */
 sidebarToggle?.addEventListener("click", () => sidebar?.classList.toggle("sidebar-open"));
 
-goTrainingBtn?.addEventListener("click", () => window.location.href = "training.html");
-
 logoutBtn?.addEventListener("click", async () => {
+  try { unsubHistory?.(); } catch {}
   stopRealtime();
   await signOut(auth);
   localStorage.removeItem("mc_session_user");
   window.location.href = "index.html";
 });
 
+backBtn?.addEventListener("click", () => window.location.href = "main.html");
+
+claimBonusBtn?.addEventListener("click", claimBonus);
+
+menuSearchBtn?.addEventListener("click", renderMenu);
+menuSearch?.addEventListener("input", renderMenu);
+menuResetBtn?.addEventListener("click", () => {
+  if (menuSearch) menuSearch.value = "";
+  renderMenu();
+  toast("Menu reset");
+});
+
 clearCartBtn?.addEventListener("click", () => {
   cart = {};
-  hideMessages();
-  renderAll();
+  renderMenu();
+  renderCart();
   toast("Cart cleared");
 });
 
-redeemBtn?.addEventListener("click", redeemCart);
-
-document.querySelectorAll(".ach-btn").forEach(btn => {
-  btn.addEventListener("click", () => awardAchievementPoint(btn.dataset.ach || "achievement"));
-});
+checkoutBtn?.addEventListener("click", checkout);
 
 /* =========================
-   Init
+   INIT
 ========================= */
+function renderLoading() {
+  if (pointsNowEl) pointsNowEl.textContent = "—";
+  if (pointsMetaEl) pointsMetaEl.textContent = "Checking daily reset…";
+  if (menuGrid) menuGrid.innerHTML = `<div class="subsection-sub">Loading menu…</div>`;
+  if (cartList) cartList.innerHTML = `<div class="subsection-sub">Loading…</div>`;
+  if (historyList) historyList.innerHTML = `<div class="subsection-sub">Loading…</div>`;
+}
+
+renderLoading();
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    localStorage.removeItem("mc_session_user");
     window.location.href = "index.html";
     return;
   }
 
-  sessionUser = {
+  uid = user.uid;
+
+  sessionUser = loadSessionUser() || {
     id: user.uid,
-    name: user.displayName || user.email || "User",
     role: "crew",
+    name: user.displayName || user.email || "User",
     storeId: "store001"
   };
 
-  // Ensure doc exists + get initial data
-  await ensureUserDoc(user);
+  // Ensure user doc exists and has rewards fields
+  const d = await ensureUserDoc(user);
 
-  // Start realtime
-  startRealtime(user.uid);
+  // keep session in sync
+  sessionUser.id = user.uid;
+  sessionUser.name = d.name || sessionUser.name;
+  sessionUser.role = d.role || sessionUser.role;
+  sessionUser.storeId = d.storeId || sessionUser.storeId;
+  saveSessionUser(sessionUser);
 
-  // Sidebar user labels (best effort from doc cache later)
-  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
-  if (sidebarUserRole) sidebarUserRole.textContent = "Crew Member";
+  // Sidebar labels
+  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name || "User Name";
+  if (sidebarUserRole) sidebarUserRole.textContent = sessionUser.role === "crew" ? "Crew Member" : "Staff";
+  if (avatarCircle) avatarCircle.textContent = String(sessionUser.name || "U").charAt(0).toUpperCase();
+
+  if (navShiftCreator) navShiftCreator.style.display = sessionUser.role === "shiftCreator" ? "" : "none";
+
+  // Daily reset check
+  await ensureDailyReset();
+
+  // Realtime
+  startRealtime(uid);
+  startHistory(uid);
+
+  // UI
+  userDocCache = d;
+  renderPoints();
+  renderMenu();
+  renderCart();
 });
