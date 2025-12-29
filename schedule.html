@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 </head>
+
 <body class="app-page">
 
   <!-- ========= SIDEBAR ========= -->
@@ -22,6 +23,7 @@
     <nav class="sidebar-nav">
       <div class="nav-section-title">Main</div>
       <ul class="nav-list">
+
         <li class="nav-item" onclick="window.location.href='main.html'">
           <span class="nav-dot"></span>
           <span class="nav-icon">🏠</span>
@@ -33,7 +35,6 @@
           <span class="nav-icon">🎓</span>
           <span class="nav-label">Training</span>
         </li>
-
 
         <!-- 🍔 Break Rewards -->
         <li class="nav-item" onclick="window.location.href='break-rewards.html'">
@@ -47,6 +48,15 @@
           <span class="nav-icon">📅</span>
           <span class="nav-label">Shifts</span>
         </li>
+
+        <!-- 🛠️ Shift Creator (hidden by default, shown by nav.js if role === "shiftCreator") -->
+        <li class="nav-item" id="navShiftCreator" style="display:none;"
+            onclick="window.location.href='shifts-admin.html'">
+          <span class="nav-dot"></span>
+          <span class="nav-icon">🛠️</span>
+          <span class="nav-label">Shift creator</span>
+        </li>
+
       </ul>
     </nav>
 
@@ -62,6 +72,7 @@
   <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
     <div class="content-area">
+
       <div class="top-bar">
         <div class="top-bar-left">
           <h2 id="scheduleTitle">Weekly schedule</h2>
@@ -96,10 +107,13 @@
       <section id="shiftManageCard" class="card section-card" style="margin-top:10px;">
         <!-- Filled by schedule.js for managers; hidden for crew -->
       </section>
+
     </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- ✅ IMPORTANT: nav.js FIRST -->
+  <script type="module" src="nav.js"></script>
   <script type="module" src="schedule.js"></script>
+
 </body>
 </html>
