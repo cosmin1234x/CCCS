@@ -1,9 +1,11 @@
 // nav.js — shared sidebar/nav logic for ALL pages (routes + role UI)
+// ✅ Works with BOTH <a href="x.html"> and old onclick="window.location.href='x.html'"
+// ✅ Clean-route hosted mode: /main, /training, /schedule, /break-rewards, /shifts-admin
+// ✅ HTML mode: main.html, training.html, schedule.html, break-rewards.html, shifts-admin.html
 // ✅ Shows Shift Creator only for role === "shiftCreator"
-// ✅ Sidebar mobile toggle
+// ✅ Sidebar mobile toggle + closes after click
 // ✅ Highlights active nav item
-// ✅ Fixes navigation on hosted clean routes (/main) even if HTML uses main.html
-// ✅ Works with <li onclick="..."> OR <a href="...">
+// ✅ Safe if DOM not ready
 
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -28,6 +30,7 @@ function currentPathLeaf() {
 }
 
 function isCleanRouteMode() {
+  // If you're on /main or /training etc, you're in clean route mode
   const leaf = currentPathLeaf();
   if (!leaf) return true; // root
   return !leaf.includes(".html");
@@ -43,19 +46,11 @@ function htmlToCleanRoute(file) {
     "wrapped.html": "/wrapped",
     "index.html": "/",
   };
-  return map[file] || `/${file.replace(".html", "")}`;
+  const f = (file || "").split("?")[0];
+  return map[f] || (f.startsWith("/") ? f : `/${f.replace(".html", "")}`);
 }
 
-function filenameForActive() {
-  const leaf = currentPathLeaf();
-
-  // root -> treat as dashboard
-  if (!leaf) return "main.html";
-
-  // html mode
-  if (leaf.includes(".html")) return leaf.split("?")[0];
-
-  // clean route mode
+function cleanRouteToHtml(leaf) {
   const map = {
     "main": "main.html",
     "training": "training.html",
@@ -63,9 +58,20 @@ function filenameForActive() {
     "break-rewards": "break-rewards.html",
     "shifts-admin": "shifts-admin.html",
     "wrapped": "wrapped.html",
+    "": "main.html",
   };
+  return map[(leaf || "").split("?")[0]] || "main.html";
+}
 
-  return map[leaf.split("?")[0]] || "main.html";
+function filenameForActive() {
+  // Normalize active nav even on clean routes
+  const leaf = currentPathLeaf();
+
+  if (!leaf) return "main.html"; // root -> dashboard
+  if (leaf.includes(".html")) return leaf.split("?")[0];
+
+  // clean route mode
+  return cleanRouteToHtml(leaf);
 }
 
 /* =========================
@@ -92,15 +98,19 @@ function setActiveNav() {
   const file = filenameForActive();
 
   document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
-    // Works for either <a href="..."> or <li onclick="...">
+    // support both <a href> and onclick
     const a = li.querySelector("a[href]");
-    const href = a ? (a.getAttribute("href") || "") : (li.getAttribute("data-href") || "");
+    const href = a ? (a.getAttribute("href") || "") : "";
 
-    const onclick = li.getAttribute("onclick") || "";
-    const href2 = extractHrefFromOnclick(onclick) || "";
+    let liFile = "";
+    if (href) liFile = href.split("?")[0];
+    else {
+      const onclick = li.getAttribute("onclick") || "";
+      const extracted = extractHrefFromOnclick(onclick);
+      liFile = extracted ? extracted.split("?")[0] : "";
+    }
 
-    const target = (href || href2).split("?")[0];
-    li.classList.toggle("active", target.endsWith(file));
+    li.classList.toggle("active", liFile.endsWith(file));
   });
 }
 
@@ -108,7 +118,9 @@ function applyRoleUI(role) {
   const { navShiftCreator, sidebarUserRole } = dom();
   const r = String(role || "crew");
 
-  if (navShiftCreator) navShiftCreator.style.display = (r === "shiftCreator") ? "" : "none";
+  if (navShiftCreator) {
+    navShiftCreator.style.display = (r === "shiftCreator") ? "" : "none";
+  }
 
   if (sidebarUserRole) {
     if (r === "crew") sidebarUserRole.textContent = "Crew Member";
@@ -123,10 +135,11 @@ function applyNameUI(name) {
 }
 
 /* =========================
-   Routing fix
+   Routing helpers
 ========================= */
 
 function extractHrefFromOnclick(onclickStr) {
+  // supports: window.location.href='x' OR location.href="x" OR window.location='x'
   const s = String(onclickStr || "");
 
   const m1 = s.match(/location\.href\s*=\s*['"]([^'"]+)['"]/i);
@@ -141,21 +154,18 @@ function extractHrefFromOnclick(onclickStr) {
   return null;
 }
 
-function getNavDestinationFromItem(item) {
-  // Prefer <a href="...">
-  const a = item.querySelector("a[href]");
-  if (a) return a.getAttribute("href");
+function resolveNavDestination(rawHref) {
+  if (!rawHref) return null;
 
-  // Or onclick="window.location.href='x'"
-  const onclick = item.getAttribute("onclick") || "";
-  const href = extractHrefFromOnclick(onclick);
-  if (href) return href;
+  // if hosted clean routes, convert *.html -> /route
+  if (isCleanRouteMode()) {
+    if (rawHref.includes(".html")) return htmlToCleanRoute(rawHref);
+    if (rawHref.startsWith("/")) return rawHref;
+    return `/${rawHref}`;
+  }
 
-  // Or data-href="x"
-  const dh = item.getAttribute("data-href");
-  if (dh) return dh;
-
-  return null;
+  // if local html mode, keep *.html
+  return rawHref;
 }
 
 function bindNavRoutingOnce() {
@@ -166,27 +176,35 @@ function bindNavRoutingOnce() {
     const item = e.target.closest(".nav-item");
     if (!item) return;
 
-    // Let logout button work normally (it is not a nav item usually)
+    // let logout button work normally
     if (item.id === "logoutBtn") return;
 
-    const href = getNavDestinationFromItem(item);
-    if (!href) return;
+    // 1) prefer <a href> if present
+    const a = item.querySelector("a[href]");
+    const hrefFromA = a ? (a.getAttribute("href") || "") : "";
 
-    // Prevent double navigation (important on main page)
+    // 2) fallback to onclick
+    const onclick = item.getAttribute("onclick") || "";
+    const hrefFromOnclick = extractHrefFromOnclick(onclick);
+
+    const rawHref = hrefFromA || hrefFromOnclick;
+    const dest = resolveNavDestination(rawHref);
+
+    if (!dest) return;
+
+    // if clicking an <a>, prevent browser going to /training.html on hosted mode
     e.preventDefault();
     e.stopPropagation();
 
-    // Clean route mode: convert main.html -> /main
-    if (isCleanRouteMode()) {
-      const dest = href.includes(".html") ? htmlToCleanRoute(href) : href;
-      window.location.href = dest;
-    } else {
-      window.location.href = href;
-    }
-
-    // close sidebar on mobile
-    sidebar?.classList.remove("sidebar-open");
+    window.location.href = dest;
   }, true);
+
+  // close sidebar after clicking (mobile)
+  navList.addEventListener("click", (e) => {
+    const item = e.target.closest(".nav-item");
+    if (!item) return;
+    sidebar?.classList.remove("sidebar-open");
+  });
 
   navList.dataset.boundRouting = "1";
 }
@@ -211,6 +229,7 @@ async function hydrateFromFirestore(firebaseUser) {
     };
 
     saveSessionUser(merged);
+
     applyNameUI(merged.name);
     applyRoleUI(merged.role);
     setActiveNav();
@@ -220,7 +239,7 @@ async function hydrateFromFirestore(firebaseUser) {
 }
 
 /* =========================
-   Bind events
+   Bind events (safe)
 ========================= */
 
 function bindEventsOnce() {
