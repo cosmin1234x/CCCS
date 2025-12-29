@@ -10,38 +10,71 @@
 <body class="app-page">
 
   <!-- ========= SIDEBAR ========= -->
-<ul class="nav-list">
-  <li class="nav-item">
-    <a class="nav-link" href="main.html">
-      <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
-    </a>
-  </li>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Crew &amp; Manager portal</p>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
+    </div>
 
-  <li class="nav-item">
-    <a class="nav-link" href="training.html">
-      <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
-    </a>
-  </li>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
 
-  <li class="nav-item">
-    <a class="nav-link" href="schedule.html">
-      <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
-    </a>
-  </li>
+      <ul class="nav-list">
+        <li class="nav-item">
+          <a class="nav-link" href="main.html">
+            <span class="nav-dot"></span>
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Dashboard</span>
+          </a>
+        </li>
 
-  <li class="nav-item">
-    <a class="nav-link" href="break-rewards.html">
-      <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
-    </a>
-  </li>
+        <li class="nav-item">
+          <a class="nav-link" href="training.html">
+            <span class="nav-dot"></span>
+            <span class="nav-icon">🎓</span>
+            <span class="nav-label">Training</span>
+          </a>
+        </li>
 
-  <li class="nav-item" id="navShiftCreator" style="display:none;">
-    <a class="nav-link" href="shifts-admin.html">
-      <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
-    </a>
-  </li>
-</ul>
+        <li class="nav-item active">
+          <a class="nav-link" href="schedule.html">
+            <span class="nav-dot"></span>
+            <span class="nav-icon">📅</span>
+            <span class="nav-label">Shifts</span>
+          </a>
+        </li>
 
+        <li class="nav-item">
+          <a class="nav-link" href="break-rewards.html">
+            <span class="nav-dot"></span>
+            <span class="nav-icon">🍔</span>
+            <span class="nav-label">Break Rewards</span>
+          </a>
+        </li>
+
+        <!-- Shift Creator (shown via nav.js for role) -->
+        <li class="nav-item" id="navShiftCreator" style="display:none;">
+          <a class="nav-link" href="shifts-admin.html">
+            <span class="nav-dot"></span>
+            <span class="nav-icon">🛠️</span>
+            <span class="nav-label">Shift creator</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
+      </div>
+      <button id="logoutBtn" type="button">Log out</button>
+    </div>
+  </aside>
 
   <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
@@ -67,8 +100,8 @@
           Switch between this week and next week. If no schedule exists, you'll see a message.
         </div>
         <div id="weekTabs" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
-          <button class="pill-filter active" data-week-offset="0">This week</button>
-          <button class="pill-filter" data-week-offset="1">Next week</button>
+          <button class="pill-filter active" data-week-offset="0" type="button">This week</button>
+          <button class="pill-filter" data-week-offset="1" type="button">Next week</button>
         </div>
       </div>
 

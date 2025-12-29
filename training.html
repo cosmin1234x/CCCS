@@ -46,199 +46,222 @@
 
 <body class="app-page">
 
-  <!-- SIDEBAR -->
-  <ul class="nav-list">
-  <li class="nav-item">
-    <a class="nav-link" href="main.html">
-      <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
-    </a>
-  </li>
+  <!-- ========= SIDEBAR ========= -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Training &amp; Rewards</p>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
+    </div>
 
-  <li class="nav-item">
-    <a class="nav-link" href="training.html">
-      <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
-    </a>
-  </li>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Main</div>
 
-  <li class="nav-item">
-    <a class="nav-link" href="schedule.html">
-      <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
-    </a>
-  </li>
+      <ul class="nav-list">
+        <li class="nav-item">
+          <a class="nav-link" href="main.html">
+            <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
+          </a>
+        </li>
 
-  <li class="nav-item">
-    <a class="nav-link" href="break-rewards.html">
-      <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
-    </a>
-  </li>
+        <li class="nav-item active">
+          <a class="nav-link" href="training.html">
+            <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
+          </a>
+        </li>
 
-  <li class="nav-item" id="navShiftCreator" style="display:none;">
-    <a class="nav-link" href="shifts-admin.html">
-      <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
-    </a>
-  </li>
-</ul>
+        <li class="nav-item">
+          <a class="nav-link" href="schedule.html">
+            <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
+          </a>
+        </li>
 
+        <li class="nav-item">
+          <a class="nav-link" href="break-rewards.html">
+            <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
+          </a>
+        </li>
 
-  <!-- MAIN -->
+        <!-- Shift creator (shown by nav.js) -->
+        <li class="nav-item" id="navShiftCreator" style="display:none;">
+          <a class="nav-link" href="shifts-admin.html">
+            <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
+      </div>
+      <button id="logoutBtn" type="button">Log out</button>
+    </div>
+  </aside>
+
+  <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
-    <div class="training-page">
+    <div class="content-area">
+      <div class="training-page">
 
-      <!-- Header -->
-      <section class="card section-card">
-        <div class="training-top">
-          <div>
-            <div class="subsection-title">Training</div>
-            <div class="subsection-sub">
-              Search modules, complete lessons, and quiz yourself. Ask McAssist if you’re stuck.
+        <!-- Header -->
+        <section class="card section-card">
+          <div class="training-top">
+            <div>
+              <div class="subsection-title">Training</div>
+              <div class="subsection-sub">
+                Search modules, complete lessons, and quiz yourself. Ask McAssist if you’re stuck.
+              </div>
+            </div>
+
+            <div class="training-top-right">
+              <div class="chip"><span>⭐</span> Level: <strong id="headerLevel">1</strong></div>
+              <div class="chip"><span>🏆</span> XP: <strong id="headerXP">0</strong></div>
+              <div class="xpbar" title="Progress to next level"><div id="xpProgressFill"></div></div>
+
+              <button class="pill-filter" type="button" onclick="window.location.href='wrapped.html'">✨ Wrapped</button>
+              <button class="pill-filter" type="button" onclick="window.location.href='break-rewards.html'">🍔 Break Rewards</button>
+
+              <button id="quickQuizBtn" class="btn" type="button">🧠 Quick quiz</button>
             </div>
           </div>
-
-          <div class="training-top-right">
-            <div class="chip"><span>⭐</span> Level: <strong id="headerLevel">1</strong></div>
-            <div class="chip"><span>🏆</span> XP: <strong id="headerXP">0</strong></div>
-            <div class="xpbar" title="Progress to next level"><div id="xpProgressFill"></div></div>
-
-            <!-- Top quick nav -->
-            <button class="pill-filter" type="button" onclick="window.location.href='wrapped.html'">✨ Wrapped</button>
-            <button class="pill-filter" type="button" onclick="window.location.href='break-rewards.html'">🍔 Break Rewards</button>
-
-            <button id="quickQuizBtn" class="btn" type="button">🧠 Quick quiz</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Grid -->
-      <section class="training-grid">
-
-        <!-- LEFT: Module Library -->
-        <section class="card section-card">
-          <div class="subsection-title">Module Library</div>
-          <div class="subsection-sub">Pick a filter, search, then open a module.</div>
-
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <input id="moduleSearch" placeholder="Search (grill, food safety, Big Mac UK, drive-thru)..." />
-            <button id="moduleSearchBtn" class="btn-primary" type="button">Search</button>
-            <button id="refreshModulesBtn" class="btn" type="button">Refresh</button>
-          </div>
-
-          <div id="filterRow" style="margin-top:10px;"></div>
-          <div id="moduleGrid"></div>
         </section>
 
-        <!-- RIGHT: Player -->
-        <section class="card section-card">
-          <div class="player-header">
-            <div>
-              <div class="player-title" id="playerTitle">Pick a module to start</div>
-              <div class="player-sub" id="playerSubtitle">
-                Open from the library or ask: <strong>“open grill training module”</strong>.
-              </div>
+        <!-- Grid -->
+        <section class="training-grid">
+
+          <!-- LEFT: Module Library -->
+          <section class="card section-card">
+            <div class="subsection-title">Module Library</div>
+            <div class="subsection-sub">Pick a filter, search, then open a module.</div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input id="moduleSearch" placeholder="Search (grill, food safety, Big Mac UK, drive-thru)..." />
+              <button id="moduleSearchBtn" class="btn-primary" type="button">Search</button>
+              <button id="refreshModulesBtn" class="btn" type="button">Refresh</button>
             </div>
-            <div class="player-pills">
-              <div class="mini-pill" id="playerMeta">—</div>
-              <div class="mini-pill" id="playerStatus">No module selected</div>
-            </div>
-          </div>
 
-          <div class="tabs-row">
-            <button class="tab-btn active" data-tab="lesson" type="button">📘 Lesson</button>
-            <button class="tab-btn" data-tab="checklist" type="button">✅ Checklist</button>
-            <button class="tab-btn" data-tab="quiz" type="button">🧠 Quiz</button>
-            <button class="tab-btn" data-tab="ask" type="button">💬 Ask McAssist</button>
-          </div>
+            <div id="filterRow" style="margin-top:10px;"></div>
+            <div id="moduleGrid"></div>
+          </section>
 
-          <div id="tabStage" style="margin-top:12px;">
-            <!-- LESSON -->
-            <div class="tabPanel" data-panel="lesson">
-              <div class="subsection-title" style="margin-bottom:6px;">Lesson</div>
-              <ul id="lessonSteps" class="list">
-                <li><span>Choose a module to load steps.</span><span class="badge-soft">—</span></li>
-              </ul>
-
-              <div class="two-col">
-                <div class="box-lite">
-                  <strong>Do</strong>
-                  <ul id="doList" class="list"><li><span>—</span><span class="badge-soft">—</span></li></ul>
-                </div>
-                <div class="box-lite">
-                  <strong>Don’t</strong>
-                  <ul id="dontList" class="list"><li><span>—</span><span class="badge-soft-danger">—</span></li></ul>
+          <!-- RIGHT: Player -->
+          <section class="card section-card">
+            <div class="player-header">
+              <div>
+                <div class="player-title" id="playerTitle">Pick a module to start</div>
+                <div class="player-sub" id="playerSubtitle">
+                  Open from the library or ask: <strong>“open grill training module”</strong>.
                 </div>
               </div>
-
-              <div class="two-col">
-                <div class="box-lite">
-                  <strong>Module XP</strong>
-                  <div id="moduleXPInfo" class="subsection-sub" style="margin-bottom:6px;">—</div>
-                  <div class="progress-bar"><div id="moduleBarFill" class="progress-bar-inner"></div></div>
-                </div>
-
-                <div class="box-lite">
-                  <strong>Reflection</strong>
-                  <textarea id="reflectionInput" placeholder="What will you do better next shift?"></textarea>
-                </div>
-              </div>
-
-              <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px;">
-                <button id="completeModuleBtn" class="btn-primary" type="button" disabled>Complete module</button>
-                <button id="resetModuleBtn" class="btn" type="button" disabled>Reset</button>
+              <div class="player-pills">
+                <div class="mini-pill" id="playerMeta">—</div>
+                <div class="mini-pill" id="playerStatus">No module selected</div>
               </div>
             </div>
 
-            <!-- CHECKLIST -->
-            <div class="tabPanel" data-panel="checklist" style="display:none;">
-              <div class="subsection-title">Checklist</div>
-              <div id="checklist" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <div class="tabs-row">
+              <button class="tab-btn active" data-tab="lesson" type="button">📘 Lesson</button>
+              <button class="tab-btn" data-tab="checklist" type="button">✅ Checklist</button>
+              <button class="tab-btn" data-tab="quiz" type="button">🧠 Quiz</button>
+              <button class="tab-btn" data-tab="ask" type="button">💬 Ask McAssist</button>
             </div>
 
-            <!-- QUIZ -->
-            <div class="tabPanel" data-panel="quiz" style="display:none;">
-              <div class="subsection-title">Quiz</div>
-              <div class="card" id="quizArea" style="box-shadow:none; border:1px solid #e5e7eb;">
-                <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:8px;">
-                  <div id="quizCounter" class="subsection-sub" style="margin:0;">Quiz</div>
-                  <div id="quizScore" class="subsection-sub" style="margin:0;">Score: 0</div>
+            <div id="tabStage" style="margin-top:12px;">
+              <!-- LESSON -->
+              <div class="tabPanel" data-panel="lesson">
+                <div class="subsection-title" style="margin-bottom:6px;">Lesson</div>
+                <ul id="lessonSteps" class="list">
+                  <li><span>Choose a module to load steps.</span><span class="badge-soft">—</span></li>
+                </ul>
+
+                <div class="two-col">
+                  <div class="box-lite">
+                    <strong>Do</strong>
+                    <ul id="doList" class="list"><li><span>—</span><span class="badge-soft">—</span></li></ul>
+                  </div>
+                  <div class="box-lite">
+                    <strong>Don’t</strong>
+                    <ul id="dontList" class="list"><li><span>—</span><span class="badge-soft-danger">—</span></li></ul>
+                  </div>
                 </div>
 
-                <div id="quizQuestion" style="font-weight:800; font-size:0.95rem;">
-                  Open a module, then start a quiz.
-                </div>
+                <div class="two-col">
+                  <div class="box-lite">
+                    <strong>Module XP</strong>
+                    <div id="moduleXPInfo" class="subsection-sub" style="margin-bottom:6px;">—</div>
+                    <div class="progress-bar"><div id="moduleBarFill" class="progress-bar-inner"></div></div>
+                  </div>
 
-                <div id="quizOptions"></div>
-                <div id="quizExplain" class="success" style="display:none; margin-top:10px;"></div>
+                  <div class="box-lite">
+                    <strong>Reflection</strong>
+                    <textarea id="reflectionInput" placeholder="What will you do better next shift?"></textarea>
+                  </div>
+                </div>
 
                 <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px;">
-                  <button id="startQuizBtn" class="btn-primary" type="button" disabled>Start quiz</button>
-                  <button id="nextQuizBtn" class="btn" type="button" disabled>Next</button>
+                  <button id="completeModuleBtn" class="btn-primary" type="button" disabled>Complete module</button>
+                  <button id="resetModuleBtn" class="btn" type="button" disabled>Reset</button>
                 </div>
               </div>
+
+              <!-- CHECKLIST -->
+              <div class="tabPanel" data-panel="checklist" style="display:none;">
+                <div class="subsection-title">Checklist</div>
+                <div id="checklist" style="display:flex; flex-direction:column; gap:8px;"></div>
+              </div>
+
+              <!-- QUIZ -->
+              <div class="tabPanel" data-panel="quiz" style="display:none;">
+                <div class="subsection-title">Quiz</div>
+                <div class="card" id="quizArea" style="box-shadow:none; border:1px solid #e5e7eb;">
+                  <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:8px;">
+                    <div id="quizCounter" class="subsection-sub" style="margin:0;">Quiz</div>
+                    <div id="quizScore" class="subsection-sub" style="margin:0;">Score: 0</div>
+                  </div>
+
+                  <div id="quizQuestion" style="font-weight:800; font-size:0.95rem;">
+                    Open a module, then start a quiz.
+                  </div>
+
+                  <div id="quizOptions"></div>
+                  <div id="quizExplain" class="success" style="display:none; margin-top:10px;"></div>
+
+                  <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px;">
+                    <button id="startQuizBtn" class="btn-primary" type="button" disabled>Start quiz</button>
+                    <button id="nextQuizBtn" class="btn" type="button" disabled>Next</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ASK -->
+              <div class="tabPanel" data-panel="ask" style="display:none;">
+                <div class="subsection-title">McAssist</div>
+                <div id="trainingChat"></div>
+
+                <form id="trainingAiForm" class="chat-row">
+                  <input id="trainingAiInput" placeholder="Ask… or say: open fry station module" />
+                  <button id="trainingAiSend" class="btn-primary" type="submit">Send</button>
+                </form>
+
+                <div id="trainingQuickChips" class="ai-suggestions" style="margin-top:10px;"></div>
+              </div>
             </div>
-
-            <!-- ASK -->
-            <div class="tabPanel" data-panel="ask" style="display:none;">
-              <div class="subsection-title">McAssist</div>
-              <div id="trainingChat"></div>
-
-              <form id="trainingAiForm" class="chat-row">
-                <input id="trainingAiInput" placeholder="Ask… or say: open fry station module" />
-                <button id="trainingAiSend" class="btn-primary" type="submit">Send</button>
-              </form>
-
-              <div id="trainingQuickChips" class="ai-suggestions" style="margin-top:10px;"></div>
-            </div>
-          </div>
+          </section>
         </section>
-      </section>
 
-      <div id="toast" class="toast"></div>
+        <div id="toast" class="toast"></div>
 
-      <!-- ✅ IMPORTANT: nav.js FIRST -->
-      <script type="module" src="nav.js"></script>
-      <script type="module" src="training.js"></script>
-
+      </div>
     </div>
   </div>
 
+  <!-- ✅ IMPORTANT: nav.js FIRST -->
+  <script type="module" src="nav.js"></script>
+  <script type="module" src="training.js"></script>
 </body>
 </html>
