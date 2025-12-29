@@ -2011,3 +2011,25 @@ select:focus {
   background: #fef9c3;
   color: var(--mc-red-dark);
 }
+/* === FIX: sidebar must always sit above page content === */
+.sidebar {
+  position: relative;
+  z-index: 2000;
+}
+
+/* main content must NEVER overlap sidebar */
+.main-layout,
+.content-area {
+  position: relative;
+  z-index: 1;
+}
+/* === Dashboard hero containment fix === */
+.dashboard-hero {
+  overflow: hidden;              /* CLIPS gradient */
+  isolation: isolate;            /* creates stacking boundary */
+}
+@media (max-width: 900px) {
+  .app-page {
+    overflow-x: hidden; /* never allow sideways bleed */
+  }
+}
