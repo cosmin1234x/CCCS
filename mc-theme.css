@@ -63,6 +63,7 @@ body {
   height: 120px;
   border-radius: 50%;
   border: 12px solid rgba(255, 195, 0, 0.25);
+  pointer-events: none;
 }
 
 .auth-header {
@@ -280,6 +281,7 @@ select:focus {
   box-shadow: 4px 0 18px rgba(148, 27, 12, 0.35);
   position: relative;
   overflow: hidden;
+  z-index: 1000; /* base */
 }
 
 .sidebar::after {
@@ -291,6 +293,7 @@ select:focus {
   height: 140px;
   border-radius: 50%;
   border: 12px solid rgba(255, 195, 0, 0.15);
+  pointer-events: none;
 }
 
 .sidebar-header {
@@ -349,6 +352,7 @@ select:focus {
   gap: 4px;
 }
 
+/* Default nav items (your HTML uses <li onclick=...>) */
 .nav-item {
   padding: 7px 12px;
   border-radius: 999px;
@@ -360,6 +364,8 @@ select:focus {
   color: #fefce8;
   transition: background 0.15s ease, transform 0.08s ease;
   position: relative;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .nav-item:hover {
@@ -382,6 +388,7 @@ select:focus {
   width: 3px;
   border-radius: 999px;
   background: #f97316;
+  pointer-events: none;
 }
 
 .nav-dot {
@@ -398,6 +405,13 @@ select:focus {
 
 .nav-label {
   white-space: nowrap;
+}
+
+/* If you ever swap to <a class="nav-link"> inside <li>, support it too */
+.nav-item > a,
+.nav-item > .nav-link {
+  color: inherit;
+  text-decoration: none;
 }
 
 /* Sidebar footer */
@@ -449,6 +463,8 @@ select:focus {
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .content-area {
@@ -456,6 +472,8 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  position: relative;
+  z-index: 1;
 }
 
 .top-bar {
@@ -556,6 +574,7 @@ select:focus {
   height: 90px;
   border-radius: 50%;
   border: 10px solid rgba(255, 195, 0, 0.12);
+  pointer-events: none;
 }
 
 .card-header {
@@ -697,6 +716,7 @@ select:focus {
   max-height: calc(100vh - 32px);
   position: sticky;
   top: 18px;
+  z-index: 1;
 }
 
 .ai-header {
@@ -1097,6 +1117,7 @@ select:focus {
     font-size: 0.75rem;
   }
 }
+
 /* === Voice overlay (full-screen “Talking to Amy” mode) === */
 .voice-overlay {
   position: fixed;
@@ -1108,10 +1129,12 @@ select:focus {
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(12px);
   z-index: 999;
+  pointer-events: none;
 }
 
 .voice-overlay.active {
   display: flex;
+  pointer-events: auto;
 }
 
 .overlay-text {
@@ -1162,8 +1185,8 @@ select:focus {
   width: 14px;
   height: 14px;
 }
-/* === McAssist thinking animation === */
 
+/* === McAssist thinking animation === */
 .thinking .bubble {
   display: inline-flex;
   align-items: center;
@@ -1183,21 +1206,16 @@ select:focus {
   animation: thinkingBlink 1.1s infinite ease-in-out;
 }
 
-.thinking-dot:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.thinking-dot:nth-child(3) {
-  animation-delay: 0.3s;
-}
+.thinking-dot:nth-child(2) { animation-delay: 0.15s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.3s; }
 
 @keyframes thinkingBlink {
   0% { opacity: 0.3; transform: translateY(0); }
   50% { opacity: 1; transform: translateY(-1px); }
   100% { opacity: 0.3; transform: translateY(0); }
 }
-/* === Small mic button (next to input) === */
 
+/* === Small mic button (next to input) === */
 .voice-btn {
   width: 38px;
   height: 38px;
@@ -1223,7 +1241,6 @@ select:focus {
 }
 
 .voice-btn::after {
-  /* soft pulsing ring */
   content: "";
   position: absolute;
   inset: 0;
@@ -1250,83 +1267,39 @@ select:focus {
     0 4px 10px rgba(148, 27, 12, 0.45);
 }
 
-/* subtle rhythmic pulse */
 @keyframes micButtonPulse {
-  0% {
-    opacity: 0.7;
-    transform: scale(0.6);
-  }
-  70% {
-    opacity: 0;
-    transform: scale(1.4);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.4);
-  }
+  0% { opacity: 0.7; transform: scale(0.6); }
+  70% { opacity: 0; transform: scale(1.4); }
+  100% { opacity: 0; transform: scale(1.4); }
 }
-/* === Full-screen voice overlay === */
 
+/* === Full-screen voice overlay (enhanced) === */
 .voice-overlay {
-  position: fixed;
-  inset: 0;
-  display: none;
-
   background: radial-gradient(circle at top, rgba(255, 195, 0, 0.28), transparent 55%),
               radial-gradient(circle at bottom, rgba(217, 9, 28, 0.82), #111827);
   backdrop-filter: blur(14px);
-
-  z-index: 999;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-
   animation: voiceOverlayFadeIn 0.18s ease-out;
 }
 
-.voice-overlay.active {
-  display: flex;
+@keyframes voiceOverlayFadeIn {
+  from { opacity: 0; transform: scale(1.02); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
-.overlay-text {
-  color: #fefce8;
-  font-size: 1.6rem;
-  font-weight: 800;
-  text-align: center;
-  margin-bottom: 22px;
-  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.7);
-}
-
-/* === Big McDonald's mic in the middle === */
-
+/* Big mic in overlay */
 .overlay-mic-btn {
   width: 96px;
   height: 96px;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
   background: radial-gradient(circle at 30% 0%, #ffeaa7, #ffc300);
   color: #b91c1c;
   font-size: 2.6rem;
-
   box-shadow:
     0 0 0 4px rgba(255, 249, 196, 0.85),
     0 10px 28px rgba(0, 0, 0, 0.5);
-
-  position: relative;
   overflow: visible;
-  transition: transform 0.08s ease, box-shadow 0.1s ease, filter 0.08s ease;
-
-  /* gentle breathing */
   animation: micBreath 1.7s infinite ease-in-out;
 }
 
-/* Pulsing ring behind big mic */
 .overlay-mic-btn::before {
   content: "";
   position: absolute;
@@ -1336,64 +1309,22 @@ select:focus {
   opacity: 0;
   transform: scale(0.7);
   animation: micWave 1.8s infinite ease-out;
-}
-
-.overlay-mic-btn:hover {
-  filter: brightness(1.07);
-  transform: translateY(-1px);
-  box-shadow:
-    0 0 0 5px rgba(255, 249, 196, 0.9),
-    0 14px 34px rgba(0, 0, 0, 0.7);
-}
-
-.overlay-mic-btn:active {
-  transform: translateY(1px) scale(0.96);
-  box-shadow:
-    0 0 0 3px rgba(255, 249, 196, 0.85),
-    0 8px 22px rgba(0, 0, 0, 0.6);
-}
-
-/* === Animations === */
-
-@keyframes voiceOverlayFadeIn {
-  from {
-    opacity: 0;
-    transform: scale(1.02);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  pointer-events: none;
 }
 
 @keyframes micBreath {
-  0% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-2px) scale(1.02);
-  }
-  100% {
-    transform: translateY(0) scale(1);
-  }
+  0%   { transform: translateY(0) scale(1); }
+  50%  { transform: translateY(-2px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
 }
 
 @keyframes micWave {
-  0% {
-    opacity: 0.7;
-    transform: scale(0.7);
-  }
-  70% {
-    opacity: 0;
-    transform: scale(1.3);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.3);
-  }
+  0%   { opacity: 0.7; transform: scale(0.7); }
+  70%  { opacity: 0;   transform: scale(1.3); }
+  100% { opacity: 0;   transform: scale(1.3); }
 }
-/* === Crew Profile Overlay === */
 
+/* === Crew Profile Overlay === */
 .crew-profile-overlay {
   position: fixed;
   inset: 0;
@@ -1405,14 +1336,11 @@ select:focus {
   backdrop-filter: blur(10px);
 }
 
-.crew-profile-overlay.show {
-  display: flex;
-}
+.crew-profile-overlay.show { display: flex; }
 
 .crew-profile-card {
   width: min(480px, 92vw);
-  background:
-    radial-gradient(circle at top, #fff7ed, #ffedd5);
+  background: radial-gradient(circle at top, #fff7ed, #ffedd5);
   border-radius: 24px;
   border: 1px solid rgba(250, 204, 21, 0.9);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.6);
@@ -1458,15 +1386,8 @@ select:focus {
   box-shadow: 0 6px 14px rgba(185, 28, 28, 0.6);
 }
 
-.crew-profile-header h3 {
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.crew-profile-header p {
-  font-size: 0.78rem;
-  color: #6b7280;
-}
+.crew-profile-header h3 { font-size: 1rem; font-weight: 800; }
+.crew-profile-header p  { font-size: 0.78rem; color: #6b7280; }
 
 .crew-profile-body {
   margin-top: 6px;
@@ -1482,14 +1403,8 @@ select:focus {
   font-size: 0.8rem;
 }
 
-.crew-profile-row .label {
-  color: #6b7280;
-}
-
-.crew-profile-row .value {
-  font-weight: 600;
-  text-align: right;
-}
+.crew-profile-row .label { color: #6b7280; }
+.crew-profile-row .value { font-weight: 600; text-align: right; }
 
 .crew-profile-notes {
   margin-top: 8px;
@@ -1509,30 +1424,13 @@ select:focus {
   border: 1px solid #fed7aa;
 }
 
-/* Simple pop-up animation */
 @keyframes crewProfilePop {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-.mcstar-pill {
-  border-radius: 999px;
-  padding: 2px 9px;
-  font-size: 0.7rem;
-  background: linear-gradient(135deg, #facc15, #f97316);
-  color: #111827;
-  box-shadow: 0 2px 6px rgba(248, 113, 22, 0.5);
-}
-/* ===== McStars row styling ===== */
 
-.crew-list {
-  margin-top: 6px;
-}
+/* ===== McStars row styling ===== */
+.crew-list { margin-top: 6px; }
 
 .crew-row {
   display: flex;
@@ -1543,9 +1441,7 @@ select:focus {
   border-bottom: 1px dashed #facc15;
 }
 
-.crew-row:last-child {
-  border-bottom: none;
-}
+.crew-row:last-child { border-bottom: none; }
 
 .crew-row-main {
   display: flex;
@@ -1553,15 +1449,8 @@ select:focus {
   gap: 2px;
 }
 
-.crew-row-name {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.crew-row-sub {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
+.crew-row-name { font-size: 0.85rem; font-weight: 600; }
+.crew-row-sub  { font-size: 0.75rem; color: #6b7280; }
 
 .crew-row-actions {
   display: flex;
@@ -1570,7 +1459,6 @@ select:focus {
 }
 
 /* McStar pills */
-
 .mcstar-pill {
   border-radius: 999px;
   padding: 3px 10px;
@@ -1585,31 +1473,15 @@ select:focus {
   color: #fff7ed;
 }
 
-.mcstar-pill span:first-child {
-  font-size: 0.9rem;
-}
+.mcstar-pill span:first-child { font-size: 0.9rem; }
 
 /* tiers */
-.mcstar-pill--bronze {
-  background: linear-gradient(135deg, #f97316, #b45309);
-}
-
-.mcstar-pill--silver {
-  background: linear-gradient(135deg, #9ca3af, #6b7280);
-}
-
-.mcstar-pill--gold {
-  background: linear-gradient(135deg, #facc15, #f97316);
-}
-
-.mcstar-pill--none {
-  background: #e5e7eb;
-  color: #4b5563;
-  box-shadow: none;
-}
+.mcstar-pill--bronze { background: linear-gradient(135deg, #f97316, #b45309); }
+.mcstar-pill--silver { background: linear-gradient(135deg, #9ca3af, #6b7280); }
+.mcstar-pill--gold   { background: linear-gradient(135deg, #facc15, #f97316); }
+.mcstar-pill--none   { background: #e5e7eb; color: #4b5563; box-shadow: none; }
 
 /* Training status chip */
-
 .training-chip {
   border-radius: 999px;
   padding: 3px 10px;
@@ -1620,26 +1492,11 @@ select:focus {
   cursor: default;
 }
 
-.training-chip--ok {
-  border-color: #bbf7d0;
-  background: #ecfdf5;
-  color: #15803d;
-}
-
-.training-chip--overdue {
-  border-color: #fecaca;
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.training-chip--recert {
-  border-color: #fed7aa;
-  background: #fffbeb;
-  color: #b45309;
-}
+.training-chip--ok      { border-color: #bbf7d0; background: #ecfdf5; color: #15803d; }
+.training-chip--overdue { border-color: #fecaca; background: #fee2e2; color: #b91c1c; }
+.training-chip--recert  { border-color: #fed7aa; background: #fffbeb; color: #b45309; }
 
 /* Profile / Edit buttons in row */
-
 .crew-row-btn {
   border-radius: 999px;
   border: none;
@@ -1657,7 +1514,6 @@ select:focus {
 }
 
 /* summary footer */
-
 .crew-summary-footer {
   display: flex;
   flex-wrap: wrap;
@@ -1668,15 +1524,8 @@ select:focus {
 
 /* mobile tweak */
 @media (max-width: 640px) {
-  .crew-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .crew-row-actions {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
+  .crew-row { flex-direction: column; align-items: flex-start; }
+  .crew-row-actions { flex-wrap: wrap; justify-content: flex-start; }
 }
 
 /* Top bar "My profile" button */
@@ -1693,14 +1542,14 @@ select:focus {
   gap: 4px;
 }
 
-.crew-profile-top-btn:hover {
-  background: #fde68a;
-}
+.crew-profile-top-btn:hover { background: #fde68a; }
+
 .shift-btn {
   position: relative;
   z-index: 1;
   pointer-events: auto;
 }
+
 /* Reward popups */
 #rewardPopupContainer {
   position: fixed;
@@ -1731,9 +1580,7 @@ select:focus {
   opacity: 1;
 }
 
-.reward-icon {
-  font-size: 2rem;
-}
+.reward-icon { font-size: 2rem; }
 
 .reward-text h3 {
   margin: 0;
@@ -1746,11 +1593,9 @@ select:focus {
   font-size: 0.8rem;
   color: #6b7280;
 }
-/* ======== Training XP / Track animations ======== */
 
-.training-shell {
-  padding: 22px 26px;
-}
+/* ======== Training XP / Track animations ======== */
+.training-shell { padding: 22px 26px; }
 
 .xp-row {
   display: flex;
@@ -1776,25 +1621,16 @@ select:focus {
   position: relative;
 }
 
-.level-circle.pulse {
-  animation: levelPulse 0.55s ease-out;
-}
+.level-circle.pulse { animation: levelPulse 0.55s ease-out; }
 
 @keyframes levelPulse {
-  0%   { transform: scale(1);   box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.8); }
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.8); }
   60%  { transform: scale(1.12); box-shadow: 0 0 0 14px rgba(250, 204, 21, 0); }
-  100% { transform: scale(1);   box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
 }
 
-.xp-meta {
-  flex: 1;
-}
-
-.xp-label {
-  font-size: 0.8rem;
-  color: #6b7280;
-  margin-bottom: 4px;
-}
+.xp-meta { flex: 1; }
+.xp-label { font-size: 0.8rem; color: #6b7280; margin-bottom: 4px; }
 
 .xp-track {
   width: 100%;
@@ -1813,7 +1649,6 @@ select:focus {
 }
 
 /* Track cards */
-
 .track-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1837,9 +1672,7 @@ select:focus {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at top left,
-    rgba(255, 195, 0, 0.15),
-    transparent 55%);
+  background: radial-gradient(circle at top left, rgba(255, 195, 0, 0.15), transparent 55%);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
@@ -1851,14 +1684,9 @@ select:focus {
   border-color: #fecaca;
 }
 
-.track-card:hover::before {
-  opacity: 1;
-}
+.track-card:hover::before { opacity: 1; }
 
-.track-card.locked {
-  opacity: 0.45;
-  cursor: default;
-}
+.track-card.locked { opacity: 0.45; cursor: default; }
 
 .track-card.completed {
   border-color: #bbf7d0;
@@ -1874,9 +1702,7 @@ select:focus {
   color: #16a34a;
 }
 
-.track-card.unlocked-fresh {
-  animation: cardPop 0.4s ease-out;
-}
+.track-card.unlocked-fresh { animation: cardPop 0.4s ease-out; }
 
 @keyframes cardPop {
   0%   { transform: scale(0.96); opacity: 0; }
@@ -1892,19 +1718,10 @@ select:focus {
   margin-bottom: 6px;
 }
 
-.track-card h3 {
-  font-size: 0.95rem;
-  margin-bottom: 4px;
-}
-
-.xp-reward {
-  font-size: 0.78rem;
-  color: #16a34a;
-  font-weight: 600;
-}
+.track-card h3 { font-size: 0.95rem; margin-bottom: 4px; }
+.xp-reward { font-size: 0.78rem; color: #16a34a; font-weight: 600; }
 
 /* ===== Modals (lesson / reward / quiz) with simple animation ===== */
-
 .modal {
   position: fixed;
   inset: 0;
@@ -1916,9 +1733,7 @@ select:focus {
   z-index: 1200;
 }
 
-.modal.show {
-  display: flex;
-}
+.modal.show { display: flex; }
 
 .modal-inner {
   width: min(480px, 92vw);
@@ -1950,55 +1765,23 @@ select:focus {
   cursor: pointer;
 }
 
-.modal-title {
-  font-size: 1rem;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-
-.modal-body {
-  font-size: 0.85rem;
-  color: #4b5563;
-}
+.modal-title { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+.modal-body  { font-size: 0.85rem; color: #4b5563; }
 
 /* Lesson slides */
+.lesson-step-title { font-weight: 700; margin-bottom: 4px; }
+.lesson-step-tip   { margin-top: 6px; font-size: 0.78rem; color: #16a34a; }
 
-.lesson-step-title {
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.lesson-step-tip {
-  margin-top: 6px;
-  font-size: 0.78rem;
-  color: #16a34a;
-}
-
-.lesson-slide {
-  animation: lessonIn 0.22s ease-out;
-}
+.lesson-slide { animation: lessonIn 0.22s ease-out; }
 
 @keyframes lessonIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.lesson-dots {
-  display: flex;
-  gap: 4px;
-  margin-top: 10px;
-}
-
-.lesson-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #e5e7eb;
-}
-
-.lesson-dot.active {
-  background: #111827;
-}
+.lesson-dots { display: flex; gap: 4px; margin-top: 10px; }
+.lesson-dot  { width: 7px; height: 7px; border-radius: 999px; background: #e5e7eb; }
+.lesson-dot.active { background: #111827; }
 
 .modal-actions {
   display: flex;
@@ -2015,7 +1798,6 @@ select:focus {
 }
 
 /* Quiz options */
-
 .quiz-option {
   border-radius: 12px;
   border: 1px solid #e5e7eb;
@@ -2037,7 +1819,6 @@ select:focus {
 }
 
 /* ===== McWrapped (Spotify-style recap) ===== */
-
 .wrapped-overlay{
   position: fixed;
   inset: 0;
@@ -2168,77 +1949,41 @@ select:focus {
   gap: 10px;
   margin-top: 12px;
 }
-/* === MOBILE SIDEBAR TAP FIX === */
-.sidebar {
-  position: relative;
-  z-index: 1000;
-}
 
-.sidebar-open {
-  z-index: 1000;
-}
-
-.main-layout,
-.content-area,
-.ai-panel {
-  position: relative;
-  z-index: 1;
-}
-
-/* Prevent invisible overlays blocking taps */
-.voice-overlay {
-  pointer-events: none;
-}
-.voice-overlay.active {
-  pointer-events: auto;
-}
 /* ================================
    MOBILE NAV TAP FIX (IMPORTANT)
    ================================ */
 
 /* Decorative pseudo elements must NEVER capture taps */
 .sidebar::after,
-.auth-shell::before,
 .card::before {
   pointer-events: none;
 }
 
-/* Make the LINK the tap target (not the <li>) */
-.nav-item {
-  padding: 0;            /* the <a> will have padding */
-  cursor: default;
-}
-
-.nav-item > a,
-.nav-item > .nav-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 12px;     /* this replaces old .nav-item padding */
-  border-radius: 999px;
-  color: inherit;
-  text-decoration: none;
-
-  /* better mobile tapping */
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Keep your hover/active styles working */
-.nav-item:hover > a,
-.nav-item:hover > .nav-link {
-  background: rgba(0, 0, 0, 0.18);
-  transform: translateX(2px);
-}
-
-.nav-item.active > a,
-.nav-item.active > .nav-link {
-  background: #fef9c3;
-  color: var(--mc-red-dark);
-}
-
-/* Ensure the active left bar still shows */
-.nav-item.active::before {
+/* Prevent invisible overlays blocking taps when hidden */
+.crew-profile-overlay,
+.modal,
+.wrapped-overlay {
   pointer-events: none;
+}
+.crew-profile-overlay.show,
+.modal.show,
+.wrapped-overlay.show {
+  pointer-events: auto;
+}
+
+/* ===== FINAL FIX: when sidebar is open on mobile, disable main layout taps ===== */
+@media (max-width: 900px) {
+  .sidebar { z-index: 5000; }
+
+  /* This is the key: stop the page behind from stealing clicks */
+  .sidebar.sidebar-open + .main-layout {
+    pointer-events: none;
+  }
+
+  /* Sidebar must still be clickable */
+  .sidebar,
+  .sidebar * {
+    pointer-events: auto;
+  }
 }
