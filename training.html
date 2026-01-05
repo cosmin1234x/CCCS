@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <title>McTraining – Training</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="mc-theme.css" />
+  <link rel="stylesheet" href="/mctraining/mc-theme.css" />
 
   <style>
     .training-page { flex:1; display:flex; flex-direction:column; gap:14px; width:100%; }
@@ -63,32 +63,32 @@
 
       <ul class="nav-list">
         <li class="nav-item">
-          <a class="nav-link" href="main.html">
+          <a class="nav-link" href="/mctraining/main.html">
             <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
           </a>
         </li>
 
         <li class="nav-item active">
-          <a class="nav-link" href="training.html">
+          <a class="nav-link" href="/mctraining/training.html">
             <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="schedule.html">
+          <a class="nav-link" href="/mctraining/schedule.html">
             <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="break-rewards.html">
+          <a class="nav-link" href="/mctraining/break-rewards.html">
             <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
           </a>
         </li>
 
         <!-- Shift creator (shown by nav.js) -->
         <li class="nav-item" id="navShiftCreator" style="display:none;">
-          <a class="nav-link" href="shifts-admin.html">
+          <a class="nav-link" href="/mctraining/shifts-admin.html">
             <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
           </a>
         </li>
@@ -124,8 +124,8 @@
               <div class="chip"><span>🏆</span> XP: <strong id="headerXP">0</strong></div>
               <div class="xpbar" title="Progress to next level"><div id="xpProgressFill"></div></div>
 
-              <button class="pill-filter" type="button" onclick="window.location.href='wrapped.html'">✨ Wrapped</button>
-              <button class="pill-filter" type="button" onclick="window.location.href='break-rewards.html'">🍔 Break Rewards</button>
+              <button class="pill-filter" type="button" onclick="window.location.href='/mctraining/wrapped.html'">✨ Wrapped</button>
+              <button class="pill-filter" type="button" onclick="window.location.href='/mctraining/break-rewards.html'">🍔 Break Rewards</button>
 
               <button id="quickQuizBtn" class="btn" type="button">🧠 Quick quiz</button>
             </div>
@@ -262,7 +262,7 @@
   </div>
 
   <!-- ✅ IMPORTANT: nav.js FIRST -->
-  <script type="module" src="nav.js"></script>
-  <script type="module" src="training.js"></script>
+  <script type="module" src="/mctraining/nav.js"></script>
+  <script type="module" src="/mctraining/training.js"></script>
 </body>
 </html>
