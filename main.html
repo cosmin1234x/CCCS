@@ -5,10 +5,24 @@
   <title>McTraining Portal – Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- ✅ IMPORTANT: forces correct paths on Vercel subpath -->
-  <base href="/mctraining/">
+  <!-- ✅ SET THIS:
+       content=""           if your URL is https://amyai.space/main
+       content="/mctraining" if your URL is https://amyai.space/mctraining/main
+  -->
+  <meta name="app-base" content="">
 
-  <link rel="stylesheet" href="mc-theme.css" />
+  <!-- ✅ Load CSS using app-base (prevents 404 on /main or /main/) -->
+  <script>
+    (function () {
+      const meta = document.querySelector('meta[name="app-base"]');
+      const BASE = (meta?.content || "").replace(/\/$/, ""); // no trailing slash
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = (BASE ? BASE + "/" : "/") + "mc-theme.css";
+      document.head.appendChild(css);
+      window.__APP_BASE__ = BASE;
+    })();
+  </script>
 
   <style>
     .nav-item { padding: 0; }
@@ -45,31 +59,31 @@
 
       <ul class="nav-list">
         <li class="nav-item active">
-          <a class="nav-link" href="main.html">
+          <a class="nav-link" data-route="main.html">
             <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="training.html">
+          <a class="nav-link" data-route="training.html">
             <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="schedule.html">
+          <a class="nav-link" data-route="schedule.html">
             <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="break-rewards.html">
+          <a class="nav-link" data-route="break-rewards.html">
             <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
           </a>
         </li>
 
         <li class="nav-item" id="navShiftCreator" style="display:none;">
-          <a class="nav-link" href="shifts-admin.html">
+          <a class="nav-link" data-route="shifts-admin.html">
             <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
           </a>
         </li>
@@ -136,13 +150,32 @@
     </aside>
   </div>
 
-  <!-- tiny sidebar toggle (since you removed nav.js) -->
   <script>
+    // ✅ Sidebar toggle
     const sidebar = document.getElementById("sidebar");
     const toggleBtn = document.getElementById("sidebarToggle");
-    if (toggleBtn && sidebar) toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
+    if (toggleBtn && sidebar) {
+      toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
+    }
+
+    // ✅ Fix ALL nav links using app-base
+    (function () {
+      const BASE = (window.__APP_BASE__ || "").replace(/\/$/, "");
+      document.querySelectorAll("a[data-route]").forEach(a => {
+        const route = a.getAttribute("data-route");
+        a.setAttribute("href", (BASE ? BASE + "/" : "/") + route);
+      });
+    })();
+
+    // ✅ Load main.js using app-base (prevents 404)
+    (function () {
+      const BASE = (window.__APP_BASE__ || "").replace(/\/$/, "");
+      const s = document.createElement("script");
+      s.type = "module";
+      s.src = (BASE ? BASE + "/" : "/") + "main.js";
+      document.body.appendChild(s);
+    })();
   </script>
 
-  <script type="module" src="main.js"></script>
 </body>
 </html>
