@@ -1,10 +1,9 @@
-// nav.js — shared sidebar/nav logic for ALL pages (routes + role UI)
+// nav.js — shared sidebar/nav logic for ALL pages
+// ✅ Works from subfolders (fixes Dashboard link)
+// ✅ Works with clean routes (/main) AND .html files (/main.html)
 // ✅ Shows Shift Creator only for role === "shiftCreator"
 // ✅ Sidebar mobile toggle
 // ✅ Highlights active nav item
-// ✅ Fixes navigation on hosted clean routes (/main) even if HTML uses main.html
-// ✅ Works with BOTH <a href="..."> links AND onclick="location.href='...'"
-// ✅ Runs safely even if DOM isn't ready yet
 
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -30,15 +29,28 @@ function currentPathLeaf() {
 
 function isCleanRouteMode() {
   const leaf = currentPathLeaf();
-  if (!leaf) return true;
-  return !leaf.includes(".html");
+  if (!leaf) return true;             // "/" or "/something/" treated as clean
+  return !leaf.includes(".html");     // "/training" etc
+}
+
+/**
+ * IMPORTANT:
+ * If your site is hosted under a subpath (like GitHub Pages project site),
+ * set <meta name="app-base" content="/REPO_NAME"> in every page <head>.
+ * Example: <meta name="app-base" content="/mctraining">
+ */
+function getBasePath() {
+  const meta = document.querySelector('meta[name="app-base"]');
+  const base = (meta?.content || "").trim();
+  if (!base) return "";
+  return base.endsWith("/") ? base.slice(0, -1) : base;
 }
 
 function htmlToCleanRoute(file) {
   const map = {
     "main.html": "/main",
-    "training.html": "/train",        // <-- change if your real route is different
-    "schedule.html": "/schedule",     // <-- change if your real route is /shifts
+    "training.html": "/training",
+    "schedule.html": "/schedule",
     "break-rewards.html": "/break-rewards",
     "shifts-admin.html": "/shifts-admin",
     "wrapped.html": "/wrapped",
@@ -55,10 +67,8 @@ function filenameForActive() {
 
   const map = {
     "main": "main.html",
-    "train": "training.html",
     "training": "training.html",
     "schedule": "schedule.html",
-    "shifts": "schedule.html",
     "break-rewards": "break-rewards.html",
     "shifts-admin": "shifts-admin.html",
     "wrapped": "wrapped.html",
@@ -84,18 +94,55 @@ function dom() {
 }
 
 /* =========================
+   Fix links (THIS fixes Dashboard on other pages)
+========================= */
+
+function fixSidebarHrefs() {
+  const { navList } = dom();
+  if (!navList) return;
+
+  const base = getBasePath(); // "" or "/repo"
+  const clean = isCleanRouteMode();
+
+  navList.querySelectorAll("a[href]").forEach((a) => {
+    const raw = (a.getAttribute("href") || "").trim();
+    if (!raw) return;
+
+    // ignore external links
+    if (/^(https?:|mailto:|tel:)/i.test(raw)) return;
+
+    // normalize like "main.html" -> "main.html" (no query/hash handling needed here)
+    const href = raw.split("#")[0].split("?")[0];
+
+    // convert to final destination
+    let dest;
+    if (clean) {
+      dest = htmlToCleanRoute(href);
+    } else {
+      // make .html links root-based so they work from ANY folder
+      // "main.html" -> "/main.html"
+      dest = href.startsWith("/") ? href : `/${href}`;
+    }
+
+    // apply base path if any
+    const finalHref = base ? `${base}${dest === "/" ? "/" : dest}` : dest;
+
+    a.setAttribute("href", finalHref);
+  });
+}
+
+/* =========================
    UI
 ========================= */
 
 function setActiveNav() {
-  // ✅ FIXED: use filenameForActive() (not filename())
   const file = filenameForActive() || "main.html";
 
   document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
     const a = li.querySelector("a[href]");
     const href = a ? (a.getAttribute("href") || "") : "";
-    // match by ending filename
-    li.classList.toggle("active", href.endsWith(file));
+    // match using the known file name
+    li.classList.toggle("active", href.includes(file) || href.endsWith("/" + file.replace(".html", "")));
   });
 }
 
@@ -117,67 +164,6 @@ function applyRoleUI(role) {
 function applyNameUI(name) {
   const { sidebarUserName } = dom();
   if (sidebarUserName && name) sidebarUserName.textContent = name;
-}
-
-/* =========================
-   Routing fix (clean routes + mobile)
-========================= */
-
-function extractHrefFromOnclick(onclickStr) {
-  const s = String(onclickStr || "");
-
-  const m1 = s.match(/location\.href\s*=\s*['"]([^'"]+)['"]/i);
-  if (m1?.[1]) return m1[1];
-
-  const m2 = s.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
-  if (m2?.[1]) return m2[1];
-
-  const m3 = s.match(/window\.location\s*=\s*['"]([^'"]+)['"]/i);
-  if (m3?.[1]) return m3[1];
-
-  return null;
-}
-
-function getNavDestination(item) {
-  // Prefer <a href>
-  const a = item.querySelector("a[href]");
-  const href = a ? a.getAttribute("href") : null;
-  if (href) return href;
-
-  // fallback: onclick
-  const onclick = item.getAttribute("onclick") || "";
-  return extractHrefFromOnclick(onclick);
-}
-
-function bindNavRoutingOnce() {
-  const { navList, sidebar } = dom();
-  if (!navList || navList.dataset.boundRouting) return;
-
-  navList.addEventListener("click", (e) => {
-    const item = e.target.closest(".nav-item");
-    if (!item) return;
-
-    // let logout work
-    if (item.id === "logoutBtn") return;
-
-    const destRaw = getNavDestination(item);
-    if (!destRaw) return;
-
-    // Only intercept in clean-route hosting mode
-    if (isCleanRouteMode()) {
-      const dest = destRaw.includes(".html") ? htmlToCleanRoute(destRaw) : destRaw;
-      e.preventDefault();
-      e.stopPropagation();
-      window.location.href = dest;
-      sidebar?.classList.remove("sidebar-open");
-      return;
-    }
-
-    // in .html mode, let <a> work naturally
-    sidebar?.classList.remove("sidebar-open");
-  }, true);
-
-  navList.dataset.boundRouting = "1";
 }
 
 /* =========================
@@ -214,18 +200,31 @@ async function hydrateFromFirestore(firebaseUser) {
 ========================= */
 
 function bindEventsOnce() {
-  const { sidebar, sidebarToggle, logoutBtn } = dom();
+  const { sidebar, sidebarToggle, logoutBtn, navList } = dom();
 
   if (sidebarToggle && !sidebarToggle.dataset.bound) {
     sidebarToggle.addEventListener("click", () => sidebar?.classList.toggle("sidebar-open"));
     sidebarToggle.dataset.bound = "1";
   }
 
+  // close sidebar after a click (mobile)
+  if (navList && !navList.dataset.boundClose) {
+    navList.addEventListener("click", (e) => {
+      if (e.target.closest("a, .nav-item")) {
+        sidebar?.classList.remove("sidebar-open");
+      }
+    });
+    navList.dataset.boundClose = "1";
+  }
+
   if (logoutBtn && !logoutBtn.dataset.bound) {
     logoutBtn.addEventListener("click", async () => {
       try { await signOut(auth); } catch {}
       localStorage.removeItem("mc_session_user");
-      window.location.href = isCleanRouteMode() ? "/" : "index.html";
+
+      const base = getBasePath();
+      const dest = isCleanRouteMode() ? "/" : "/index.html";
+      window.location.href = base ? `${base}${dest}` : dest;
     });
     logoutBtn.dataset.bound = "1";
   }
@@ -236,8 +235,8 @@ function bindEventsOnce() {
 ========================= */
 
 function initNav() {
+  fixSidebarHrefs();     // ✅ IMPORTANT
   bindEventsOnce();
-  bindNavRoutingOnce();
   setActiveNav();
 
   const cached = loadSessionUser();
@@ -246,7 +245,9 @@ function initNav() {
 
   onAuthStateChanged(auth, (user) => {
     if (!user) {
-      window.location.href = isCleanRouteMode() ? "/" : "index.html";
+      const base = getBasePath();
+      const dest = isCleanRouteMode() ? "/" : "/index.html";
+      window.location.href = base ? `${base}${dest}` : dest;
       return;
     }
     hydrateFromFirestore(user);
