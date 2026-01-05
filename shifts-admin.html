@@ -4,7 +4,26 @@
   <meta charset="UTF-8" />
   <title>McTraining Portal – Shift Creator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="mc-theme.css" />
+
+  <!-- ✅ Set this ONE value:
+       content=""            if your site is https://domain.com/main
+       content="/mctraining" if your site is https://domain.com/mctraining/main
+  -->
+  <meta name="app-base" content="">
+
+  <!-- ✅ Load CSS from correct base -->
+  <script>
+    (function () {
+      const meta = document.querySelector('meta[name="app-base"]');
+      const BASE = (meta?.content || "").replace(/\/$/, "");
+      window.__APP_BASE__ = BASE;
+
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = (BASE ? BASE + "/" : "/") + "mc-theme.css";
+      document.head.appendChild(css);
+    })();
+  </script>
 
   <!-- Small extra styles just for this page -->
   <style>
@@ -27,7 +46,6 @@
     }
     .shift-btn:hover{ background:#f3f4f6; }
 
-    /* Overlay for creating / editing shifts */
     .shift-editor-overlay{
       position:fixed; inset:0; background:rgba(15,23,42,0.45);
       display:none; align-items:center; justify-content:center; z-index:200;
@@ -84,38 +102,41 @@
 <body class="app-page">
 
   <!-- ========= SIDEBAR ========= -->
-  <ul class="nav-list">
-  <li class="nav-item">
-    <a class="nav-link" href="main.html">
-      <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
-    </a>
-  </li>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle">M</div>
+      <div class="sidebar-header-text">
+        <h1>McTraining</h1>
+        <p>Crew &amp; Manager portal</p>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
+    </div>
 
-  <li class="nav-item">
-    <a class="nav-link" href="training.html">
-      <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
-    </a>
-  </li>
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">MAIN</div>
 
-  <li class="nav-item">
-    <a class="nav-link" href="schedule.html">
-      <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
-    </a>
-  </li>
+      <ul class="nav-list">
+        <li class="nav-item"><a class="nav-link" data-route="main.html"><span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span></a></li>
+        <li class="nav-item"><a class="nav-link" data-route="training.html"><span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span></a></li>
+        <li class="nav-item"><a class="nav-link" data-route="schedule.html"><span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span></a></li>
+        <li class="nav-item"><a class="nav-link" data-route="break-rewards.html"><span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span></a></li>
 
-  <li class="nav-item">
-    <a class="nav-link" href="break-rewards.html">
-      <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
-    </a>
-  </li>
+        <li class="nav-item active" id="navShiftCreator">
+          <a class="nav-link" data-route="shifts-admin.html">
+            <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
 
-  <li class="nav-item" id="navShiftCreator" style="display:none;">
-    <a class="nav-link" href="shifts-admin.html">
-      <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
-    </a>
-  </li>
-</ul>
-
+    <div class="sidebar-footer">
+      <div class="sidebar-user-label">
+        <strong id="sidebarUserName">User Name</strong><br />
+        <span id="sidebarUserRole">Crew Member</span>
+      </div>
+      <button id="logoutBtn" type="button">Log out</button>
+    </div>
+  </aside>
 
   <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
@@ -132,19 +153,17 @@
         </div>
       </div>
 
-      <!-- Week selector -->
       <div class="card section-card" style="margin-top:6px;">
         <div class="subsection-title">Week selection</div>
         <div class="subsection-sub">
           Only shift creators can edit. Other roles can view shifts on the Shifts page.
         </div>
         <div id="weekTabs" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
-          <button class="pill-filter active" data-week-offset="0">This week</button>
-          <button class="pill-filter" data-week-offset="1">Next week</button>
+          <button class="pill-filter active" data-week-offset="0" type="button">This week</button>
+          <button class="pill-filter" data-week-offset="1" type="button">Next week</button>
         </div>
       </div>
 
-      <!-- Week grid -->
       <section id="adminScheduleGrid" class="card section-card" style="margin-top:10px;">
         <!-- Filled by shifts-admin.js -->
       </section>
@@ -157,7 +176,7 @@
     <div class="shift-editor-card">
       <div class="shift-editor-header">
         <h3 id="shiftEditorTitle">Add shift</h3>
-        <button id="shiftEditorClose" class="shift-editor-close">✕</button>
+        <button id="shiftEditorClose" class="shift-editor-close" type="button">✕</button>
       </div>
 
       <form id="shiftEditorForm" class="shift-editor-form">
@@ -202,9 +221,30 @@
     </div>
   </div>
 
-  <!-- ✅ IMPORTANT: nav.js FIRST -->
-  <script type="module" src="nav.js"></script>
-  <script type="module" src="shifts-admin.js"></script>
+  <script>
+    // ✅ Sidebar toggle
+    const sidebar = document.getElementById("sidebar");
+    const toggleBtn = document.getElementById("sidebarToggle");
+    if (toggleBtn && sidebar) toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
+
+    // ✅ Fix sidebar links to always include base path
+    (function () {
+      const BASE = (window.__APP_BASE__ || "").replace(/\/$/, "");
+      document.querySelectorAll("a[data-route]").forEach(a => {
+        const route = a.getAttribute("data-route");
+        a.href = (BASE ? BASE + "/" : "/") + route;
+      });
+    })();
+
+    // ✅ Load shifts-admin.js from correct base
+    (function () {
+      const BASE = (window.__APP_BASE__ || "").replace(/\/$/, "");
+      const s = document.createElement("script");
+      s.type = "module";
+      s.src = (BASE ? BASE + "/" : "/") + "shifts-admin.js";
+      document.body.appendChild(s);
+    })();
+  </script>
 
 </body>
 </html>
