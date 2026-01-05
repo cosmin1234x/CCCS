@@ -1,8 +1,9 @@
 // nav.js — shared sidebar/nav logic for ALL pages (routes + role UI)
-// ✅ Works with BOTH <li onclick="..."> AND <a href="...">
-// ✅ Converts .html links to clean routes when hosted (/main, /train, etc.)
+// ✅ Shows Shift Creator only for role === "shiftCreator"
 // ✅ Sidebar mobile toggle
 // ✅ Highlights active nav item
+// ✅ Fixes navigation on hosted clean routes (/main) even if HTML uses main.html
+// ✅ Works with BOTH <a href="..."> links AND onclick="location.href='...'"
 // ✅ Runs safely even if DOM isn't ready yet
 
 import { auth, db } from "./firebase-init.js";
@@ -28,54 +29,42 @@ function currentPathLeaf() {
 }
 
 function isCleanRouteMode() {
-  // clean route mode: /main, /train, /schedule ...
   const leaf = currentPathLeaf();
-  if (!leaf) return true;                 // root
-  return !leaf.includes(".html");         // not an html file
+  if (!leaf) return true;
+  return !leaf.includes(".html");
 }
 
 function htmlToCleanRoute(file) {
   const map = {
     "main.html": "/main",
-    "training.html": "/train",            // IMPORTANT: your hosted route is /train (from your screenshot)
-    "schedule.html": "/schedule",
+    "training.html": "/train",        // <-- change if your real route is different
+    "schedule.html": "/schedule",     // <-- change if your real route is /shifts
     "break-rewards.html": "/break-rewards",
     "shifts-admin.html": "/shifts-admin",
     "wrapped.html": "/wrapped",
     "index.html": "/",
   };
-  if (!file) return "/main";
-
-  // normalize
-  const f = String(file).split("?")[0].replace(/^\.\//, "");
-  return map[f] || `/${f.replace(".html", "")}`;
-}
-
-function cleanRouteToHtml(leaf) {
-  const map = {
-    "main": "main.html",
-    "train": "training.html",
-    "training": "training.html",
-    "schedule": "schedule.html",
-    "break-rewards": "break-rewards.html",
-    "shifts-admin": "shifts-admin.html",
-    "wrapped": "wrapped.html",
-  };
-  const l = String(leaf || "").split("?")[0];
-  return map[l] || "main.html";
+  return map[file] || (file.startsWith("/") ? file : `/${file.replace(".html", "")}`);
 }
 
 function filenameForActive() {
   const leaf = currentPathLeaf();
 
-  // root => treat as dashboard
   if (!leaf) return "main.html";
-
-  // html mode
   if (leaf.includes(".html")) return leaf.split("?")[0];
 
-  // clean route mode
-  return cleanRouteToHtml(leaf);
+  const map = {
+    "main": "main.html",
+    "train": "training.html",
+    "training": "training.html",
+    "schedule": "schedule.html",
+    "shifts": "schedule.html",
+    "break-rewards": "break-rewards.html",
+    "shifts-admin": "shifts-admin.html",
+    "wrapped": "wrapped.html",
+  };
+
+  return map[leaf.split("?")[0]] || "main.html";
 }
 
 /* =========================
@@ -99,18 +88,14 @@ function dom() {
 ========================= */
 
 function setActiveNav() {
+  // ✅ FIXED: use filenameForActive() (not filename())
   const file = filenameForActive() || "main.html";
 
   document.querySelectorAll(".sidebar .nav-item").forEach((li) => {
-    // support either <a href> OR li onclick
     const a = li.querySelector("a[href]");
     const href = a ? (a.getAttribute("href") || "") : "";
-    const onclick = li.getAttribute("onclick") || "";
-
-    let target = href || extractHrefFromOnclick(onclick) || "";
-    target = String(target).split("?")[0].replace(/^\.\//, "");
-
-    li.classList.toggle("active", target.endsWith(file));
+    // match by ending filename
+    li.classList.toggle("active", href.endsWith(file));
   });
 }
 
@@ -135,7 +120,7 @@ function applyNameUI(name) {
 }
 
 /* =========================
-   Routing helpers
+   Routing fix (clean routes + mobile)
 ========================= */
 
 function extractHrefFromOnclick(onclickStr) {
@@ -153,63 +138,44 @@ function extractHrefFromOnclick(onclickStr) {
   return null;
 }
 
-function getNavDestinationFromItem(navItem) {
-  // Priority: <a href> then onclick
-  const a = navItem.querySelector("a[href]");
+function getNavDestination(item) {
+  // Prefer <a href>
+  const a = item.querySelector("a[href]");
   const href = a ? a.getAttribute("href") : null;
   if (href) return href;
 
-  const onclick = navItem.getAttribute("onclick") || "";
+  // fallback: onclick
+  const onclick = item.getAttribute("onclick") || "";
   return extractHrefFromOnclick(onclick);
 }
-
-function rewriteAnchorHrefsForCleanRoutes() {
-  // Important for hosted mode so links behave normally (open in new tab, etc.)
-  if (!isCleanRouteMode()) return;
-
-  document.querySelectorAll(".sidebar .nav-item a[href]").forEach((a) => {
-    const raw = a.getAttribute("href") || "";
-    if (raw.includes(".html")) {
-      a.setAttribute("href", htmlToCleanRoute(raw));
-    }
-  });
-}
-
-/* =========================
-   Bind nav routing
-========================= */
 
 function bindNavRoutingOnce() {
   const { navList, sidebar } = dom();
   if (!navList || navList.dataset.boundRouting) return;
 
-  // Capture click so we can override both <a> and onclick li
   navList.addEventListener("click", (e) => {
     const item = e.target.closest(".nav-item");
     if (!item) return;
 
-    // logout button is separate element, but just in case:
+    // let logout work
     if (item.id === "logoutBtn") return;
 
-    const destRaw = getNavDestinationFromItem(item);
+    const destRaw = getNavDestination(item);
     if (!destRaw) return;
 
-    // Hosted clean routes: convert .html -> /route
+    // Only intercept in clean-route hosting mode
     if (isCleanRouteMode()) {
       const dest = destRaw.includes(".html") ? htmlToCleanRoute(destRaw) : destRaw;
       e.preventDefault();
       e.stopPropagation();
       window.location.href = dest;
+      sidebar?.classList.remove("sidebar-open");
+      return;
     }
-    // html mode: allow default navigation
-  }, true);
 
-  // close sidebar after clicking on mobile
-  navList.addEventListener("click", (e) => {
-    const item = e.target.closest(".nav-item");
-    if (!item) return;
+    // in .html mode, let <a> work naturally
     sidebar?.classList.remove("sidebar-open");
-  });
+  }, true);
 
   navList.dataset.boundRouting = "1";
 }
@@ -237,8 +203,6 @@ async function hydrateFromFirestore(firebaseUser) {
 
     applyNameUI(merged.name);
     applyRoleUI(merged.role);
-
-    // after role changes, re-run active marking
     setActiveNav();
   } catch (e) {
     console.warn("nav.js hydrateFromFirestore error:", e);
@@ -246,7 +210,7 @@ async function hydrateFromFirestore(firebaseUser) {
 }
 
 /* =========================
-   Bind events
+   Bind events (safe)
 ========================= */
 
 function bindEventsOnce() {
@@ -274,10 +238,6 @@ function bindEventsOnce() {
 function initNav() {
   bindEventsOnce();
   bindNavRoutingOnce();
-
-  // IMPORTANT: rewrite links so they work in clean routes AND allow open-in-new-tab
-  rewriteAnchorHrefsForCleanRoutes();
-
   setActiveNav();
 
   const cached = loadSessionUser();
