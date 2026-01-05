@@ -5,13 +5,19 @@
   <title>McTraining Portal – Shift Creator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- ✅ IMPORTANT: Vercel subpath (so links + css resolve correctly) -->
-  <base href="/mctraining/">
-
-  <link rel="stylesheet" href="mc-theme.css" />
+  <!-- ✅ correct for your domain root -->
+  <link rel="stylesheet" href="/mc-theme.css" />
 
   <!-- Small extra styles just for this page -->
   <style>
+    .nav-item { padding: 0; }
+    .nav-link{
+      display:flex; align-items:center; gap:10px; width:100%;
+      padding:12px 14px; text-decoration:none; color:inherit;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
     .shift-meta { font-size: 0.75rem; color: #6b7280; }
     .shift-pill{
       display:inline-flex; align-items:center; gap:4px;
@@ -82,15 +88,6 @@
       color:#b91c1c; font-size:0.78rem; cursor:pointer;
     }
     .shift-danger-link:disabled{ opacity:0.4; cursor:default; }
-
-    /* nice UX on mobile taps */
-    .nav-item{ padding:0; }
-    .nav-link{
-      display:flex; align-items:center; gap:10px; width:100%;
-      padding:12px 14px; text-decoration:none; color:inherit;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
   </style>
 </head>
 
@@ -111,33 +108,33 @@
       <div class="nav-section-title">MAIN</div>
 
       <ul class="nav-list">
-        <!-- ✅ FIXED: use routes, not .html files -->
+        <!-- ✅ this fixes your "Dashboard" button -->
         <li class="nav-item">
-          <a class="nav-link" href="main">
+          <a class="nav-link" href="/main.html">
             <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="train">
+          <a class="nav-link" href="/training.html">
             <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="schedule">
+          <a class="nav-link" href="/schedule.html">
             <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="break-rewards">
+          <a class="nav-link" href="/break-rewards.html">
             <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
           </a>
         </li>
 
-        <li class="nav-item active">
-          <a class="nav-link" href="shifts-admin">
+        <li class="nav-item active" id="navShiftCreator">
+          <a class="nav-link" href="/shifts-admin.html">
             <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
           </a>
         </li>
@@ -238,13 +235,16 @@
     </div>
   </div>
 
-  <!-- ✅ Sidebar toggle (since you removed nav.js) -->
+  <!-- tiny sidebar toggle (since nav.js is removed) -->
   <script>
     const sidebar = document.getElementById("sidebar");
     const toggleBtn = document.getElementById("sidebarToggle");
-    if (toggleBtn && sidebar) toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
+    if (toggleBtn && sidebar) {
+      toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
+    }
   </script>
 
-  <script type="module" src="shifts-admin.js"></script>
+  <!-- ✅ correct for your domain root -->
+  <script type="module" src="/shifts-admin.js"></script>
 </body>
 </html>
