@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="app-base" content="/mctraining">
   <meta charset="UTF-8" />
   <title>McTraining Portal – Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="mc-theme.css" />
 
-  <!-- Small nav fix for <a> sidebar links -->
+  <!-- ✅ IMPORTANT on Vercel subpath -->
+  <link rel="stylesheet" href="/mctraining/mc-theme.css" />
+
   <style>
     .nav-item { padding: 0; } /* link holds padding */
     .nav-link{
@@ -18,6 +20,7 @@
       text-decoration:none;
       color:inherit;
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
     /* ✅ Dashboard hero containment (main page only, safe) */
@@ -31,12 +34,12 @@
 <body class="app-page">
 
   <!-- ========= SIDEBAR ========= -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="logo-circle">M</div>
       <div class="sidebar-header-text">
         <h1>McTraining</h1>
-        <p>Crew & Manager portal</p>
+        <p>Crew &amp; Manager portal</p>
       </div>
       <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
     </div>
@@ -46,7 +49,7 @@
 
       <ul class="nav-list">
         <li class="nav-item active">
-          <a class="nav-link" href="main.html">
+          <a class="nav-link" href="/mctraining/main.html">
             <span class="nav-dot"></span>
             <span class="nav-icon">🏠</span>
             <span class="nav-label">Dashboard</span>
@@ -54,7 +57,7 @@
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="training.html">
+          <a class="nav-link" href="/mctraining/training.html">
             <span class="nav-dot"></span>
             <span class="nav-icon">🎓</span>
             <span class="nav-label">Training</span>
@@ -62,7 +65,7 @@
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="schedule.html">
+          <a class="nav-link" href="/mctraining/schedule.html">
             <span class="nav-dot"></span>
             <span class="nav-icon">📅</span>
             <span class="nav-label">Shifts</span>
@@ -70,7 +73,7 @@
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="break-rewards.html">
+          <a class="nav-link" href="/mctraining/break-rewards.html">
             <span class="nav-dot"></span>
             <span class="nav-icon">🍔</span>
             <span class="nav-label">Break Rewards</span>
@@ -79,7 +82,7 @@
 
         <!-- Shift Creator (shown via JS for role) -->
         <li class="nav-item" id="navShiftCreator" style="display:none;">
-          <a class="nav-link" href="shifts-admin.html">
+          <a class="nav-link" href="/mctraining/shifts-admin.html">
             <span class="nav-dot"></span>
             <span class="nav-icon">🛠️</span>
             <span class="nav-label">Shift creator</span>
@@ -103,7 +106,7 @@
     <!-- ====== CONTENT AREA ====== -->
     <div class="content-area">
 
-      <!-- ✅ WRAPPED HERO (fixes yellow bleed into sidebar on mobile) -->
+      <!-- ✅ WRAPPED HERO -->
       <section class="card section-card dashboard-hero">
         <div class="top-bar">
           <div class="top-bar-left">
@@ -114,7 +117,6 @@
           <div class="top-bar-right">
             <span id="roleBadge" class="badge-role">CREW</span>
 
-            <!-- Crew profile -->
             <button id="myProfileBtn" class="crew-profile-top-btn" style="display:none;" type="button">
               My profile
             </button>
@@ -124,15 +126,8 @@
         </div>
       </section>
 
-      <!-- ===== DASHBOARD CARDS ===== -->
-      <section id="topCards" class="cards-grid">
-        <!-- Injected by main.js -->
-      </section>
-
-      <!-- ===== LOWER SECTION ===== -->
-      <section id="bottomSection" class="card section-card">
-        <!-- Injected by main.js -->
-      </section>
+      <section id="topCards" class="cards-grid"></section>
+      <section id="bottomSection" class="card section-card"></section>
 
     </div>
 
@@ -224,9 +219,56 @@
     </div>
   </div>
 
-  <!-- ========= JS ========= -->
-  <!-- ✅ nav.js first is fine (it binds immediately + DOMContentLoaded safe) -->
-  <script type="module" src="nav.js"></script>
-  <script type="module" src="main.js"></script>
+  <!-- ✅ Replacement for nav.js (tiny, safe) -->
+  <script>
+    (function () {
+      const sidebar = document.getElementById("sidebar");
+      const toggleBtn = document.getElementById("sidebarToggle");
+      const logoutBtn = document.getElementById("logoutBtn");
+
+      // Mobile sidebar toggle
+      if (toggleBtn && sidebar) {
+        toggleBtn.addEventListener("click", () => {
+          sidebar.classList.toggle("sidebar-open");
+        });
+      }
+
+      // Role / user display (works with whatever you store)
+      const user =
+        JSON.parse(localStorage.getItem("mc_user") || "null") ||
+        JSON.parse(localStorage.getItem("user") || "null") ||
+        {};
+
+      const name = user.name || user.username || "User Name";
+      const role = (user.role || "crew").toString();
+
+      const sidebarUserName = document.getElementById("sidebarUserName");
+      const sidebarUserRole = document.getElementById("sidebarUserRole");
+      const roleBadge = document.getElementById("roleBadge");
+
+      if (sidebarUserName) sidebarUserName.textContent = name;
+      if (sidebarUserRole) sidebarUserRole.textContent = role.toUpperCase();
+      if (roleBadge) roleBadge.textContent = role.toUpperCase();
+
+      // Show Shift Creator only for managers/admin/shiftCreator
+      const navShiftCreator = document.getElementById("navShiftCreator");
+      const canSeeShiftCreator =
+        role.includes("manager") || role.includes("admin") || role.includes("shiftcreator");
+
+      if (navShiftCreator) navShiftCreator.style.display = canSeeShiftCreator ? "" : "none";
+
+      // Logout (adjust redirect if your login page is different)
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+          localStorage.removeItem("mc_user");
+          localStorage.removeItem("user");
+          window.location.href = "/mctraining/index.html";
+        });
+      }
+    })();
+  </script>
+
+  <!-- Your main dashboard logic -->
+  <script type="module" src="/mctraining/main.js"></script>
 </body>
 </html>
