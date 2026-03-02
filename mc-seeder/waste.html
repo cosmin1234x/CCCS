@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining – Waste Control</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="/mc-theme.css" />
+
+  <style>
+    .waste-grid {
+      display:grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap:16px;
+    }
+    @media (max-width:1000px){
+      .waste-grid { grid-template-columns:1fr; }
+    }
+
+    .waste-form{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .waste-form input,
+    .waste-form select{
+      border-radius:999px;
+      border:1px solid #e5e7eb;
+      padding:8px 12px;
+    }
+
+    .waste-list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      margin-top:10px;
+    }
+
+    .waste-item{
+      padding:10px;
+      border-radius:14px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      display:flex;
+      justify-content:space-between;
+    }
+
+    .stat-card{
+      padding:14px;
+      border-radius:16px;
+      background:#fff7ed;
+      border:1px solid #fed7aa;
+      margin-bottom:10px;
+    }
+
+  </style>
+</head>
+
+<body class="app-page">
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-circle">M</div>
+    <div class="sidebar-header-text">
+      <h1>McTraining</h1>
+      <p>Manager Portal</p>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <ul class="nav-list">
+      <li class="nav-item">
+        <a class="nav-link" href="/main.html">🏠 Dashboard</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/training.html">🎓 Training</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/schedule.html">📅 Shifts</a>
+      </li>
+      <li class="nav-item active">
+        <a class="nav-link" href="/waste.html">♻ Waste</a>
+      </li>
+    </ul>
+  </nav>
+</aside>
+
+<div class="main-layout">
+<div class="content-area">
+
+  <div class="top-bar">
+    <h2>Waste Control (Manager Only)</h2>
+  </div>
+
+  <div class="waste-grid">
+
+    <!-- LEFT SIDE -->
+    <div class="card section-card">
+      <h3>Add Waste</h3>
+
+      <form id="wasteForm" class="waste-form">
+        <input type="text" id="wasteItem" placeholder="Item (Big Mac, Fries...)" required />
+        <input type="number" id="wasteQty" placeholder="Quantity" required />
+
+        <select id="wasteReason">
+          <option value="Overcooked">Overcooked</option>
+          <option value="Expired">Expired</option>
+          <option value="Wrong Order">Wrong Order</option>
+          <option value="Dropped">Dropped</option>
+        </select>
+
+        <button type="submit" class="shift-primary-btn">Add Waste</button>
+      </form>
+
+      <div class="waste-list" id="wasteList"></div>
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="card section-card">
+      <h3>Statistics</h3>
+
+      <div class="stat-card">
+        <strong>Today's Waste</strong>
+        <div id="todayWaste">£0</div>
+      </div>
+
+      <div class="stat-card">
+        <strong>This Week</strong>
+        <div id="weekWaste">£0</div>
+      </div>
+
+      <div class="stat-card">
+        <strong>Top Wasted Item</strong>
+        <div id="topWaste">-</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+<script type="module" src="/waste.js"></script>
+</body>
+</html>
