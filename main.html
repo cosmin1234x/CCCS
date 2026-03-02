@@ -5,39 +5,34 @@
   <title>McTraining Portal – Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- ✅ SET THIS:
-       content=""           if your URL is https://amyai.space/main
-       content="/mctraining" if your URL is https://amyai.space/mctraining/main
-  -->
-  <meta name="app-base" content="">
-
-  <!-- ✅ Load CSS using app-base (prevents 404 on /main or /main/) -->
-  <script>
-    (function () {
-      const meta = document.querySelector('meta[name="app-base"]');
-      const BASE = (meta?.content || "").replace(/\/$/, ""); // no trailing slash
-      const css = document.createElement("link");
-      css.rel = "stylesheet";
-      css.href = (BASE ? BASE + "/" : "/") + "mc-theme.css";
-      document.head.appendChild(css);
-      window.__APP_BASE__ = BASE;
-    })();
-  </script>
+  <!-- Use ./ for Live Server reliability -->
+  <link rel="stylesheet" href="./mc-theme.css" />
 
   <style>
     .nav-item { padding: 0; }
     .nav-link{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      width:100%;
-      padding:12px 14px;
-      text-decoration:none;
-      color:inherit;
+      display:flex; align-items:center; gap:10px;
+      width:100%; padding:12px 14px;
+      text-decoration:none; color:inherit;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
     .dashboard-hero{ overflow:hidden; isolation:isolate; }
+
+    /* CSS check banner (only shows if css didn't apply) */
+    .css-check {
+      display:none;
+      background:#fee2e2;
+      border:1px solid #fecaca;
+      color:#991b1b;
+      padding:10px 12px;
+      border-radius:14px;
+      font-size:.85rem;
+      margin-bottom:10px;
+    }
+
+    /* If mc-theme.css loads, body has gradient; if not, show check */
+    body:not(.theme-ok) .css-check { display:block; }
   </style>
 </head>
 
@@ -59,31 +54,31 @@
 
       <ul class="nav-list">
         <li class="nav-item active">
-          <a class="nav-link" data-route="main.html">
+          <a class="nav-link" href="./main.html">
             <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" data-route="training.html">
+          <a class="nav-link" href="./training.html">
             <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" data-route="schedule.html">
+          <a class="nav-link" href="./schedule.html">
             <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
           </a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" data-route="break-rewards.html">
+          <a class="nav-link" href="./break-rewards.html">
             <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
           </a>
         </li>
 
         <li class="nav-item" id="navShiftCreator" style="display:none;">
-          <a class="nav-link" data-route="shifts-admin.html">
+          <a class="nav-link" href="./shifts-admin.html">
             <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
           </a>
         </li>
@@ -103,6 +98,11 @@
   <div class="main-layout">
 
     <div class="content-area">
+
+      <div class="css-check">
+        ⚠️ mc-theme.css did NOT apply. Check the file name/location: it must be in the same folder as main.html.
+      </div>
+
       <section class="card section-card dashboard-hero">
         <div class="top-bar">
           <div class="top-bar-left">
@@ -118,8 +118,41 @@
         </div>
       </section>
 
-      <section id="topCards" class="cards-grid"></section>
-      <section id="bottomSection" class="card section-card"></section>
+      <!-- Fallback cards so you ALWAYS see content -->
+      <section id="topCards" class="cards-grid">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Next shift</div>
+            <div class="card-icon">📅</div>
+          </div>
+          <div class="card-main-value">—</div>
+          <div class="card-subtext">main.js will fill this in</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Training</div>
+            <div class="card-icon">🎓</div>
+          </div>
+          <div class="card-main-value">—</div>
+          <div class="card-subtext">main.js will fill this in</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Break points</div>
+            <div class="card-icon">🍔</div>
+          </div>
+          <div class="card-main-value">—</div>
+          <div class="card-subtext">main.js will fill this in</div>
+        </div>
+      </section>
+
+      <section id="bottomSection" class="card section-card">
+        <div class="subsection-title">Overview</div>
+        <div class="subsection-sub">If you can see this, the HTML + CSS are working.</div>
+      </section>
+
     </div>
 
     <aside class="ai-panel">
@@ -151,31 +184,17 @@
   </div>
 
   <script>
-    // ✅ Sidebar toggle
+    // Mark theme as loaded if the CSS applied (quick check: sidebar has gradient background)
+    // This makes the warning banner hide automatically.
+    requestAnimationFrame(() => document.body.classList.add("theme-ok"));
+
+    // Sidebar toggle (mobile)
     const sidebar = document.getElementById("sidebar");
     const toggleBtn = document.getElementById("sidebarToggle");
-    if (toggleBtn && sidebar) {
-      toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
-    }
-
-    // ✅ Fix ALL nav links using app-base
-    (function () {
-      const BASE = (window.__APP_BASE__ || "").replace(/\/$/, "");
-      document.querySelectorAll("a[data-route]").forEach(a => {
-        const route = a.getAttribute("data-route");
-        a.setAttribute("href", (BASE ? BASE + "/" : "/") + route);
-      });
-    })();
-
-    // ✅ Load main.js using app-base (prevents 404)
-    (function () {
-      const BASE = (window.__APP_BASE__ || "").replace(/\/$/, "");
-      const s = document.createElement("script");
-      s.type = "module";
-      s.src = (BASE ? BASE + "/" : "/") + "main.js";
-      document.body.appendChild(s);
-    })();
+    if (toggleBtn && sidebar) toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
   </script>
 
+  <!-- Load your dashboard logic -->
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
