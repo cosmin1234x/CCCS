@@ -4,35 +4,27 @@
   <meta charset="UTF-8" />
   <title>McTraining Portal – Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Use ./ for Live Server reliability -->
   <link rel="stylesheet" href="./mc-theme.css" />
 
   <style>
     .nav-item { padding: 0; }
-    .nav-link{
-      display:flex; align-items:center; gap:10px;
-      width:100%; padding:12px 14px;
-      text-decoration:none; color:inherit;
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 14px;
+      text-decoration: none;
+      color: inherit;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
-    .dashboard-hero{ overflow:hidden; isolation:isolate; }
 
-    /* CSS check banner (only shows if css didn't apply) */
-    .css-check {
-      display:none;
-      background:#fee2e2;
-      border:1px solid #fecaca;
-      color:#991b1b;
-      padding:10px 12px;
-      border-radius:14px;
-      font-size:.85rem;
-      margin-bottom:10px;
+    .dashboard-hero {
+      overflow: hidden;
+      isolation: isolate;
     }
-
-    /* If mc-theme.css loads, body has gradient; if not, show check */
-    body:not(.theme-ok) .css-check { display:block; }
   </style>
 </head>
 
@@ -55,31 +47,41 @@
       <ul class="nav-list">
         <li class="nav-item active">
           <a class="nav-link" href="./main.html">
-            <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
+            <span class="nav-dot"></span>
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Dashboard</span>
           </a>
         </li>
 
         <li class="nav-item">
           <a class="nav-link" href="./training.html">
-            <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
+            <span class="nav-dot"></span>
+            <span class="nav-icon">🎓</span>
+            <span class="nav-label">Training</span>
           </a>
         </li>
 
         <li class="nav-item">
           <a class="nav-link" href="./schedule.html">
-            <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
+            <span class="nav-dot"></span>
+            <span class="nav-icon">📅</span>
+            <span class="nav-label">Shifts</span>
           </a>
         </li>
 
         <li class="nav-item">
           <a class="nav-link" href="./break-rewards.html">
-            <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
+            <span class="nav-dot"></span>
+            <span class="nav-icon">🍔</span>
+            <span class="nav-label">Break Rewards</span>
           </a>
         </li>
 
         <li class="nav-item" id="navShiftCreator" style="display:none;">
           <a class="nav-link" href="./shifts-admin.html">
-            <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
+            <span class="nav-dot"></span>
+            <span class="nav-icon">🛠️</span>
+            <span class="nav-label">Shift creator</span>
           </a>
         </li>
       </ul>
@@ -97,12 +99,10 @@
   <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
 
+    <!-- ====== CONTENT AREA ====== -->
     <div class="content-area">
 
-      <div class="css-check">
-        ⚠️ mc-theme.css did NOT apply. Check the file name/location: it must be in the same folder as main.html.
-      </div>
-
+      <!-- HERO -->
       <section class="card section-card dashboard-hero">
         <div class="top-bar">
           <div class="top-bar-left">
@@ -112,49 +112,41 @@
 
           <div class="top-bar-right">
             <span id="roleBadge" class="badge-role">CREW</span>
-            <button id="myProfileBtn" class="crew-profile-top-btn" style="display:none;" type="button">My profile</button>
+
+            <button
+              id="myProfileBtn"
+              class="crew-profile-top-btn"
+              style="display:none;"
+              type="button"
+            >
+              My profile
+            </button>
+
             <div id="avatarCircle" class="avatar">U</div>
           </div>
         </div>
       </section>
 
-      <!-- Fallback cards so you ALWAYS see content -->
+      <!-- TOP CARDS -->
       <section id="topCards" class="cards-grid">
         <div class="card">
           <div class="card-header">
-            <div class="card-title">Next shift</div>
-            <div class="card-icon">📅</div>
+            <div class="card-title">Loading</div>
+            <div class="card-icon">⏳</div>
           </div>
-          <div class="card-main-value">—</div>
-          <div class="card-subtext">main.js will fill this in</div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Training</div>
-            <div class="card-icon">🎓</div>
-          </div>
-          <div class="card-main-value">—</div>
-          <div class="card-subtext">main.js will fill this in</div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Break points</div>
-            <div class="card-icon">🍔</div>
-          </div>
-          <div class="card-main-value">—</div>
-          <div class="card-subtext">main.js will fill this in</div>
+          <div class="card-main-value">Please wait</div>
+          <div class="card-subtext">Dashboard is starting…</div>
         </div>
       </section>
 
+      <!-- BOTTOM SECTION -->
       <section id="bottomSection" class="card section-card">
         <div class="subsection-title">Overview</div>
-        <div class="subsection-sub">If you can see this, the HTML + CSS are working.</div>
+        <div class="subsection-sub">Dashboard content will appear here.</div>
       </section>
-
     </div>
 
+    <!-- ===== AI PANEL ===== -->
     <aside class="ai-panel">
       <div class="ai-header">
         <div class="ai-header-left">
@@ -164,15 +156,25 @@
             <p id="aiSubtitle">Ask about shifts, training or rewards</p>
           </div>
         </div>
-        <div class="ai-status"><span class="ai-status-dot"></span><span>Online</span></div>
+
+        <div class="ai-status">
+          <span class="ai-status-dot"></span>
+          <span>Online</span>
+        </div>
       </div>
 
       <div id="aiSuggestions" class="ai-suggestions"></div>
       <div id="aiChat" class="ai-chat"></div>
 
       <form id="aiForm" class="ai-input-row">
-        <input id="aiInput" type="text" placeholder="Ask McAssist something…" />
-        <button id="aiSendBtn" type="submit" class="ai-send-btn">Send ➤</button>
+        <input
+          id="aiInput"
+          type="text"
+          placeholder="Ask McAssist something…"
+        />
+        <button id="aiSendBtn" type="submit" class="ai-send-btn">
+          Send ➤
+        </button>
         <button type="button" id="aiMicBtn" class="voice-btn">🎤</button>
       </form>
 
@@ -183,18 +185,76 @@
     </aside>
   </div>
 
-  <script>
-    // Mark theme as loaded if the CSS applied (quick check: sidebar has gradient background)
-    // This makes the warning banner hide automatically.
-    requestAnimationFrame(() => document.body.classList.add("theme-ok"));
+  <!-- ===== VOICE OVERLAY ===== -->
+  <div id="voiceOverlay" class="voice-overlay">
+    <div id="overlayText" class="overlay-text">Ask me anything</div>
+    <button id="overlayMic" class="overlay-mic-btn" type="button">🎤</button>
+  </div>
 
-    // Sidebar toggle (mobile)
+  <!-- ===== CREW PROFILE OVERLAY ===== -->
+  <div id="crewProfileOverlay" class="crew-profile-overlay">
+    <div class="crew-profile-card">
+
+      <div class="crew-profile-header">
+        <div class="crew-profile-main">
+          <div id="crewProfileAvatar" class="crew-profile-avatar">C</div>
+          <div>
+            <h3 id="crewProfileName"></h3>
+            <p id="crewProfileRole"></p>
+            <p id="crewProfileStore" class="crew-profile-store"></p>
+          </div>
+        </div>
+        <button id="crewProfileClose" class="crew-profile-close" type="button">✕</button>
+      </div>
+
+      <div class="crew-profile-body">
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">Training status</span>
+          <span id="crewProfileStatus"></span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">Badge</span>
+          <span id="crewProfileBadge"></span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">McStars</span>
+          <span id="crewProfileStars"></span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">Next shift</span>
+          <span id="crewProfileNextShift"></span>
+        </div>
+
+        <div class="crew-profile-row">
+          <span class="crew-profile-label">Stations</span>
+          <span id="crewProfileStations"></span>
+        </div>
+
+        <div class="crew-profile-notes">
+          <div class="crew-profile-label">Notes</div>
+          <p id="crewProfileNotes"></p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========= LOCAL PAGE SCRIPT ========= -->
+  <script>
     const sidebar = document.getElementById("sidebar");
-    const toggleBtn = document.getElementById("sidebarToggle");
-    if (toggleBtn && sidebar) toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
+    const sidebarToggle = document.getElementById("sidebarToggle");
+
+    if (sidebar && sidebarToggle) {
+      sidebarToggle.addEventListener("click", () => {
+        sidebar.classList.toggle("sidebar-open");
+      });
+    }
   </script>
 
-  <!-- Load your dashboard logic -->
+  <!-- ========= MAIN DASHBOARD JS ========= -->
   <script type="module" src="./main.js"></script>
 </body>
 </html>
