@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining – Training Hub</title>
+  <title>McTraining – Training</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="mc-theme.css" />
 
@@ -11,303 +11,456 @@
       flex:1;
       display:flex;
       flex-direction:column;
-      gap:16px;
+      gap:14px;
       width:100%;
     }
 
-    .nav-item { padding: 0; }
-    .nav-link{
+    .training-topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 14px;
+      border-radius:18px;
+      background:linear-gradient(135deg,#111827,#1f2937);
+      color:#fefce8;
+      box-shadow:0 14px 28px rgba(15,23,42,.25);
+      flex-wrap:wrap;
+    }
+
+    .training-topbar-left{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+
+    .training-brand-mini{
       display:flex;
       align-items:center;
       gap:10px;
-      width:100%;
-      padding:12px 14px;
-      text-decoration:none;
-      color:inherit;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
+      font-weight:900;
+      letter-spacing:.02em;
     }
+
+    .training-brand-mini .mini-logo{
+      width:38px;
+      height:38px;
+      border-radius:12px;
+      background:linear-gradient(135deg,#ffc300,#f59e0b);
+      color:#b91c1c;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:1.2rem;
+      box-shadow:0 8px 18px rgba(245,158,11,.35);
+    }
+
+    .training-crumbs{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:#fde68a;
+      font-size:.82rem;
+      flex-wrap:wrap;
+    }
+
+    .training-topbar-right{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .portal-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      border-radius:999px;
+      padding:7px 12px;
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.12);
+      color:#f9fafb;
+      font-size:.8rem;
+      font-weight:700;
+    }
+
+    .portal-search{
+      min-width:240px;
+      max-width:380px;
+      width:100%;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.08);
+      color:#fff;
+      padding:10px 14px;
+      outline:none;
+    }
+
+    .portal-search::placeholder{ color:rgba(255,255,255,.72); }
 
     .training-hero{
       display:grid;
-      grid-template-columns: 1.4fr 1fr;
-      gap:16px;
+      grid-template-columns:1.7fr 1fr;
+      gap:14px;
     }
 
-    @media (max-width: 980px){
-      .training-hero{
-        grid-template-columns: 1fr;
-      }
+    @media (max-width:1100px){
+      .training-hero{ grid-template-columns:1fr; }
     }
 
-    .hero-main{
-      background:
-        radial-gradient(circle at top left, rgba(255,195,0,.22), transparent 45%),
-        linear-gradient(135deg, #fff7ed, #ffffff);
-      border:1px solid rgba(250,204,21,.65);
+    .hero-banner{
+      position:relative;
+      overflow:hidden;
+      min-height:250px;
+      padding:22px;
       border-radius:24px;
-      padding:18px;
-      box-shadow:0 12px 24px rgba(248,113,22,.12);
+      background:
+        radial-gradient(circle at top right, rgba(255,195,0,.28), transparent 35%),
+        linear-gradient(135deg,#fff7ed,#ffedd5 48%,#fff7ed);
+      border:1px solid rgba(250,204,21,.7);
+      box-shadow:0 18px 38px rgba(148,27,12,.14);
+    }
+
+    .hero-banner::after{
+      content:"";
+      position:absolute;
+      right:-70px;
+      top:-30px;
+      width:220px;
+      height:220px;
+      border-radius:50%;
+      border:22px solid rgba(255,195,0,.14);
+      pointer-events:none;
     }
 
     .hero-kicker{
-      font-size:.74rem;
-      text-transform:uppercase;
-      letter-spacing:.14em;
-      color:#b45309;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border-radius:999px;
+      padding:6px 12px;
+      background:#111827;
+      color:#fefce8;
+      font-size:.78rem;
       font-weight:800;
-      margin-bottom:8px;
+      margin-bottom:12px;
     }
 
     .hero-title{
-      font-size:1.7rem;
-      font-weight:950;
+      font-size:2rem;
       line-height:1.05;
-      letter-spacing:-0.03em;
-      margin-bottom:8px;
+      font-weight:950;
+      letter-spacing:-.03em;
+      max-width:680px;
+      margin:0 0 8px;
     }
 
-    .hero-sub{
+    .hero-copy{
+      font-size:.95rem;
       color:#6b7280;
-      font-size:.92rem;
-      line-height:1.45;
       max-width:620px;
+      line-height:1.45;
+      margin:0 0 16px;
+    }
+
+    .hero-stats{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:16px;
+    }
+
+    .hero-stat{
+      min-width:140px;
+      border-radius:18px;
+      padding:12px 14px;
+      background:#fff;
+      border:1px solid rgba(250,204,21,.5);
+      box-shadow:0 10px 20px rgba(248,113,22,.08);
+    }
+
+    .hero-stat-label{
+      font-size:.72rem;
+      color:#9ca3af;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin-bottom:4px;
+      font-weight:800;
+    }
+
+    .hero-stat-value{
+      font-size:1.12rem;
+      font-weight:900;
+      color:#111827;
+    }
+
+    .xpbar{
+      width:100%;
+      max-width:520px;
+      height:10px;
+      border-radius:999px;
+      background:#e5e7eb;
+      overflow:hidden;
+      margin:12px 0 10px;
+    }
+
+    .xpbar > div{
+      height:100%;
+      width:0%;
+      border-radius:inherit;
+      background:linear-gradient(90deg,#22c55e,#facc15,#d9091c);
+      transition:width .25s ease;
     }
 
     .hero-actions{
       display:flex;
       flex-wrap:wrap;
       gap:10px;
-      margin-top:16px;
+      margin-top:12px;
     }
 
-    .hero-stats{
-      display:grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap:10px;
-      margin-top:18px;
+    .hero-side{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
     }
 
-    @media (max-width: 640px){
-      .hero-stats{
-        grid-template-columns:1fr;
-      }
-    }
-
-    .hero-stat{
-      background:#fff;
-      border:1px solid #f3f4f6;
-      border-radius:18px;
-      padding:12px;
-    }
-
-    .hero-stat-label{
-      font-size:.72rem;
-      text-transform:uppercase;
-      letter-spacing:.08em;
-      color:#9ca3af;
-      font-weight:800;
-      margin-bottom:6px;
-    }
-
-    .hero-stat-value{
-      font-size:1.15rem;
-      font-weight:900;
-    }
-
-    .xp-panel{
-      background:linear-gradient(180deg, #111827, #1f2937);
-      color:#f9fafb;
+    .side-card{
       border-radius:24px;
       padding:18px;
-      box-shadow:0 16px 32px rgba(15,23,42,.28);
+      background:#fff;
+      border:1px solid rgba(250,204,21,.55);
+      box-shadow:0 14px 28px rgba(148,27,12,.10);
+      position:relative;
+      overflow:hidden;
     }
 
-    .xp-top{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom:16px;
+    .side-card::before{
+      content:"";
+      position:absolute;
+      right:-34px;
+      top:-34px;
+      width:110px;
+      height:110px;
+      border-radius:50%;
+      border:12px solid rgba(255,195,0,.12);
+      pointer-events:none;
     }
 
-    .level-badge{
-      width:68px;
-      height:68px;
-      border-radius:999px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:radial-gradient(circle at 30% 0%, #ffeaa7, #ffc300);
-      color:#111827;
-      font-size:1.5rem;
-      font-weight:950;
-      box-shadow:0 0 0 4px rgba(255,255,255,.08);
-    }
-
-    .xp-title{
+    .side-card h3{
       font-size:1rem;
       font-weight:900;
-      margin-bottom:4px;
+      margin:0 0 6px;
     }
 
-    .xp-sub{
+    .side-card p{
       font-size:.82rem;
-      color:#d1d5db;
+      color:#6b7280;
       line-height:1.4;
+      margin:0 0 12px;
     }
 
-    .xp-bar{
-      width:100%;
-      height:10px;
-      background:rgba(255,255,255,.12);
-      border-radius:999px;
-      overflow:hidden;
-      margin:14px 0 8px;
-    }
-
-    .xp-bar > div{
-      width:0%;
-      height:100%;
-      border-radius:inherit;
-      background:linear-gradient(90deg,#22c55e,#facc15,#f97316);
-      transition:width .25s ease;
-    }
-
-    .xp-meta{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      font-size:.78rem;
-      color:#d1d5db;
-    }
-
-    .training-grid{
+    .quick-links{
       display:grid;
-      grid-template-columns: 1.1fr 1.55fr;
-      gap:16px;
+      grid-template-columns:repeat(2,1fr);
+      gap:10px;
+    }
+
+    .quick-link{
+      border-radius:18px;
+      background:#fff7ed;
+      border:1px solid #fed7aa;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      cursor:pointer;
+      transition:transform .1s ease, box-shadow .12s ease;
+    }
+
+    .quick-link:hover{
+      transform:translateY(-2px);
+      box-shadow:0 12px 20px rgba(248,113,22,.12);
+    }
+
+    .quick-link strong{
+      font-size:.88rem;
+      font-weight:900;
+    }
+
+    .quick-link span{
+      font-size:.76rem;
+      color:#6b7280;
+    }
+
+    .training-panels{
+      display:grid;
+      grid-template-columns:1.15fr .95fr;
+      gap:14px;
       align-items:start;
     }
 
-    @media (max-width: 1100px){
-      .training-grid{
-        grid-template-columns:1fr;
-      }
+    @media (max-width:1100px){
+      .training-panels{ grid-template-columns:1fr; }
     }
 
-    .track-grid{
-      display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap:12px;
-      margin-top:12px;
-    }
-
-    .track-card{
+    .panel-card{
       background:#fff;
-      border:1px solid #f3f4f6;
-      border-radius:20px;
-      padding:14px;
-      box-shadow:0 10px 20px rgba(15,23,42,.05);
-      cursor:pointer;
-      transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+      border-radius:24px;
+      padding:18px;
+      border:1px solid rgba(250,204,21,.6);
+      box-shadow:0 14px 28px rgba(148,27,12,.10);
+      position:relative;
+      overflow:hidden;
     }
 
-    .track-card:hover{
-      transform:translateY(-2px);
-      border-color:#fed7aa;
-      box-shadow:0 14px 28px rgba(248,113,22,.12);
+    .panel-card::before{
+      content:"";
+      position:absolute;
+      right:-34px;
+      top:-34px;
+      width:110px;
+      height:110px;
+      border-radius:50%;
+      border:12px solid rgba(255,195,0,.12);
+      pointer-events:none;
     }
 
-    .track-icon{
-      width:42px;
-      height:42px;
-      border-radius:14px;
+    .panel-head{
       display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:1.2rem;
-      margin-bottom:10px;
-      background:#fff7ed;
-      border:1px solid #fed7aa;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:12px;
     }
 
-    .track-title{
+    .panel-title{
+      font-size:1.08rem;
       font-weight:900;
-      margin-bottom:4px;
-      font-size:.94rem;
+      margin:0;
     }
 
-    .track-sub{
-      font-size:.8rem;
+    .panel-sub{
+      font-size:.82rem;
       color:#6b7280;
-      line-height:1.35;
+      margin-top:4px;
     }
 
-    .module-search-row{
+    .toolbar-row{
       display:flex;
       gap:8px;
       flex-wrap:wrap;
-      margin-top:12px;
+      align-items:center;
+      margin-bottom:10px;
     }
 
-    .module-search-row input{
+    .toolbar-row input{
       flex:1;
       min-width:220px;
     }
 
+    #filterRow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin:8px 0 2px;
+    }
+
     #moduleGrid{
       display:grid;
-      grid-template-columns:1fr;
-      gap:10px;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:12px;
       margin-top:12px;
     }
 
-    .module-card{
-      background:#fff;
+    .module-campus-card{
+      border-radius:20px;
       border:1px solid #e5e7eb;
-      border-radius:18px;
-      padding:13px;
+      background:#fff;
+      padding:14px;
+      box-shadow:0 8px 18px rgba(15,23,42,.06);
+      transition:transform .1s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+
+    .module-campus-card:hover{
+      transform:translateY(-2px);
+      border-color:#fed7aa;
+      box-shadow:0 14px 24px rgba(248,113,22,.12);
+    }
+
+    .module-campus-top{
       display:flex;
       justify-content:space-between;
-      gap:12px;
       align-items:flex-start;
+      gap:10px;
+      margin-bottom:8px;
     }
 
-    .module-card-main{
-      min-width:0;
+    .module-campus-title{
+      font-size:.98rem;
+      font-weight:950;
+      line-height:1.2;
     }
 
-    .module-card-title{
-      font-size:.95rem;
-      font-weight:900;
-      margin-bottom:5px;
-    }
-
-    .module-card-sub{
+    .module-campus-desc{
       font-size:.8rem;
       color:#6b7280;
-      line-height:1.35;
+      line-height:1.4;
+      margin:8px 0 10px;
     }
 
-    .module-meta{
+    .module-campus-meta{
       display:flex;
       gap:8px;
       flex-wrap:wrap;
-      margin-top:9px;
+      align-items:center;
+      margin-bottom:10px;
     }
 
     .meta-pill{
       border-radius:999px;
-      padding:4px 9px;
+      padding:4px 8px;
       font-size:.72rem;
+      font-weight:800;
       background:#f9fafb;
       border:1px solid #e5e7eb;
       color:#374151;
-      font-weight:700;
     }
 
-    .stage-card{
-      min-height: 640px;
+    .featured-strip{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:10px;
+      margin-top:8px;
+    }
+
+    @media (max-width:700px){
+      .featured-strip{ grid-template-columns:1fr; }
+    }
+
+    .featured-box{
+      border-radius:18px;
+      padding:14px;
+      background:#fffbeb;
+      border:1px solid #fed7aa;
+      min-height:120px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      gap:10px;
+    }
+
+    .featured-box strong{
+      font-size:.95rem;
+      font-weight:900;
+      line-height:1.2;
+    }
+
+    .featured-box span{
+      font-size:.78rem;
+      color:#6b7280;
     }
 
     .player-header{
@@ -320,40 +473,38 @@
     }
 
     .player-title{
-      font-size:1.08rem;
+      font-size:1.05rem;
       font-weight:900;
       margin-bottom:4px;
     }
 
     .player-sub{
-      font-size:.84rem;
+      font-size:.82rem;
       color:#6b7280;
       line-height:1.4;
-      max-width:640px;
     }
 
     .player-pills{
       display:flex;
-      gap:8px;
-      flex-wrap:wrap;
+      flex-direction:column;
+      gap:6px;
+      align-items:flex-end;
     }
 
     .mini-pill{
       border-radius:999px;
       padding:5px 10px;
-      font-size:.74rem;
+      font-size:.75rem;
       background:#f9fafb;
       border:1px solid #e5e7eb;
       color:#374151;
       white-space:nowrap;
-      font-weight:700;
     }
 
     .tabs-row{
       display:flex;
       gap:8px;
       flex-wrap:wrap;
-      margin-top:10px;
       margin-bottom:12px;
     }
 
@@ -373,31 +524,6 @@
       border-color:#111827;
     }
 
-    .lesson-layout{
-      display:grid;
-      grid-template-columns: 1.25fr .75fr;
-      gap:12px;
-    }
-
-    @media (max-width: 900px){
-      .lesson-layout{
-        grid-template-columns:1fr;
-      }
-    }
-
-    .lesson-box{
-      background:#fff;
-      border:1px solid #f3f4f6;
-      border-radius:18px;
-      padding:14px;
-    }
-
-    .lesson-box-title{
-      font-size:.88rem;
-      font-weight:900;
-      margin-bottom:8px;
-    }
-
     .two-col{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -406,9 +532,7 @@
     }
 
     @media (max-width:640px){
-      .two-col{
-        grid-template-columns:1fr;
-      }
+      .two-col{ grid-template-columns:1fr; }
     }
 
     .box-lite{
@@ -429,8 +553,8 @@
       border:1px solid #e5e7eb;
       border-radius:18px;
       padding:10px;
-      min-height:240px;
-      max-height:340px;
+      min-height:220px;
+      max-height:320px;
       overflow:auto;
       background:#fff;
     }
@@ -446,7 +570,7 @@
       flex:1;
       border-radius:999px;
       border:1px solid #fecaca;
-      padding:9px 13px;
+      padding:10px 13px;
       font-size:.88rem;
       outline:none;
       background:#fff7ed;
@@ -455,6 +579,28 @@
     #quizOptions button{
       width:100%;
       margin-top:8px;
+    }
+
+    textarea{
+      width:100%;
+      min-height:96px;
+      border-radius:16px;
+      border:1px solid #fecaca;
+      padding:10px 12px;
+      resize:vertical;
+      background:#fff7ed;
+      outline:none;
+      font:inherit;
+    }
+
+    @media (max-width:900px){
+      .training-topbar{
+        padding:10px 12px;
+      }
+
+      .hero-title{
+        font-size:1.55rem;
+      }
     }
   </style>
 </head>
@@ -466,13 +612,14 @@
       <div class="logo-circle">M</div>
       <div class="sidebar-header-text">
         <h1>McTraining</h1>
-        <p>Training &amp; Development</p>
+        <p>Training &amp; Rewards</p>
       </div>
       <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
     </div>
 
     <nav class="sidebar-nav">
       <div class="nav-section-title">Main</div>
+
       <ul class="nav-list">
         <li class="nav-item">
           <a class="nav-link" href="main.html">
@@ -519,117 +666,153 @@
     <div class="content-area">
       <div class="training-shell">
 
-        <!-- HERO -->
-        <section class="training-hero">
-          <div class="hero-main">
-            <div class="hero-kicker">Training Hub</div>
-            <div class="hero-title">Build your stations. Level up faster.</div>
-            <div class="hero-sub">
-              Complete modules, pass quizzes, and unlock more confidence on shift.
-              Focus on kitchen, front counter, drive-thru, safety, and cleaning.
+        <section class="training-topbar">
+          <div class="training-topbar-left">
+            <div class="training-brand-mini">
+              <div class="mini-logo">🎓</div>
+              <div>Hamburger University • McTraining Campus</div>
             </div>
 
-            <div class="hero-actions">
-              <button id="quickQuizBtn" class="btn" type="button">🧠 Quick quiz</button>
-              <button class="pill-filter" type="button" onclick="window.location.href='wrapped.html'">✨ Wrapped</button>
-              <button class="pill-filter" type="button" onclick="window.location.href='break-rewards.html'">🍔 Break Rewards</button>
-            </div>
-
-            <div class="hero-stats">
-              <div class="hero-stat">
-                <div class="hero-stat-label">Current focus</div>
-                <div class="hero-stat-value" id="playerStatus">No module selected</div>
-              </div>
-              <div class="hero-stat">
-                <div class="hero-stat-label">Current track</div>
-                <div class="hero-stat-value" id="playerMeta">—</div>
-              </div>
-              <div class="hero-stat">
-                <div class="hero-stat-label">Next milestone</div>
-                <div class="hero-stat-value">Complete 1 module</div>
-              </div>
+            <div class="training-crumbs">
+              <span>🏠 Home</span>
+              <span>•</span>
+              <span>Browse</span>
+              <span>•</span>
+              <span>Training</span>
             </div>
           </div>
 
-          <div class="xp-panel">
-            <div class="xp-top">
-              <div>
-                <div class="xp-title">Your progress</div>
-                <div class="xp-sub">Every lesson, checklist, and quiz helps you level up.</div>
+          <div class="training-topbar-right">
+            <input id="moduleSearch" class="portal-search" placeholder="Search modules, stations, food safety..." />
+            <div class="portal-chip">⭐ Level <strong id="headerLevel">1</strong></div>
+            <div class="portal-chip">🏆 XP <strong id="headerXP">0</strong></div>
+          </div>
+        </section>
+
+        <section class="training-hero">
+          <div class="hero-banner">
+            <div class="hero-kicker">🍟 Training Dashboard</div>
+            <h2 class="hero-title">Build station confidence, complete learning, and level up faster.</h2>
+            <p class="hero-copy">
+              Search modules, open guided lessons, complete quizzes, and ask McAssist when you get stuck.
+              This keeps the McTraining theme, but gives it a proper campus-style portal layout.
+            </p>
+
+            <div class="hero-stats">
+              <div class="hero-stat">
+                <div class="hero-stat-label">Current level</div>
+                <div class="hero-stat-value" id="heroLevelValue">1</div>
               </div>
-              <div class="level-badge" id="headerLevel">1</div>
+
+              <div class="hero-stat">
+                <div class="hero-stat-label">Total XP</div>
+                <div class="hero-stat-value" id="heroXPValue">0</div>
+              </div>
+
+              <div class="hero-stat">
+                <div class="hero-stat-label">Selected module</div>
+                <div class="hero-stat-value" id="heroSelectedModule">None</div>
+              </div>
             </div>
 
-            <div style="font-size:1.9rem;font-weight:950;line-height:1;" id="headerXP">0 XP</div>
-
-            <div class="xp-bar">
+            <div class="xpbar" title="Progress to next level">
               <div id="xpProgressFill"></div>
             </div>
 
-            <div class="xp-meta">
-              <span>Progress to next level</span>
-              <span id="xpMetaText">0 / 100 XP</span>
+            <div class="hero-actions">
+              <button class="btn-primary" id="quickQuizBtn" type="button">🧠 Quick quiz</button>
+              <button class="btn" type="button" onclick="window.location.href='wrapped.html'">✨ Wrapped</button>
+              <button class="btn" type="button" onclick="window.location.href='break-rewards.html'">🍔 Break Rewards</button>
+              <button id="moduleSearchBtn" class="btn" type="button">Search modules</button>
+            </div>
+          </div>
+
+          <div class="hero-side">
+            <div class="side-card">
+              <h3>My Resources</h3>
+              <p>Quick access to the places crew usually need most.</p>
+
+              <div class="quick-links">
+                <div class="quick-link" onclick="window.location.href='wrapped.html'">
+                  <strong>Wrapped</strong>
+                  <span>Your recap & progress</span>
+                </div>
+
+                <div class="quick-link" onclick="window.location.href='break-rewards.html'">
+                  <strong>Break Rewards</strong>
+                  <span>Use your food points</span>
+                </div>
+
+                <div class="quick-link" onclick="document.querySelector('[data-tab=&quot;quiz&quot;]')?.click()">
+                  <strong>Practice Quiz</strong>
+                  <span>Test your knowledge</span>
+                </div>
+
+                <div class="quick-link" onclick="document.querySelector('[data-tab=&quot;ask&quot;]')?.click()">
+                  <strong>Ask McAssist</strong>
+                  <span>Instant help & answers</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="side-card">
+              <h3>Featured Learning</h3>
+              <p>Priority areas for today’s shift readiness.</p>
+
+              <div class="featured-strip">
+                <div class="featured-box">
+                  <strong>Food Safety Basics</strong>
+                  <span>Temps, contamination, expiry, cleaning</span>
+                </div>
+
+                <div class="featured-box">
+                  <strong>Drive-Thru Accuracy</strong>
+                  <span>Clear comms, speed, order checking</span>
+                </div>
+
+                <div class="featured-box">
+                  <strong>Customer Experience</strong>
+                  <span>Greeting, pace, service recovery</span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <!-- MAIN GRID -->
-        <section class="training-grid">
-          <!-- LEFT -->
-          <section class="card section-card">
-            <div class="subsection-title">Training tracks</div>
-            <div class="subsection-sub">Choose an area and jump into a module fast.</div>
+        <section class="training-panels">
 
-            <div class="track-grid">
-              <div class="track-card" data-track="kitchen">
-                <div class="track-icon">🍔</div>
-                <div class="track-title">Kitchen</div>
-                <div class="track-sub">Grill, assembly, holding times, product quality.</div>
+          <section class="panel-card">
+            <div class="panel-head">
+              <div>
+                <h3 class="panel-title">Learning Library</h3>
+                <div class="panel-sub">Browse, filter, and open your required modules.</div>
               </div>
-
-              <div class="track-card" data-track="front">
-                <div class="track-icon">🧾</div>
-                <div class="track-title">Front Counter</div>
-                <div class="track-sub">Customer service, order flow, accuracy, speed.</div>
-              </div>
-
-              <div class="track-card" data-track="drive-thru">
-                <div class="track-icon">🚗</div>
-                <div class="track-title">Drive-Thru</div>
-                <div class="track-sub">Headset flow, order confidence, lane timing.</div>
-              </div>
-
-              <div class="track-card" data-track="safety">
-                <div class="track-icon">🧼</div>
-                <div class="track-title">Safety & Cleaning</div>
-                <div class="track-sub">Hygiene, wash cycles, standards, daily checks.</div>
-              </div>
-            </div>
-
-            <div class="module-search-row">
-              <input id="moduleSearch" placeholder="Search modules (grill, food safety, fries, drive-thru)..." />
-              <button id="moduleSearchBtn" class="btn-primary" type="button">Search</button>
               <button id="refreshModulesBtn" class="btn" type="button">Refresh</button>
             </div>
 
-            <div id="filterRow" style="margin-top:10px;"></div>
-            <div id="moduleGrid"></div>
+            <div class="toolbar-row">
+              <input id="moduleSearchMirror" placeholder="Search (grill, food safety, Big Mac UK, drive-thru)..." />
+            </div>
+
+            <div id="filterRow"></div>
+
+            <div id="moduleGrid">
+              <!-- training.js fills modules -->
+            </div>
           </section>
 
-          <!-- RIGHT -->
-          <section class="card section-card stage-card">
+          <section class="panel-card">
             <div class="player-header">
               <div>
                 <div class="player-title" id="playerTitle">Pick a module to start</div>
                 <div class="player-sub" id="playerSubtitle">
-                  Open a module from the left to start learning, complete the checklist,
-                  and test yourself with a quiz.
+                  Open from the library or ask: <strong>“open grill training module”</strong>.
                 </div>
               </div>
 
               <div class="player-pills">
-                <div class="mini-pill">📘 Learning mode</div>
-                <div class="mini-pill">⭐ XP enabled</div>
+                <div class="mini-pill" id="playerMeta">—</div>
+                <div class="mini-pill" id="playerStatus">No module selected</div>
               </div>
             </div>
 
@@ -641,21 +824,12 @@
             </div>
 
             <div id="tabStage">
-              <!-- LESSON -->
               <div class="tabPanel" data-panel="lesson">
-                <div class="lesson-layout">
-                  <div class="lesson-box">
-                    <div class="lesson-box-title">Lesson flow</div>
-                    <ul id="lessonSteps" class="list">
-                      <li><span>Choose a module to load steps.</span><span class="badge-soft">—</span></li>
-                    </ul>
-                  </div>
+                <div class="subsection-title" style="margin-bottom:6px;">Lesson</div>
 
-                  <div class="lesson-box">
-                    <div class="lesson-box-title">Reflection</div>
-                    <textarea id="reflectionInput" placeholder="What will you do better next shift?"></textarea>
-                  </div>
-                </div>
+                <ul id="lessonSteps" class="list">
+                  <li><span>Choose a module to load steps.</span><span class="badge-soft">—</span></li>
+                </ul>
 
                 <div class="two-col">
                   <div class="box-lite">
@@ -683,10 +857,8 @@
                   </div>
 
                   <div class="box-lite">
-                    <strong>Module note</strong>
-                    <div class="subsection-sub" style="margin-bottom:0;">
-                      Complete the lesson, then move to checklist and quiz to lock it in.
-                    </div>
+                    <strong>Reflection</strong>
+                    <textarea id="reflectionInput" placeholder="What will you do better next shift?"></textarea>
                   </div>
                 </div>
 
@@ -696,24 +868,20 @@
                 </div>
               </div>
 
-              <!-- CHECKLIST -->
               <div class="tabPanel" data-panel="checklist" style="display:none;">
                 <div class="subsection-title">Checklist</div>
-                <div class="subsection-sub">Tick off the practical steps to confirm understanding.</div>
                 <div id="checklist" style="display:flex; flex-direction:column; gap:8px;"></div>
               </div>
 
-              <!-- QUIZ -->
               <div class="tabPanel" data-panel="quiz" style="display:none;">
                 <div class="subsection-title">Quiz</div>
-
-                <div class="lesson-box">
+                <div class="card" id="quizArea" style="box-shadow:none; border:1px solid #e5e7eb;">
                   <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:8px;">
                     <div id="quizCounter" class="subsection-sub" style="margin:0;">Quiz</div>
                     <div id="quizScore" class="subsection-sub" style="margin:0;">Score: 0</div>
                   </div>
 
-                  <div id="quizQuestion" style="font-weight:900; font-size:0.98rem;">
+                  <div id="quizQuestion" style="font-weight:800; font-size:0.95rem;">
                     Open a module, then start a quiz.
                   </div>
 
@@ -727,15 +895,12 @@
                 </div>
               </div>
 
-              <!-- ASK -->
               <div class="tabPanel" data-panel="ask" style="display:none;">
                 <div class="subsection-title">McAssist</div>
-                <div class="subsection-sub">Ask training questions in plain English.</div>
-
                 <div id="trainingChat"></div>
 
                 <form id="trainingAiForm" class="chat-row">
-                  <input id="trainingAiInput" placeholder="Ask… or say: open fries module" />
+                  <input id="trainingAiInput" placeholder="Ask… or say: open fry station module" />
                   <button id="trainingAiSend" class="btn-primary" type="submit">Send</button>
                 </form>
 
@@ -758,6 +923,35 @@
         sidebar.classList.toggle("sidebar-open");
       });
     }
+
+    // mirror top portal search to your original module search input
+    const topSearch = document.getElementById("moduleSearch");
+    const mirrorSearch = document.getElementById("moduleSearchMirror");
+    if (topSearch && mirrorSearch) {
+      mirrorSearch.addEventListener("input", () => topSearch.value = mirrorSearch.value);
+      topSearch.addEventListener("input", () => mirrorSearch.value = topSearch.value);
+    }
+
+    // keep hero stats synced visually if training.js updates these ids
+    const headerLevel = document.getElementById("headerLevel");
+    const headerXP = document.getElementById("headerXP");
+    const heroLevelValue = document.getElementById("heroLevelValue");
+    const heroXPValue = document.getElementById("heroXPValue");
+    const playerTitle = document.getElementById("playerTitle");
+    const heroSelectedModule = document.getElementById("heroSelectedModule");
+
+    const syncHeroBits = () => {
+      if (headerLevel && heroLevelValue) heroLevelValue.textContent = headerLevel.textContent;
+      if (headerXP && heroXPValue) heroXPValue.textContent = headerXP.textContent;
+      if (playerTitle && heroSelectedModule) {
+        heroSelectedModule.textContent = playerTitle.textContent === "Pick a module to start" ? "None" : playerTitle.textContent;
+      }
+    };
+
+    new MutationObserver(syncHeroBits).observe(headerLevel, { childList:true, subtree:true, characterData:true });
+    new MutationObserver(syncHeroBits).observe(headerXP, { childList:true, subtree:true, characterData:true });
+    new MutationObserver(syncHeroBits).observe(playerTitle, { childList:true, subtree:true, characterData:true });
+    syncHeroBits();
   </script>
 
   <script type="module" src="training.js"></script>
