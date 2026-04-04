@@ -1,65 +1,29 @@
-// ========================================
-// training.js — McTraining (MATCHES mc-theme.css + your training.html)
-// - Module library + filters + search
-// - Module player tabs + checklist + reflection
-// - Quiz (Start + Next fixed)
-// - Firestore progress + XP/Level
-// - AI chat: open module / quiz / ask via /api/mcassist
-// - Wrapped button wired (top + sidebar)
-// ========================================
-
-import { MODULES } from "./modules-data.js";
-import { auth, db } from "./firebase-init.js";
-import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-  onSnapshot
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-/* =========================
-   DOM — matches your HTML
-========================= */
-
-// sidebar
 const sidebarUserName = document.getElementById("sidebarUserName");
 const sidebarUserRole = document.getElementById("sidebarUserRole");
+const navShiftCreator = document.getElementById("navShiftCreator");
 const logoutBtn = document.getElementById("logoutBtn");
-const sidebar = document.querySelector(".sidebar");
-const sidebarToggle = document.getElementById("sidebarToggle");
 
-// top bar
-const headerLevel = document.getElementById("headerLevel");
-const headerXP = document.getElementById("headerXP");
-const xpProgressFill = document.getElementById("xpProgressFill");
-const quickQuizBtn = document.getElementById("quickQuizBtn");
-
-// Wrapped buttons (NEW in your training.html)
-const wrappedBtnTop = document.getElementById("wrappedBtnTop");      // top button
-const wrappedBtnSide = document.getElementById("wrappedBtnSide");    // sidebar item (li)
-
-// library
 const moduleSearch = document.getElementById("moduleSearch");
 const moduleSearchBtn = document.getElementById("moduleSearchBtn");
-const refreshModulesBtn = document.getElementById("refreshModulesBtn");
-const filterRow = document.getElementById("filterRow");
+const resetSearchBtn = document.getElementById("resetSearchBtn");
 const moduleGrid = document.getElementById("moduleGrid");
+const filterRow = document.getElementById("filterRow");
 
-// player header
+const quickActionRow = document.getElementById("quickActionRow");
+const smartMiniList = document.getElementById("smartMiniList");
+const openRecommendedBtn = document.getElementById("openRecommendedBtn");
+
+const headerLevel = document.getElementById("headerLevel");
+const headerXP = document.getElementById("headerXP");
+const headerCompleted = document.getElementById("headerCompleted");
+
 const playerTitle = document.getElementById("playerTitle");
 const playerSubtitle = document.getElementById("playerSubtitle");
-const playerMeta = document.getElementById("playerMeta");
+const playerDifficulty = document.getElementById("playerDifficulty");
+const playerXP = document.getElementById("playerXP");
 const playerStatus = document.getElementById("playerStatus");
 
-// tabs (HTML uses .tab-btn + data-tab, panels use .tabPanel + data-panel)
-const tabs = Array.from(document.querySelectorAll(".tab-btn"));
-const tabPanels = Array.from(document.querySelectorAll(".tabPanel"));
-const tabStage = document.getElementById("tabStage");
-
-// lesson
+const lessonState = document.getElementById("lessonState");
 const lessonSteps = document.getElementById("lessonSteps");
 const doList = document.getElementById("doList");
 const dontList = document.getElementById("dontList");
@@ -69,10 +33,9 @@ const reflectionInput = document.getElementById("reflectionInput");
 const completeModuleBtn = document.getElementById("completeModuleBtn");
 const resetModuleBtn = document.getElementById("resetModuleBtn");
 
-// checklist
-const checklistEl = document.getElementById("checklist");
+const checklistState = document.getElementById("checklistState");
+const checklist = document.getElementById("checklist");
 
-// quiz
 const quizCounter = document.getElementById("quizCounter");
 const quizScore = document.getElementById("quizScore");
 const quizQuestion = document.getElementById("quizQuestion");
@@ -81,889 +44,757 @@ const quizExplain = document.getElementById("quizExplain");
 const startQuizBtn = document.getElementById("startQuizBtn");
 const nextQuizBtn = document.getElementById("nextQuizBtn");
 
-// chat
 const trainingChat = document.getElementById("trainingChat");
 const trainingAiForm = document.getElementById("trainingAiForm");
 const trainingAiInput = document.getElementById("trainingAiInput");
-const trainingAiSend = document.getElementById("trainingAiSend");
 const trainingQuickChips = document.getElementById("trainingQuickChips");
 
-// toast
-const toastEl = document.getElementById("toast");
+const toast = document.getElementById("toast");
 
-/* =========================
-   STATE
-========================= */
+const STORAGE_KEY = "mc_training_smart_v2";
 
-let sessionUser = null;
-let userDocCache = null;
-let unsubUser = null;
+const sessionUser = loadSessionUser() || {
+  id: "local-user",
+  name: "Crew Member",
+  role: "crew",
+  storeId: "store001"
+};
 
-let selectedModuleId = null;
-let activeFilter = "All";
+const state = {
+  activeFilter: "all",
+  activeModuleId: null,
+  search: "",
+  xp: 0,
+  completed: [],
+  reflections: {},
+  checklistProgress: {},
+  chatSeeded: false,
+  quiz: {
+    index: 0,
+    score: 0,
+    questions: [],
+    selected: null,
+    running: false
+  }
+};
 
-// quiz state
-let activeQuiz = null; // { moduleId, questions:[{q, options, answer, explain}], index, score, locked }
+const modules = [
+  {
+    id: "fry-station",
+    title: "Fry Station Basics",
+    category: "Kitchen",
+    difficulty: "Easy",
+    xp: 40,
+    tags: ["fries", "oil", "holding", "salt"],
+    description: "Run fry station smoothly, safely, and fast during busy periods.",
+    do: ["Check basket flow", "Salt correctly", "Keep holding times in mind"],
+    dont: ["Overfill baskets", "Ignore timer", "Mix fresh with old stock"],
+    steps: [
+      "Check oil and equipment are ready before service starts.",
+      "Load fries in correct portions so baskets cook evenly.",
+      "Drop, lift and season quickly to keep quality high.",
+      "Watch holding times and discard old product properly."
+    ],
+    checklist: [
+      "Checked station is clean and stocked",
+      "Used correct fry portions",
+      "Salted product correctly",
+      "Kept an eye on holding times"
+    ],
+    quiz: [
+      {
+        q: "What should you avoid when loading fry baskets?",
+        options: ["Overfilling", "Using timers", "Seasoning fries", "Checking stock"],
+        answer: 0,
+        explain: "Overfilled baskets cook badly and slow the station down."
+      },
+      {
+        q: "Why are holding times important?",
+        options: ["For uniform only", "To protect quality and food safety", "To save trays", "To count portions"],
+        answer: 1,
+        explain: "Holding times help keep product fresh, safe and up to standard."
+      }
+    ]
+  },
+  {
+    id: "food-safety",
+    title: "Food Safety Essentials",
+    category: "Safety",
+    difficulty: "Easy",
+    xp: 60,
+    tags: ["cleanliness", "safe", "hygiene", "temps"],
+    description: "Core hygiene and safe food handling you need every shift.",
+    do: ["Wash hands often", "Use clean surfaces", "Follow temp rules"],
+    dont: ["Cross contaminate", "Ignore handwashing", "Use dirty cloths"],
+    steps: [
+      "Wash hands at the right times, not just when you remember.",
+      "Keep raw and ready-to-eat product separate.",
+      "Use clean cloths, tools and sanitised surfaces.",
+      "Follow temperature and storage rules exactly."
+    ],
+    checklist: [
+      "Washed hands at key moments",
+      "Kept surfaces clean",
+      "Avoided cross contamination",
+      "Checked food storage properly"
+    ],
+    quiz: [
+      {
+        q: "What is one key food safety habit?",
+        options: ["Rush everything", "Skip handwashing", "Separate products properly", "Leave surfaces dirty"],
+        answer: 2,
+        explain: "Separating products properly helps avoid contamination."
+      }
+    ]
+  },
+  {
+    id: "drive-thru",
+    title: "Drive-Thru Speed & Accuracy",
+    category: "Front",
+    difficulty: "Medium",
+    xp: 75,
+    tags: ["headset", "speed", "accuracy", "service"],
+    description: "Take orders faster while still keeping customer experience strong.",
+    do: ["Repeat key items", "Stay calm", "Confirm changes clearly"],
+    dont: ["Talk over customer", "Rush mistakes", "Forget modifiers"],
+    steps: [
+      "Greet clearly and listen before speaking too much.",
+      "Repeat important items and check modifications.",
+      "Keep tone friendly even when queue is long.",
+      "Pass clean info to the next station to avoid mistakes."
+    ],
+    checklist: [
+      "Used clear greeting",
+      "Repeated key order items",
+      "Confirmed custom requests",
+      "Kept service tone friendly"
+    ],
+    quiz: [
+      {
+        q: "What improves drive-thru accuracy most?",
+        options: ["Guessing the order", "Repeating key items", "Speaking faster only", "Ignoring changes"],
+        answer: 1,
+        explain: "Repeating the important parts cuts mistakes and reassures the customer."
+      }
+    ]
+  },
+  {
+    id: "grill-close",
+    title: "Grill Close Down",
+    category: "Kitchen",
+    difficulty: "Hard",
+    xp: 90,
+    tags: ["closing", "grill", "cleaning", "shutdown"],
+    description: "A cleaner, clearer guide for closing grill safely and properly.",
+    do: ["Follow cool-down steps", "Use correct tools", "Clean in the right order"],
+    dont: ["Rush hot equipment", "Skip detail areas", "Leave dirty surfaces"],
+    steps: [
+      "Reduce production and prepare the station for shutdown.",
+      "Follow safe cool-down steps before touching hot areas.",
+      "Use correct cleaning tools and approved chemicals.",
+      "Finish with a final detail check so morning shift starts clean."
+    ],
+    checklist: [
+      "Prepared station before shutdown",
+      "Waited for safe clean-down timing",
+      "Cleaned key grill surfaces",
+      "Finished final close check"
+    ],
+    quiz: [
+      {
+        q: "What should never happen during grill close?",
+        options: ["Safe timing", "Correct tools", "Rushing hot equipment", "Final checks"],
+        answer: 2,
+        explain: "Rushing hot equipment is unsafe and leads to poor cleaning."
+      }
+    ]
+  },
+  {
+    id: "front-counter",
+    title: "Front Counter Confidence",
+    category: "Front",
+    difficulty: "Easy",
+    xp: 45,
+    tags: ["counter", "service", "till", "guests"],
+    description: "Feel more confident speaking to customers and handling front counter smoothly.",
+    do: ["Smile", "Repeat order", "Ask clear questions"],
+    dont: ["Ignore customer", "Mumble", "Forget extras"],
+    steps: [
+      "Welcome the customer clearly and confidently.",
+      "Listen carefully and repeat order details if needed.",
+      "Offer missing items naturally without sounding robotic.",
+      "Keep till area tidy and ready for the next guest."
+    ],
+    checklist: [
+      "Used clear greeting",
+      "Repeated or confirmed order",
+      "Kept station tidy",
+      "Spoke confidently"
+    ],
+    quiz: [
+      {
+        q: "What helps front counter confidence?",
+        options: ["Looking away", "Clear greeting", "Ignoring extras", "Mumbling"],
+        answer: 1,
+        explain: "A clear greeting sets the tone and makes service smoother."
+      }
+    ]
+  }
+];
 
-/* =========================
-   HELPERS
-========================= */
+const quickActions = [
+  "Show me food safety",
+  "Open fry station",
+  "What should I learn next?",
+  "How do I close grill?",
+  "Give me a quick quiz"
+];
 
-function showToast(msg) {
-  if (!toastEl) return;
-  toastEl.textContent = msg;
-  toastEl.classList.add("show");
-  setTimeout(() => toastEl.classList.remove("show"), 2200);
+const quickAIChips = [
+  "Show me easiest module",
+  "Explain holding times",
+  "Open drive-thru training",
+  "How do I avoid mistakes on front counter?",
+  "Give me a short recap"
+];
+
+init();
+
+function init() {
+  hydrateUserUI();
+  loadState();
+  bindEvents();
+  renderQuickActions();
+  renderQuickAIChips();
+  renderFilters();
+  renderModules();
+  renderSmartPanel();
+  renderHeaderStats();
+  seedAIChat();
 }
-
-function normalize(s) {
-  return String(s || "").toLowerCase().trim();
-}
-
-function escapeHTML(str) {
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function calcLevelFromXP(xp) {
-  xp = Number(xp) || 0;
-  if (xp < 200) return 1;
-  if (xp < 450) return 2;
-  if (xp < 800) return 3;
-  if (xp < 1250) return 4;
-  return 5;
-}
-
-function levelRange(level) {
-  if (level <= 1) return { min: 0, max: 200 };
-  if (level === 2) return { min: 200, max: 450 };
-  if (level === 3) return { min: 450, max: 800 };
-  if (level === 4) return { min: 800, max: 1250 };
-  return { min: 1250, max: 1600 };
-}
-
-function getProgressMap() {
-  const p = userDocCache?.trainingProgress;
-  return (p && typeof p === "object") ? p : {};
-}
-
-function isCompleted(moduleId) {
-  return !!getProgressMap()[moduleId]?.completed;
-}
-
-function getSelectedModule() {
-  return selectedModuleId ? MODULES.find(m => m.id === selectedModuleId) : null;
-}
-
-function findBestModuleByText(text) {
-  const q = normalize(text);
-  if (!q) return null;
-
-  const exact = MODULES.find(m => normalize(m.id) === q);
-  if (exact) return exact;
-
-  const scored = MODULES
-    .map(m => {
-      const hay = `${m.title} ${m.tag} ${(m.keywords || []).join(" ")} ${m.summary || ""}`.toLowerCase();
-      let score = 0;
-      q.split(/\s+/).forEach(w => {
-        if (!w) return;
-        if (hay.includes(w)) score += 2;
-        if (normalize(m.title).includes(w)) score += 3;
-        if (normalize(m.tag).includes(w)) score += 2;
-      });
-      if (normalize(m.title).includes(q)) score += 8;
-      return { m, score };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  if (!scored.length || scored[0].score <= 0) return null;
-  return scored[0].m;
-}
-
-/* =========================
-   FIRESTORE: USER DOC
-========================= */
 
 function loadSessionUser() {
-  try { return JSON.parse(localStorage.getItem("mc_session_user")); }
-  catch { return null; }
+  try {
+    return JSON.parse(localStorage.getItem("mc_session_user"));
+  } catch {
+    return null;
+  }
 }
 
-function saveSessionUser(u) {
-  localStorage.setItem("mc_session_user", JSON.stringify(u));
+function hydrateUserUI() {
+  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name || "User";
+
+  if (sidebarUserRole) {
+    if (sessionUser.role === "crew") sidebarUserRole.textContent = "Crew Member";
+    else if (sessionUser.role === "shiftCreator") sidebarUserRole.textContent = "Shift Creator";
+    else sidebarUserRole.textContent = "Restaurant Manager";
+  }
+
+  if (navShiftCreator) {
+    navShiftCreator.style.display = sessionUser.role === "shiftCreator" ? "" : "none";
+  }
 }
 
-async function ensureUserDoc(firebaseUser) {
-  const userRef = doc(db, "users", firebaseUser.uid);
-  const snap = await getDoc(userRef);
-  if (snap.exists()) return snap.data();
-
-  const cached = loadSessionUser() || {};
-  const payload = {
-    name: cached.name || firebaseUser.displayName || firebaseUser.email || "User",
-    email: String(firebaseUser.email || "").toLowerCase(),
-    role: cached.role || "crew",
-    storeId: cached.storeId || "store001",
-    createdAt: serverTimestamp(),
-    trainingXP: 0,
-    trainingLevel: 1,
-    trainingProgress: {}
-  };
-
-  await setDoc(userRef, payload);
-  return payload;
-}
-
-function stopRealtime() {
-  try { unsubUser?.(); } catch {}
-  unsubUser = null;
-}
-
-function startRealtime(uid) {
-  stopRealtime();
-  unsubUser = onSnapshot(doc(db, "users", uid), (snap) => {
-    if (!snap.exists()) return;
-    userDocCache = snap.data() || {};
-
-    const xp = Number(userDocCache.trainingXP) || 0;
-    const lvl = calcLevelFromXP(xp);
-    const lvlStored = Number(userDocCache.trainingLevel) || lvl;
-
-    if (headerXP) headerXP.textContent = String(xp);
-    if (headerLevel) headerLevel.textContent = String(lvl);
-
-    const range = levelRange(lvl);
-    const pct = range.max > range.min
-      ? Math.max(0, Math.min(1, (xp - range.min) / (range.max - range.min)))
-      : 0;
-
-    if (xpProgressFill) xpProgressFill.style.width = `${Math.round(pct * 100)}%`;
-
-    if (lvlStored !== lvl) {
-      updateDoc(doc(db, "users", uid), { trainingLevel: lvl }).catch(() => {});
+function bindEvents() {
+  moduleSearchBtn?.addEventListener("click", applySearch);
+  resetSearchBtn?.addEventListener("click", resetSearch);
+  moduleSearch?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applySearch();
     }
+  });
 
-    // UI updates (completion changes)
-    renderFilters();
-    renderModuleGrid();
-    refreshPlayer();
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  completeModuleBtn?.addEventListener("click", completeActiveModule);
+  resetModuleBtn?.addEventListener("click", resetActiveModule);
+
+  startQuizBtn?.addEventListener("click", startQuiz);
+  nextQuizBtn?.addEventListener("click", nextQuizQuestion);
+
+  trainingAiForm?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = trainingAiInput.value.trim();
+    if (!text) return;
+    handleAI(text);
+    trainingAiInput.value = "";
+  });
+
+  openRecommendedBtn?.addEventListener("click", () => {
+    const best = getRecommendedModules()[0];
+    if (!best) return;
+    openModule(best.id);
+    showToast(`Opened ${best.title}`);
+  });
+
+  logoutBtn?.addEventListener("click", () => {
+    localStorage.removeItem("mc_session_user");
+    window.location.href = "index.html";
   });
 }
 
-/* =========================
-   RENDER: FILTERS + MODULE GRID (old theme)
-========================= */
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!saved) return;
+    Object.assign(state, saved);
+  } catch {}
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    activeFilter: state.activeFilter,
+    activeModuleId: state.activeModuleId,
+    search: state.search,
+    xp: state.xp,
+    completed: state.completed,
+    reflections: state.reflections,
+    checklistProgress: state.checklistProgress
+  }));
+}
+
+function renderHeaderStats() {
+  if (headerXP) headerXP.textContent = state.xp;
+  if (headerCompleted) headerCompleted.textContent = state.completed.length;
+  if (headerLevel) headerLevel.textContent = Math.max(1, Math.floor(state.xp / 100) + 1);
+}
+
+function renderQuickActions() {
+  quickActionRow.innerHTML = "";
+  quickActions.forEach((text) => {
+    const btn = document.createElement("button");
+    btn.className = "pill-filter";
+    btn.type = "button";
+    btn.textContent = text;
+    btn.onclick = () => runQuickAction(text);
+    quickActionRow.appendChild(btn);
+  });
+}
+
+function renderQuickAIChips() {
+  trainingQuickChips.innerHTML = "";
+  quickAIChips.forEach((text) => {
+    const chip = document.createElement("button");
+    chip.className = "suggestion-chip";
+    chip.type = "button";
+    chip.textContent = text;
+    chip.onclick = () => handleAI(text);
+    trainingQuickChips.appendChild(chip);
+  });
+}
 
 function renderFilters() {
-  if (!filterRow) return;
+  const categories = ["all", ...new Set(modules.map(m => m.category))];
+  filterRow.innerHTML = "";
 
-  const tags = Array.from(new Set(MODULES.map(m => m.tag))).sort();
-  const all = ["All", ...tags];
-
-  filterRow.innerHTML = all.map(t => {
-    const active = t === activeFilter ? "active" : "";
-    return `<button class="pill-filter ${active}" type="button" data-tag="${escapeHTML(t)}">${escapeHTML(t)}</button>`;
-  }).join("");
-
-  if (!filterRow.dataset.bound) {
-    filterRow.addEventListener("click", (e) => {
-      const btn = e.target.closest(".pill-filter");
-      if (!btn) return;
-      activeFilter = btn.dataset.tag || "All";
+  categories.forEach((cat) => {
+    const btn = document.createElement("button");
+    btn.className = `pill-filter ${state.activeFilter === cat ? "active" : ""}`;
+    btn.type = "button";
+    btn.textContent = cat === "all" ? "All" : cat;
+    btn.onclick = () => {
+      state.activeFilter = cat;
       renderFilters();
-      renderModuleGrid();
-    });
-    filterRow.dataset.bound = "1";
-  }
+      renderModules();
+    };
+    filterRow.appendChild(btn);
+  });
 }
 
-function renderModuleGrid() {
-  if (!moduleGrid) return;
+function getFilteredModules() {
+  const search = state.search.trim().toLowerCase();
 
-  const q = normalize(moduleSearch?.value || "");
-  const list = MODULES.filter(m => {
-    if (activeFilter !== "All" && m.tag !== activeFilter) return false;
-    if (!q) return true;
-    const hay = `${m.title} ${m.tag} ${(m.keywords || []).join(" ")} ${m.summary || ""}`.toLowerCase();
-    return hay.includes(q);
+  return modules.filter((m) => {
+    const filterOk = state.activeFilter === "all" || m.category === state.activeFilter;
+    const searchOk =
+      !search ||
+      m.title.toLowerCase().includes(search) ||
+      m.description.toLowerCase().includes(search) ||
+      m.tags.some(tag => tag.toLowerCase().includes(search)) ||
+      m.steps.some(step => step.toLowerCase().includes(search));
+
+    return filterOk && searchOk;
   });
+}
 
-  moduleGrid.innerHTML = list.length ? list.map(m => {
-    const done = isCompleted(m.id);
+function renderModules() {
+  const list = getFilteredModules();
+  moduleGrid.innerHTML = "";
 
-    return `
-      <div class="card" data-id="${escapeHTML(m.id)}" style="padding:12px 13px;">
-        <div class="card-header" style="margin-bottom:8px;">
-          <div>
-            <div style="font-size:0.9rem; font-weight:800;">${escapeHTML(m.title)}</div>
-            <div style="font-size:0.75rem; color:#6b7280; margin-top:3px;">
-              ${escapeHTML(m.tag)} • ${m.xp} XP • ~${m.durationMins || 8} min • L${m.level || 1}
-            </div>
-          </div>
-          <div>
-            ${done ? `<span class="badge-soft-success">Completed</span>` : `<span class="badge-soft">Open</span>`}
-          </div>
-        </div>
-
-        <div style="font-size:0.8rem; color:#374151;">
-          ${escapeHTML(m.summary || "")}
-        </div>
-
-        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
-          <button class="btn-primary openBtn" type="button" data-id="${escapeHTML(m.id)}">Open</button>
-        </div>
+  if (!list.length) {
+    moduleGrid.innerHTML = `
+      <div class="empty-state">
+        No modules matched that search. Try something simpler like <strong>fries</strong>, <strong>safety</strong>, or <strong>drive-thru</strong>.
       </div>
     `;
-  }).join("") : `<div style="font-size:0.82rem; color:#6b7280;">No modules found.</div>`;
-
-  if (!moduleGrid.dataset.bound) {
-    moduleGrid.addEventListener("click", (e) => {
-      const btn = e.target.closest(".openBtn");
-      const card = e.target.closest(".card");
-      const id = btn?.dataset.id || card?.dataset.id;
-      if (!id) return;
-      openModule(id);
-    });
-    moduleGrid.dataset.bound = "1";
-  }
-}
-
-/* =========================
-   PLAYER
-========================= */
-
-function openModule(moduleId) {
-  const m = MODULES.find(x => x.id === moduleId);
-  if (!m) return;
-
-  selectedModuleId = m.id;
-
-  if (playerTitle) playerTitle.textContent = m.title;
-  if (playerSubtitle) playerSubtitle.textContent = m.summary || "Training module";
-  if (playerMeta) playerMeta.textContent = `${m.tag} • ${m.xp} XP • ~${m.durationMins || 8} min • Level ${m.level || 1}`;
-
-  if (lessonSteps) {
-    lessonSteps.innerHTML = (m.steps || []).length
-      ? m.steps.map(s => `<li>${escapeHTML(s)}</li>`).join("")
-      : `<li>No steps added yet.</li>`;
-  }
-
-  const doItems = m.doDont?.do || [];
-  const dontItems = m.doDont?.dont || [];
-  if (doList) doList.innerHTML = doItems.length ? doItems.map(s => `<li>${escapeHTML(s)}</li>`).join("") : `<li>—</li>`;
-  if (dontList) dontList.innerHTML = dontItems.length ? dontItems.map(s => `<li>${escapeHTML(s)}</li>`).join("") : `<li>—</li>`;
-
-  renderChecklist(m);
-  refreshPlayer();
-
-  if (startQuizBtn) startQuizBtn.disabled = false;
-  resetQuizUI();
-
-  if (tabStage) {
-    tabStage.style.animation = "none";
-    void tabStage.offsetHeight;
-    tabStage.style.animation = "";
-  }
-}
-
-function renderChecklist(m) {
-  if (!checklistEl) return;
-  const items = Array.isArray(m.checklist) ? m.checklist : [];
-  checklistEl.innerHTML = items.length
-    ? items.map((t, idx) => `
-        <div class="checkitem" style="
-          display:flex; gap:10px; align-items:flex-start;
-          padding:10px 10px; border-radius:14px;
-          border:1px solid #e5e7eb; background:#ffffff;
-        ">
-          <input type="checkbox" id="ck_${idx}" style="margin-top:3px;" />
-          <span style="font-size:0.88rem; color:#374151; line-height:1.35;">${escapeHTML(t)}</span>
-        </div>
-      `).join("")
-    : `<div style="color:#6b7280; font-size:0.85rem;">No checklist items.</div>`;
-}
-
-function refreshPlayer() {
-  const m = getSelectedModule();
-
-  if (!m) {
-    if (playerStatus) playerStatus.textContent = "No module selected";
-    if (moduleXPInfo) moduleXPInfo.textContent = "—";
-    if (moduleBarFill) moduleBarFill.style.width = "0%";
-    if (completeModuleBtn) completeModuleBtn.disabled = true;
-    if (resetModuleBtn) resetModuleBtn.disabled = true;
-    if (startQuizBtn) startQuizBtn.disabled = true;
     return;
   }
 
-  const done = isCompleted(m.id);
-  if (playerStatus) playerStatus.textContent = done ? "Completed ✅" : "In progress";
-
-  if (moduleXPInfo) moduleXPInfo.textContent = `${m.xp || 0} XP`;
-  if (moduleBarFill) moduleBarFill.style.width = done ? "100%" : "35%";
-
-  if (completeModuleBtn) completeModuleBtn.disabled = done;
-  if (resetModuleBtn) resetModuleBtn.disabled = !done;
-
-  const prog = getProgressMap()[m.id];
-  if (reflectionInput) reflectionInput.value = prog?.reflection || "";
-
-  if (startQuizBtn) startQuizBtn.disabled = !selectedModuleId;
-}
-
-/* =========================
-   TABS
-========================= */
-
-function setActiveTab(name) {
-  tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === name));
-  tabPanels.forEach(p => {
-    const show = p.dataset.panel === name;
-    p.style.display = show ? "" : "none";
-  });
-
-  if (tabStage) {
-    tabStage.style.animation = "none";
-    void tabStage.offsetHeight;
-    tabStage.style.animation = "";
-  }
-}
-
-/* =========================
-   PROGRESS SAVE (complete/reset)
-========================= */
-
-async function markModuleComplete() {
-  if (!sessionUser || !selectedModuleId) return;
-  const m = getSelectedModule();
-  if (!m) return;
-
-  const progress = getProgressMap();
-  if (progress[m.id]?.completed) return;
-
-  const reflection = reflectionInput ? reflectionInput.value.trim() : "";
-  const xpEarn = Number(m.xp) || 0;
-
-  const currentXP = Number(userDocCache?.trainingXP) || 0;
-  const nextXP = currentXP + xpEarn;
-  const nextLevel = calcLevelFromXP(nextXP);
-
-  const patch = {
-    trainingXP: nextXP,
-    trainingLevel: nextLevel,
-    [`trainingProgress.${m.id}`]: {
-      completed: true,
-      completedAt: serverTimestamp(),
-      xpEarned: xpEarn,
-      reflection
-    }
-  };
-
-  try {
-    await updateDoc(doc(db, "users", sessionUser.id), patch);
-    showToast(`+${xpEarn} XP • Module completed ✅`);
-  } catch (e) {
-    console.error("markModuleComplete error:", e);
-    showToast("Could not save progress.");
-  }
-}
-
-async function resetModule() {
-  if (!sessionUser || !selectedModuleId) return;
-  const m = getSelectedModule();
-  if (!m) return;
-
-  const progress = getProgressMap();
-  const existing = progress[m.id];
-  if (!existing?.completed) return;
-
-  const xpEarned = Number(existing.xpEarned) || 0;
-  const currentXP = Number(userDocCache?.trainingXP) || 0;
-  const nextXP = Math.max(0, currentXP - xpEarned);
-  const nextLevel = calcLevelFromXP(nextXP);
-
-  const patch = {
-    trainingXP: nextXP,
-    trainingLevel: nextLevel,
-    [`trainingProgress.${m.id}`]: {
-      completed: false,
-      completedAt: null,
-      xpEarned: 0,
-      reflection: ""
-    }
-  };
-
-  try {
-    await updateDoc(doc(db, "users", sessionUser.id), patch);
-    showToast("Module reset ↩️");
-    resetQuizUI();
-  } catch (e) {
-    console.error("resetModule error:", e);
-    showToast("Could not reset module.");
-  }
-}
-
-/* =========================
-   QUIZ (Start + Next FIXED)
-========================= */
-
-function buildQuizFromModule(m) {
-  const base = Array.isArray(m.quiz) ? m.quiz : [];
-  if (base.length) return [...base].sort(() => Math.random() - 0.5).slice(0, Math.min(6, base.length));
-
-  const items = [...(m.steps || []), ...(m.checklist || [])].filter(Boolean);
-  const pick = items.slice(0, 6);
-  if (!pick.length) return [];
-
-  return pick.slice(0, 4).map((t, idx) => {
-    const correct = t;
-    const wrong1 = items[(idx + 1) % items.length] || "Do nothing";
-    const wrong2 = items[(idx + 2) % items.length] || "Skip checks";
-    const options = [correct, wrong1, wrong2].sort(() => Math.random() - 0.5);
-    return {
-      q: `Which is a correct step for: ${m.title}?`,
-      options,
-      answer: options.indexOf(correct),
-      explain: "This comes from the module’s key steps/checklist."
-    };
+  list.forEach((mod) => {
+    const card = document.createElement("div");
+    card.className = `module-card ${state.activeModuleId === mod.id ? "active" : ""}`;
+    card.innerHTML = `
+      <div class="module-card-title">${mod.title}</div>
+      <div class="module-card-desc">${mod.description}</div>
+      <div class="module-card-tags">
+        <span class="tiny-tag">${mod.category}</span>
+        <span class="tiny-tag">${mod.difficulty}</span>
+        <span class="tiny-tag">${mod.xp} XP</span>
+        ${state.completed.includes(mod.id) ? `<span class="tiny-tag">Done</span>` : ""}
+      </div>
+    `;
+    card.addEventListener("click", () => openModule(mod.id));
+    moduleGrid.appendChild(card);
   });
 }
 
-function resetQuizUI() {
-  activeQuiz = null;
-  if (quizCounter) quizCounter.textContent = "Quiz";
-  if (quizScore) quizScore.textContent = "Score: 0";
-  if (quizQuestion) quizQuestion.textContent = selectedModuleId ? "Press Start quiz to begin." : "Open a module, then start a quiz.";
-  if (quizOptions) quizOptions.innerHTML = "";
-  if (quizExplain) {
-    quizExplain.style.display = "none";
-    quizExplain.textContent = "";
+function getRecommendedModules() {
+  return [...modules]
+    .sort((a, b) => {
+      const aDone = state.completed.includes(a.id) ? 1 : 0;
+      const bDone = state.completed.includes(b.id) ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      return a.xp - b.xp;
+    })
+    .slice(0, 3);
+}
+
+function renderSmartPanel() {
+  const recommended = getRecommendedModules();
+  smartMiniList.innerHTML = "";
+
+  recommended.forEach((mod, index) => {
+    const row = document.createElement("div");
+    row.className = "smart-mini-item";
+    row.innerHTML = `
+      <span><strong>${index + 1}. ${mod.title}</strong><br><small>${mod.category} · ${mod.difficulty}</small></span>
+      <button class="btn" type="button" style="margin-top:0; padding:6px 10px;" data-open="${mod.id}">Open</button>
+    `;
+    row.querySelector("button").onclick = () => openModule(mod.id);
+    smartMiniList.appendChild(row);
+  });
+}
+
+function openModule(moduleId) {
+  state.activeModuleId = moduleId;
+  saveState();
+  renderModules();
+  renderActiveModule();
+  switchTab("lesson");
+}
+
+function renderActiveModule() {
+  const mod = modules.find(m => m.id === state.activeModuleId);
+
+  if (!mod) {
+    playerTitle.textContent = "Pick a module to begin";
+    playerSubtitle.textContent = "Open something from the library or ask McAssist a question like “show me fry station cleaning”.";
+    playerDifficulty.textContent = "Difficulty: —";
+    playerXP.textContent = "XP: —";
+    playerStatus.textContent = "Not started";
+    lessonState.style.display = "";
+    lessonSteps.innerHTML = "";
+    checklist.innerHTML = "";
+    checklistState.style.display = "";
+    startQuizBtn.disabled = true;
+    completeModuleBtn.disabled = true;
+    resetModuleBtn.disabled = true;
+    return;
   }
-  if (nextQuizBtn) {
-    nextQuizBtn.disabled = true;
-    nextQuizBtn.textContent = "Next";
+
+  playerTitle.textContent = mod.title;
+  playerSubtitle.textContent = mod.description;
+  playerDifficulty.textContent = `Difficulty: ${mod.difficulty}`;
+  playerXP.textContent = `XP: ${mod.xp}`;
+  playerStatus.textContent = state.completed.includes(mod.id) ? "Completed" : "In progress";
+
+  lessonState.style.display = "none";
+  lessonSteps.innerHTML = mod.steps.map((step, i) => `
+    <div class="lesson-step">
+      <strong>Step ${i + 1}</strong>
+      <p>${step}</p>
+    </div>
+  `).join("");
+
+  doList.innerHTML = mod.do.map(item => `<li><span>${item}</span><span class="badge-soft-success">Do</span></li>`).join("");
+  dontList.innerHTML = mod.dont.map(item => `<li><span>${item}</span><span class="badge-soft-danger">Avoid</span></li>`).join("");
+
+  moduleXPInfo.textContent = state.completed.includes(mod.id)
+    ? `Completed · earned ${mod.xp} XP`
+    : `Complete this module to earn ${mod.xp} XP`;
+
+  moduleBarFill.style.width = state.completed.includes(mod.id) ? "100%" : "35%";
+  reflectionInput.value = state.reflections[mod.id] || "";
+
+  renderChecklist(mod);
+
+  startQuizBtn.disabled = false;
+  completeModuleBtn.disabled = false;
+  resetModuleBtn.disabled = false;
+}
+
+function renderChecklist(mod) {
+  checklistState.style.display = "none";
+  const saved = state.checklistProgress[mod.id] || [];
+
+  checklist.innerHTML = mod.checklist.map((item, index) => `
+    <label class="check-row">
+      <input type="checkbox" data-check-index="${index}" ${saved.includes(index) ? "checked" : ""} />
+      <span>${item}</span>
+    </label>
+  `).join("");
+
+  checklist.querySelectorAll("input[type='checkbox']").forEach((box) => {
+    box.addEventListener("change", () => {
+      const idx = Number(box.dataset.checkIndex);
+      const arr = new Set(state.checklistProgress[mod.id] || []);
+      if (box.checked) arr.add(idx);
+      else arr.delete(idx);
+      state.checklistProgress[mod.id] = [...arr];
+      saveState();
+    });
+  });
+}
+
+function completeActiveModule() {
+  const mod = modules.find(m => m.id === state.activeModuleId);
+  if (!mod) return;
+
+  if (!state.completed.includes(mod.id)) {
+    state.completed.push(mod.id);
+    state.xp += mod.xp;
   }
-  if (startQuizBtn) startQuizBtn.disabled = !selectedModuleId;
+
+  state.reflections[mod.id] = reflectionInput.value.trim();
+  saveState();
+  renderHeaderStats();
+  renderModules();
+  renderActiveModule();
+  renderSmartPanel();
+  showToast(`${mod.title} completed +${mod.xp} XP`);
+}
+
+function resetActiveModule() {
+  const mod = modules.find(m => m.id === state.activeModuleId);
+  if (!mod) return;
+
+  state.completed = state.completed.filter(id => id !== mod.id);
+  delete state.reflections[mod.id];
+  delete state.checklistProgress[mod.id];
+  saveState();
+  renderHeaderStats();
+  renderModules();
+  renderActiveModule();
+  renderSmartPanel();
+  showToast(`${mod.title} reset`);
+}
+
+function applySearch() {
+  state.search = moduleSearch.value.trim();
+  renderModules();
+}
+
+function resetSearch() {
+  state.search = "";
+  moduleSearch.value = "";
+  state.activeFilter = "all";
+  renderFilters();
+  renderModules();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.tab === tab);
+  });
+
+  document.querySelectorAll(".tabPanel").forEach(panel => {
+    panel.style.display = panel.dataset.panel === tab ? "" : "none";
+  });
 }
 
 function startQuiz() {
-  const m = getSelectedModule();
-  if (!m) return;
+  const mod = modules.find(m => m.id === state.activeModuleId);
+  if (!mod || !mod.quiz?.length) return;
 
-  const questions = buildQuizFromModule(m);
-  if (!questions.length) {
-    showToast("No quiz questions for this module yet.");
-    return;
-  }
+  state.quiz.questions = mod.quiz;
+  state.quiz.index = 0;
+  state.quiz.score = 0;
+  state.quiz.selected = null;
+  state.quiz.running = true;
 
-  activeQuiz = {
-    moduleId: m.id,
-    questions,
-    index: 0,
-    score: 0,
-    locked: false
-  };
-
-  if (quizScore) quizScore.textContent = "Score: 0";
-  if (nextQuizBtn) {
-    nextQuizBtn.disabled = true;
-    nextQuizBtn.textContent = "Next";
-  }
+  quizScore.textContent = "Score: 0";
+  quizExplain.style.display = "none";
+  nextQuizBtn.disabled = true;
   renderQuizQuestion();
-  setActiveTab("quiz");
 }
 
 function renderQuizQuestion() {
-  if (!activeQuiz) return;
+  const q = state.quiz.questions[state.quiz.index];
+  if (!q) return;
 
-  const qObj = activeQuiz.questions[activeQuiz.index];
+  quizCounter.textContent = `Question ${state.quiz.index + 1} of ${state.quiz.questions.length}`;
+  quizQuestion.textContent = q.q;
+  quizOptions.innerHTML = "";
 
-  // finished
-  if (!qObj) {
-    const total = activeQuiz.questions.length;
-    if (quizCounter) quizCounter.textContent = "Complete";
-    if (quizQuestion) quizQuestion.textContent = `Quiz complete ✅ You scored ${activeQuiz.score}/${total}.`;
-
-    if (quizOptions) {
-      quizOptions.innerHTML = `
-        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px;">
-          <button id="retryQuizBtn" class="btn-primary" type="button">Retry</button>
-          <button id="reviewLessonBtn" class="btn" type="button">Back to lesson</button>
-        </div>
-      `;
-      document.getElementById("retryQuizBtn")?.addEventListener("click", startQuiz);
-      document.getElementById("reviewLessonBtn")?.addEventListener("click", () => setActiveTab("lesson"));
-    }
-
-    if (quizExplain) {
-      quizExplain.style.display = "none";
-      quizExplain.textContent = "";
-    }
-    if (nextQuizBtn) {
-      nextQuizBtn.disabled = true;
-      nextQuizBtn.textContent = "Next";
-    }
-    return;
-  }
-
-  activeQuiz.locked = false;
-
-  if (quizCounter) quizCounter.textContent = `Question ${activeQuiz.index + 1}/${activeQuiz.questions.length}`;
-  if (quizQuestion) quizQuestion.textContent = qObj.q;
-
-  if (quizExplain) {
-    quizExplain.style.display = "none";
-    quizExplain.textContent = "";
-  }
-
-  const opts = (qObj.options || []).map((t, idx) => {
-    const letter = String.fromCharCode(65 + idx);
-    return `
-      <button class="btn optBtn" type="button" data-idx="${idx}" style="width:100%; justify-content:flex-start;">
-        ${letter}. ${escapeHTML(t)}
-      </button>
-    `;
-  }).join("");
-
-  if (quizOptions) quizOptions.innerHTML = opts;
-
-  quizOptions?.querySelectorAll(".optBtn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      if (!activeQuiz || activeQuiz.locked) return;
-      activeQuiz.locked = true;
-
-      const chosen = Number(btn.dataset.idx);
-      const correct = Number(qObj.answer);
-
-      quizOptions.querySelectorAll(".optBtn").forEach(b => {
-        const idx = Number(b.dataset.idx);
-        const isCorrect = idx === correct;
-        const isChosen = idx === chosen;
-
-        b.disabled = true;
-
-        if (isCorrect) {
-          b.style.background = "#ecfdf5";
-          b.style.color = "#047857";
-          b.style.border = "1px solid #bbf7d0";
-          b.style.boxShadow = "none";
-        } else if (isChosen) {
-          b.style.background = "#fee2e2";
-          b.style.color = "#b91c1c";
-          b.style.border = "1px solid #fecaca";
-          b.style.boxShadow = "none";
-        } else {
-          b.style.opacity = "0.85";
-        }
-      });
-
-      if (chosen === correct) {
-        activeQuiz.score += 1;
-        showToast("Correct ✅");
-      } else {
-        showToast("Not quite ❌");
-      }
-
-      if (quizScore) quizScore.textContent = `Score: ${activeQuiz.score}`;
-
-      if (quizExplain) {
-        quizExplain.style.display = "block";
-        quizExplain.innerHTML = `<strong>Explanation:</strong> ${escapeHTML(qObj.explain || "Review the module steps.")}`;
-      }
-
-      if (nextQuizBtn) {
-        nextQuizBtn.disabled = false;
-        nextQuizBtn.textContent = (activeQuiz.index + 1 >= activeQuiz.questions.length) ? "Finish" : "Next";
-      }
-    });
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn quiz-option";
+    btn.textContent = opt;
+    btn.onclick = () => selectQuizOption(i);
+    quizOptions.appendChild(btn);
   });
 }
 
-/* =========================
-   AI CHAT (theme bubbles)
-========================= */
+function selectQuizOption(index) {
+  const q = state.quiz.questions[state.quiz.index];
+  if (!q) return;
 
-function addChatMessage(html, from = "bot") {
+  state.quiz.selected = index;
+  const correct = index === q.answer;
+  if (correct) state.quiz.score += 1;
+
+  quizScore.textContent = `Score: ${state.quiz.score}`;
+  quizExplain.style.display = "";
+  quizExplain.textContent = correct ? `Correct. ${q.explain}` : `Not quite. ${q.explain}`;
+  nextQuizBtn.disabled = false;
+
+  [...quizOptions.children].forEach((btn, i) => {
+    btn.disabled = true;
+    if (i === q.answer) btn.classList.add("active");
+  });
+}
+
+function nextQuizQuestion() {
+  state.quiz.index += 1;
+  state.quiz.selected = null;
+  quizExplain.style.display = "none";
+  nextQuizBtn.disabled = true;
+
+  if (state.quiz.index >= state.quiz.questions.length) {
+    quizQuestion.textContent = `Quiz finished. Final score: ${state.quiz.score}/${state.quiz.questions.length}`;
+    quizOptions.innerHTML = "";
+    quizCounter.textContent = "Quiz complete";
+    showToast("Quiz complete");
+    return;
+  }
+
+  renderQuizQuestion();
+}
+
+function seedAIChat() {
+  if (state.chatSeeded) return;
+  addAIMessage(`Hi ${String(sessionUser.name || "crew").split(" ")[0]} 👋 Ask me what to learn, how to do a task, or tell me to open a module for you.`);
+  state.chatSeeded = true;
+}
+
+function handleAI(text) {
+  addUserMessage(text);
+
+  const lower = text.toLowerCase();
+
+  if (lower.includes("open")) {
+    const match = findBestModuleMatch(lower);
+    if (match) {
+      openModule(match.id);
+      addAIMessage(`I opened <strong>${match.title}</strong> for you. It looks like the best match for what you asked.`);
+      return;
+    }
+  }
+
+  if (lower.includes("learn next") || lower.includes("best module") || lower.includes("recommend")) {
+    const rec = getRecommendedModules()[0];
+    if (rec) {
+      addAIMessage(`Best next pick: <strong>${rec.title}</strong> — ${rec.description}`);
+      return;
+    }
+  }
+
+  if (lower.includes("easy")) {
+    const easy = modules.find(m => m.difficulty === "Easy" && !state.completed.includes(m.id));
+    if (easy) {
+      addAIMessage(`Try <strong>${easy.title}</strong>. It’s an easy module and a good quick win.`);
+      return;
+    }
+  }
+
+  const match = findBestModuleMatch(lower);
+  if (match) {
+    addAIMessage(`<strong>${match.title}</strong>: ${match.steps[0]} ${match.steps[1] ? "<br><br>Then: " + match.steps[1] : ""}`);
+    return;
+  }
+
+  if (lower.includes("holding time")) {
+    addAIMessage(`Holding times matter because food quality drops fast after cooking. Watch timers, rotate stock, and discard old product properly.`);
+    return;
+  }
+
+  if (lower.includes("quick quiz")) {
+    const active = state.activeModuleId ? modules.find(m => m.id === state.activeModuleId) : getRecommendedModules()[0];
+    if (active) {
+      openModule(active.id);
+      switchTab("quiz");
+      startQuiz();
+      addAIMessage(`I started a quiz for <strong>${active.title}</strong>.`);
+      return;
+    }
+  }
+
+  addAIMessage(`I can help with modules, steps, cleaning, food safety, and station help. Try asking something like <strong>open fry station</strong> or <strong>how do I close grill?</strong>`);
+}
+
+function findBestModuleMatch(text) {
+  const clean = text.toLowerCase();
+
+  return modules.find((m) =>
+    m.title.toLowerCase().includes(clean) ||
+    clean.includes(m.title.toLowerCase()) ||
+    m.tags.some(tag => clean.includes(tag.toLowerCase())) ||
+    m.category.toLowerCase() === clean
+  ) || modules.find((m) =>
+    m.tags.some(tag => clean.includes(tag.toLowerCase()))
+  ) || null;
+}
+
+function runQuickAction(text) {
+  if (text === "Open fry station") {
+    openModule("fry-station");
+    return;
+  }
+
+  if (text === "Show me food safety") {
+    openModule("food-safety");
+    return;
+  }
+
+  handleAI(text);
+}
+
+function addUserMessage(text) {
   if (!trainingChat) return;
-
   const div = document.createElement("div");
-  // mc-theme has .message + .msg-user/.msg-bot + .bubble styles already
-  div.className = `message ${from === "user" ? "msg-user" : "msg-bot"}`;
-  div.innerHTML = `<div class="bubble">${html}</div>`;
+  div.className = "message msg-user";
+  div.innerHTML = `<div class="bubble">${text}</div><div class="msg-meta">You</div>`;
   trainingChat.appendChild(div);
   trainingChat.scrollTop = trainingChat.scrollHeight;
 }
 
-function renderAIChips() {
-  if (!trainingQuickChips) return;
-  const chips = [
-    "Open grill training module",
-    "Open Big Mac UK build module",
-    "Quiz me on food safety",
-    "Quiz me on fry station",
-    "What are the key steps for drive-thru speed?"
-  ];
-  trainingQuickChips.innerHTML = chips
-    .map(t => `<button class="suggestion-chip" type="button">${escapeHTML(t)}</button>`)
-    .join("");
-
-  trainingQuickChips.querySelectorAll("button").forEach(btn => {
-    btn.addEventListener("click", () => handleTrainingAI(btn.textContent));
-  });
-}
-
-function parseAICommand(text) {
-  const t = normalize(text);
-
-  if (t.startsWith("open ") || t.includes(" open ")) {
-    const cleaned = t
-      .replace("training module", "")
-      .replace("module", "")
-      .replace("open", "")
-      .replace("the", "")
-      .trim();
-    return { type: "open", query: cleaned || t };
-  }
-
-  const isQuiz =
-    t.startsWith("quiz") ||
-    t.includes("quiz me") ||
-    t.includes("start quiz") ||
-    (t.includes("make me") && t.includes("quiz"));
-
-  if (isQuiz) {
-    const cleaned = t
-      .replace("quiz me on", "")
-      .replace("quiz me", "")
-      .replace("start quiz", "")
-      .replace("make me a", "")
-      .replace("question", "")
-      .replace("questions", "")
-      .replace("quiz", "")
-      .trim();
-
-    return { type: "quiz", query: cleaned || t };
-  }
-
-  return { type: "ask", query: text };
-}
-
-async function handleTrainingAI(text) {
-  if (!text || !text.trim()) return;
-  const clean = text.trim();
-
-  setActiveTab("ask");
-  addChatMessage(escapeHTML(clean), "user");
-  if (trainingAiInput) trainingAiInput.value = "";
-
-  const cmd = parseAICommand(clean);
-
-  // OPEN
-  if (cmd.type === "open") {
-    const best = findBestModuleByText(cmd.query);
-    if (!best) {
-      addChatMessage("I couldn’t find that module. Try: grill, fryer, food safety, Big Mac UK, drive-thru.", "bot");
-      return;
-    }
-    addChatMessage(`Opening: <strong>${escapeHTML(best.title)}</strong> ✅`, "bot");
-    openModule(best.id);
-    setActiveTab("lesson");
-    return;
-  }
-
-  // QUIZ
-  if (cmd.type === "quiz") {
-    const best = findBestModuleByText(cmd.query) || getSelectedModule();
-    if (!best) {
-      addChatMessage("Which module do you want a quiz on? Example: “Quiz me on grill station”.", "bot");
-      return;
-    }
-    addChatMessage(`Starting quiz for <strong>${escapeHTML(best.title)}</strong> 🧠`, "bot");
-    openModule(best.id);
-    startQuiz();
-    return;
-  }
-
-  // ASK (backend)
-  const selected = getSelectedModule();
-  const contextData = {
-    page: "training",
-    region: "UK",
-    user: sessionUser,
-    selectedModule: selected ? {
-      id: selected.id,
-      title: selected.title,
-      tag: selected.tag,
-      summary: selected.summary,
-      steps: selected.steps,
-      checklist: selected.checklist,
-      doDont: selected.doDont
-    } : null,
-    allModules: MODULES.map(m => ({
-      id: m.id,
-      title: m.title,
-      tag: m.tag,
-      level: m.level,
-      xp: m.xp,
-      keywords: m.keywords || []
-    }))
-  };
-
-  try {
-    if (trainingAiSend) trainingAiSend.disabled = true;
-
-    const thinkingId = `think_${Date.now()}`;
-    addChatMessage(`<span id="${thinkingId}" style="opacity:.75;">Thinking…</span>`, "bot");
-
-    const res = await fetch("/api/mcassist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: clean, user: sessionUser, contextData })
-    });
-
-    let data = {};
-    try { data = await res.json(); } catch { data = {}; }
-
-    document.getElementById(thinkingId)?.closest(".message")?.remove?.();
-
-    addChatMessage(
-      data.reply ? data.reply : "I’m not sure — try asking about a module or say “open … module”.",
-      "bot"
-    );
-  } catch (e) {
-    console.error("AI error:", e);
-    addChatMessage("Sorry — McAssist had a problem. Try again.", "bot");
-  } finally {
-    if (trainingAiSend) trainingAiSend.disabled = false;
-  }
-}
-
-/* =========================
-   EVENTS
-========================= */
-
-// sidebar toggle
-sidebarToggle?.addEventListener("click", () => sidebar?.classList.toggle("sidebar-open"));
-
-// logout
-logoutBtn?.addEventListener("click", async () => {
-  stopRealtime();
-  await signOut(auth);
-  localStorage.removeItem("mc_session_user");
-  window.location.href = "index.html";
-});
-
-// Wrapped nav
-wrappedBtnTop?.addEventListener("click", () => {
-  window.location.href = "wrapped.html?backTo=training.html";
-});
-// sidebar LI already has onclick in HTML, but this keeps it working even if you remove inline onclick
-wrappedBtnSide?.addEventListener?.("click", () => {
-  window.location.href = "wrapped.html?backTo=training.html";
-});
-
-// search
-moduleSearchBtn?.addEventListener("click", renderModuleGrid);
-moduleSearch?.addEventListener("input", renderModuleGrid);
-
-// refresh
-refreshModulesBtn?.addEventListener("click", () => {
-  if (moduleSearch) moduleSearch.value = "";
-  activeFilter = "All";
-  renderFilters();
-  renderModuleGrid();
-  showToast("Modules refreshed ✅");
-});
-
-// tabs click
-tabs.forEach(t => t.addEventListener("click", () => setActiveTab(t.dataset.tab)));
-
-// complete/reset
-completeModuleBtn?.addEventListener("click", markModuleComplete);
-resetModuleBtn?.addEventListener("click", resetModule);
-
-// quiz buttons
-startQuizBtn?.addEventListener("click", startQuiz);
-nextQuizBtn?.addEventListener("click", () => {
-  if (!activeQuiz) return;
-  activeQuiz.index += 1;
-  if (nextQuizBtn) nextQuizBtn.disabled = true;
-  renderQuizQuestion();
-});
-
-// topbar quick quiz
-quickQuizBtn?.addEventListener("click", () => {
-  if (!selectedModuleId && MODULES.length) openModule(MODULES[0].id);
-  startQuiz();
-});
-
-// AI form
-trainingAiForm?.addEventListener("submit", (e) => {
-  e.preventDefault();
-  handleTrainingAI(trainingAiInput?.value || "");
-});
-
-/* =========================
-   INIT
-========================= */
-
-function seedChat() {
+function addAIMessage(text) {
   if (!trainingChat) return;
-  trainingChat.innerHTML = "";
-  addChatMessage(
-    `Hi 👋 I’m McAssist. Try: <strong>open grill training module</strong> or <strong>quiz me on food safety</strong>.`,
-    "bot"
-  );
+  const div = document.createElement("div");
+  div.className = "message msg-bot";
+  div.innerHTML = `<div class="bubble">${text}</div><div class="msg-meta">McAssist</div>`;
+  trainingChat.appendChild(div);
+  trainingChat.scrollTop = trainingChat.scrollHeight;
 }
 
-function resetQuizUIIfNeeded() {
-  // keep it safe if DOM isn’t fully present yet
-  if (!quizQuestion || !quizOptions) return;
-  resetQuizUI();
+function showToast(text) {
+  if (!toast) return;
+  toast.textContent = text;
+  toast.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove("show"), 1800);
 }
-
-function initialRender() {
-  renderFilters();
-  renderModuleGrid();
-  renderAIChips();
-  resetQuizUIIfNeeded();
-  setActiveTab("lesson");
-
-  if (!selectedModuleId && MODULES.length) openModule(MODULES[0].id);
-}
-
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    stopRealtime();
-    localStorage.removeItem("mc_session_user");
-    window.location.href = "index.html";
-    return;
-  }
-
-  sessionUser = loadSessionUser() || {
-    id: user.uid,
-    role: "crew",
-    name: user.displayName || user.email || "User",
-    storeId: "store001"
-  };
-
-  const d = await ensureUserDoc(user);
-
-  sessionUser.id = user.uid;
-  sessionUser.name = d.name || sessionUser.name;
-  sessionUser.role = d.role || sessionUser.role;
-  sessionUser.storeId = d.storeId || sessionUser.storeId;
-  saveSessionUser(sessionUser);
-
-  if (sidebarUserName) sidebarUserName.textContent = sessionUser.name || "User Name";
-  if (sidebarUserRole) sidebarUserRole.textContent = sessionUser.role === "crew" ? "Crew Member" : "Staff";
-
-  seedChat();
-  initialRender();
-  startRealtime(sessionUser.id);
-});
