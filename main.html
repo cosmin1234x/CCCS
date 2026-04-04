@@ -8,22 +8,20 @@
 
   <style>
     .nav-item { padding: 0; }
-
-    .nav-link {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      padding: 12px 14px;
-      text-decoration: none;
-      color: inherit;
+    .nav-link{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      width:100%;
+      padding:12px 14px;
+      text-decoration:none;
+      color:inherit;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
-
-    .dashboard-hero {
-      overflow: hidden;
-      isolation: isolate;
+    .dashboard-hero{
+      overflow:hidden;
+      isolation:isolate;
     }
   </style>
 </head>
@@ -99,10 +97,7 @@
   <!-- ========= MAIN LAYOUT ========= -->
   <div class="main-layout">
 
-    <!-- ====== CONTENT AREA ====== -->
     <div class="content-area">
-
-      <!-- HERO -->
       <section class="card section-card dashboard-hero">
         <div class="top-bar">
           <div class="top-bar-left">
@@ -112,7 +107,6 @@
 
           <div class="top-bar-right">
             <span id="roleBadge" class="badge-role">CREW</span>
-
             <button
               id="myProfileBtn"
               class="crew-profile-top-btn"
@@ -121,32 +115,20 @@
             >
               My profile
             </button>
-
             <div id="avatarCircle" class="avatar">U</div>
           </div>
         </div>
       </section>
 
-      <!-- TOP CARDS -->
       <section id="topCards" class="cards-grid">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Loading</div>
-            <div class="card-icon">⏳</div>
-          </div>
-          <div class="card-main-value">Please wait</div>
-          <div class="card-subtext">Dashboard is starting…</div>
-        </div>
+        <!-- Injected by main.js -->
       </section>
 
-      <!-- BOTTOM SECTION -->
       <section id="bottomSection" class="card section-card">
-        <div class="subsection-title">Overview</div>
-        <div class="subsection-sub">Dashboard content will appear here.</div>
+        <!-- Injected by main.js -->
       </section>
     </div>
 
-    <!-- ===== AI PANEL ===== -->
     <aside class="ai-panel">
       <div class="ai-header">
         <div class="ai-header-left">
@@ -156,7 +138,6 @@
             <p id="aiSubtitle">Ask about shifts, training or rewards</p>
           </div>
         </div>
-
         <div class="ai-status">
           <span class="ai-status-dot"></span>
           <span>Online</span>
@@ -167,14 +148,8 @@
       <div id="aiChat" class="ai-chat"></div>
 
       <form id="aiForm" class="ai-input-row">
-        <input
-          id="aiInput"
-          type="text"
-          placeholder="Ask McAssist something…"
-        />
-        <button id="aiSendBtn" type="submit" class="ai-send-btn">
-          Send ➤
-        </button>
+        <input id="aiInput" type="text" placeholder="Ask McAssist something…" />
+        <button id="aiSendBtn" type="submit" class="ai-send-btn">Send ➤</button>
         <button type="button" id="aiMicBtn" class="voice-btn">🎤</button>
       </form>
 
@@ -194,7 +169,6 @@
   <!-- ===== CREW PROFILE OVERLAY ===== -->
   <div id="crewProfileOverlay" class="crew-profile-overlay">
     <div class="crew-profile-card">
-
       <div class="crew-profile-header">
         <div class="crew-profile-main">
           <div id="crewProfileAvatar" class="crew-profile-avatar">C</div>
@@ -238,23 +212,20 @@
           <p id="crewProfileNotes"></p>
         </div>
       </div>
-
     </div>
   </div>
 
-  <!-- ========= LOCAL PAGE SCRIPT ========= -->
   <script>
     const sidebar = document.getElementById("sidebar");
-    const sidebarToggle = document.getElementById("sidebarToggle");
+    const toggleBtn = document.getElementById("sidebarToggle");
 
-    if (sidebar && sidebarToggle) {
-      sidebarToggle.addEventListener("click", () => {
+    if (toggleBtn && sidebar) {
+      toggleBtn.addEventListener("click", () => {
         sidebar.classList.toggle("sidebar-open");
       });
     }
   </script>
 
-  <!-- ========= MAIN DASHBOARD JS ========= -->
   <script type="module" src="./main.js"></script>
 </body>
 </html>
