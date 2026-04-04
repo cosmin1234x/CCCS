@@ -2033,3 +2033,37 @@ select:focus {
     overflow-x: hidden; /* never allow sideways bleed */
   }
 }
+.nav-list{
+  list-style:none;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.nav-item{
+  width:100%;
+  padding:0;
+}
+
+.nav-link{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  min-height:54px;
+  padding:0 18px;
+  border-radius:999px;
+  text-decoration:none;
+  color:inherit;
+  box-sizing:border-box;
+}
+
+.nav-label{
+  flex:1;
+  white-space:nowrap;
+}
+
+.nav-item.active .nav-link{
+  background:#fef9c3;
+  color:var(--mc-red-dark);
+}
