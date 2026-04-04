@@ -1,17 +1,15 @@
 // ================================
-// main.js – FULL VERSION (Vercel) — OPTION A (crew list from /users)
-// Uses Firestore paths:
-//   users/{uid}
-//   stores/{storeId}
-//   stores/{storeId}/Shifts   (capital S)
-// ✅ crew list comes from /users (auto-sync)
-// ✅ realtime syncing (onSnapshot) for store, shifts, crew users, and my user doc
-// ✅ crew McStars now comes from users/{uid}.stars (not achievements.length)
-// ✅ FIX: Crew profile (manager view) shows real next shift + station from shift + stations list
-// ✅ FIX: Detect "On shift now"
-// ✅ FIX: Fallback match by name if old shifts saved with wrong userId
-// ✅ FIX: Chat does NOT reset on every realtime update
-// ✅ NEW: Break Rewards card (crew) + AI suggestion + click to break-rewards.html
+// main.js – FULL VERSION
+// ✅ Firebase live mode
+// ✅ Local dev fallback mode if no Firebase user
+// ✅ crew list comes from /users
+// ✅ realtime syncing for store, shifts, crew users, and my user doc
+// ✅ crew McStars from users/{uid}.stars
+// ✅ Crew profile shows real next shift + station from shift + stations list
+// ✅ Detect "On shift now"
+// ✅ Fallback match by name if old shifts saved with wrong userId
+// ✅ Chat does NOT reset on every realtime update
+// ✅ Break Rewards card for crew
 // ================================
 
 import { auth, db } from "./firebase-init.js";
@@ -30,11 +28,23 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 /* ============================================================
+   DEV MODE
+============================================================ */
+
+const DEV_MODE_WHEN_NO_AUTH = true;
+const DEV_USER = {
+  id: "dev-user-001",
+  role: "manager", // change to "crew" if you want to test crew dashboard
+  name: "Dev Manager",
+  storeId: "store001"
+};
+
+/* ============================================================
    SESSION HANDLING
 ============================================================ */
 
 let sessionUser = null;
-let allShifts = []; // all shifts in this store
+let allShifts = [];
 
 function loadSessionUser() {
   try {
@@ -49,7 +59,7 @@ function saveSessionUser(u) {
 }
 
 /* ============================================================
-   DEFAULT DATA MODELS (overwritten by Firestore)
+   DEFAULT DATA MODELS
 ============================================================ */
 
 const crewDataDefault = {
@@ -62,8 +72,6 @@ const crewDataDefault = {
   trainingTodo: [],
   achievements: [],
   schedule: [],
-
-  // ✅ comes from users/{uid}
   trainingStatus: "—",
   badge: "—",
   stars: 0
@@ -82,7 +90,7 @@ const managerDataDefault = {
   trainingGaps: 0,
   potentialOvertime: 0,
   foodWasteByDay: [],
-  crewTrainingSummary: [] // ✅ now comes from users
+  crewTrainingSummary: []
 };
 
 let managerData = JSON.parse(JSON.stringify(managerDataDefault));
@@ -150,7 +158,7 @@ function toISODateString(d) {
 
 function getMonday(date) {
   const d = new Date(date);
-  const day = d.getDay(); // 0–6
+  const day = d.getDay();
   const diff = (day === 0 ? -6 : 1) - day;
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
@@ -173,7 +181,7 @@ function parseShiftHours(startHHMM, endHHMM) {
 
   let start = sh + sm / 60;
   let end = eh + em / 60;
-  if (end < start) end += 24; // crossing midnight
+  if (end < start) end += 24;
   return Math.max(0, end - start);
 }
 
@@ -189,13 +197,13 @@ function calculateBreakMinutes(hours) {
 }
 
 /* ============================================================
-   SHIFT HELPERS (FIXED: current shift + next shift + fallback)
+   SHIFT HELPERS
 ============================================================ */
 
 function shiftWindow(shift) {
   const start = new Date(`${shift.date}T${shift.start}:00`);
   let end = new Date(`${shift.date}T${shift.end}:00`);
-  if (end < start) end.setDate(end.getDate() + 1); // crosses midnight
+  if (end < start) end.setDate(end.getDate() + 1);
   return { start, end };
 }
 
@@ -203,15 +211,12 @@ function dayShort(d) {
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
 }
 
-// ✅ Returns { kind: "current"|"next", shift } OR null
 function getCurrentOrNextShiftForUser(userId, userName, sourceShifts) {
   const now = new Date();
   const shifts = Array.isArray(sourceShifts) ? sourceShifts : [];
 
-  // 1) Strict userId match
   let matches = shifts.filter((s) => s.userId === userId);
 
-  // 2) Fallback name match (for old shifts saved with wrong userId)
   if (!matches.length && userName) {
     const target = String(userName).toLowerCase().trim();
     matches = shifts.filter((s) => String(s.userName || "").toLowerCase().trim() === target);
@@ -219,14 +224,12 @@ function getCurrentOrNextShiftForUser(userId, userName, sourceShifts) {
 
   if (!matches.length) return null;
 
-  // Check current shift first
   for (const s of matches) {
     if (!s.date || !s.start || !s.end) continue;
     const { start, end } = shiftWindow(s);
     if (now >= start && now <= end) return { kind: "current", shift: s };
   }
 
-  // Find next upcoming
   const upcoming = matches
     .filter((s) => s.date && s.start)
     .map((s) => ({ s, dt: new Date(`${s.date}T${s.start}:00`) }))
@@ -247,7 +250,7 @@ function formatShiftLine(kind, shift) {
 }
 
 /* ============================================================
-   STATIONS (certifications + skills)
+   STATIONS
 ============================================================ */
 
 async function loadStationsForUser(uid) {
@@ -260,11 +263,9 @@ async function loadStationsForUser(uid) {
     const skillsObj = d.skills && typeof d.skills === "object" ? d.skills : {};
     const skills = Object.keys(skillsObj).filter((k) => !!skillsObj[k]);
 
-    const stations = [...new Set([...certs, ...skills])]
+    return [...new Set([...certs, ...skills])]
       .map((x) => String(x).trim())
       .filter(Boolean);
-
-    return stations;
   } catch (e) {
     console.error("loadStationsForUser error:", e);
     return [];
@@ -272,7 +273,7 @@ async function loadStationsForUser(uid) {
 }
 
 /* ============================================================
-   IMPORTANT FIX: Ensure /users/{uid} exists
+   ENSURE USER DOC
 ============================================================ */
 
 async function ensureUserDoc(firebaseUser) {
@@ -287,7 +288,6 @@ async function ensureUserDoc(firebaseUser) {
     role: cached.role || "crew",
     storeId: cached.storeId || "store001",
     createdAt: serverTimestamp(),
-
     trainingStatus: "—",
     badge: "—",
     stars: 0,
@@ -317,12 +317,10 @@ function stopRealtime() {
 
 function startRealtime() {
   if (!sessionUser) return;
-
   stopRealtime();
 
   const storeId = sessionUser.storeId || "store001";
 
-  // 1) My user doc realtime
   unsubMyUser = onSnapshot(doc(db, "users", sessionUser.id), (snap) => {
     if (!snap.exists()) return;
     const d = snap.data() || {};
@@ -345,7 +343,6 @@ function startRealtime() {
     refreshDashboardUIOnly();
   });
 
-  // 2) Store doc realtime
   unsubStore = onSnapshot(doc(db, "stores", storeId), (snap) => {
     if (snap.exists()) {
       Object.assign(managerData, managerDataDefault, snap.data());
@@ -356,7 +353,6 @@ function startRealtime() {
     refreshDashboardUIOnly();
   });
 
-  // 3) Shifts realtime (capital "Shifts")
   unsubShifts = onSnapshot(collection(db, "stores", storeId, "Shifts"), (qs) => {
     const list = [];
     qs.forEach((docSnap) => {
@@ -387,7 +383,6 @@ function startRealtime() {
     refreshDashboardUIOnly();
   });
 
-  // 4) Crew list realtime (/users)
   const crewUsersQuery = query(
     collection(db, "users"),
     where("storeId", "==", storeId),
@@ -492,11 +487,97 @@ function computeCrewMetrics(myShifts) {
 }
 
 /* ============================================================
+   DEV MODE BOOTSTRAP
+============================================================ */
+
+function bootDevMode() {
+  console.warn("No Firebase user found. Running dashboard in DEV MODE.");
+
+  sessionUser = {
+    ...DEV_USER
+  };
+  saveSessionUser(sessionUser);
+
+  if (sessionUser.role === "crew") {
+    crewData.position = "Crew Member";
+    crewData.hourlyRate = 12.22;
+    crewData.hoursThisWeek = 27.5;
+    crewData.estimatedPayThisWeek = Number((27.5 * crewData.hourlyRate).toFixed(2));
+    crewData.nextShift = {
+      day: "Fri",
+      date: "2026-04-04",
+      start: "14:00",
+      end: "22:00",
+      station: "Front Counter"
+    };
+    crewData.certifications = ["Fries", "Front Counter", "Drive-Thru"];
+    crewData.trainingTodo = ["Finish Food Safety recap", "Drive-Thru headset confidence"];
+    crewData.trainingStatus = "Training in progress";
+    crewData.badge = "Crew Star";
+    crewData.stars = 2;
+    crewData.schedule = [
+      { day: "Mon", time: "09:00–17:00 (Break 30m)" },
+      { day: "Wed", time: "12:00–20:00 (Break 30m)" },
+      { day: "Fri", time: "14:00–22:00 (Break 45m)" }
+    ];
+  } else {
+    managerData.storeName = "Hayle McDonald’s";
+    managerData.todaySales = 4280;
+    managerData.weekSales = 27140;
+    managerData.todayWasteValue = 118;
+    managerData.todayWastePct = 2.4;
+    managerData.staffOnShift = 9;
+    managerData.staffNeeded = 10;
+    managerData.trainingGaps = 3;
+    managerData.potentialOvertime = 1;
+    managerData.crewTrainingSummary = [
+      { id: "c1", name: "Aaron", status: "Complete", badge: "Drive-Thru", stars: 3 },
+      { id: "c2", name: "Mia", status: "Recert due", badge: "Kitchen", stars: 2 },
+      { id: "c3", name: "Luca", status: "In progress", badge: "Front Counter", stars: 1 }
+    ];
+
+    allShifts = [
+      {
+        id: "s1",
+        date: toISODateString(new Date()),
+        start: "08:00",
+        end: "16:00",
+        userId: "c1",
+        userName: "Aaron",
+        station: "Drive-Thru",
+        role: "crew",
+        isShiftManager: false,
+        generatedByAI: false
+      },
+      {
+        id: "s2",
+        date: toISODateString(new Date()),
+        start: "10:00",
+        end: "18:00",
+        userId: "c2",
+        userName: "Mia",
+        station: "Kitchen",
+        role: "crew",
+        isShiftManager: false,
+        generatedByAI: false
+      }
+    ];
+  }
+
+  initialiseDashboard(true);
+}
+
+/* ============================================================
    AUTH INIT
 ============================================================ */
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    if (DEV_MODE_WHEN_NO_AUTH) {
+      bootDevMode();
+      return;
+    }
+
     localStorage.removeItem("mc_session_user");
     stopRealtime();
     window.location.href = "index.html";
@@ -528,10 +609,13 @@ onAuthStateChanged(auth, async (user) => {
   initialiseDashboard(true);
 });
 
-/* Logout */
+/* ============================================================
+   LOGOUT
+============================================================ */
+
 if (logoutBtn) {
   logoutBtn.addEventListener("click", async () => {
-    await signOut(auth);
+    try { await signOut(auth); } catch {}
     localStorage.removeItem("mc_session_user");
     stopRealtime();
     window.location.href = "index.html";
@@ -542,7 +626,6 @@ if (logoutBtn) {
    DASHBOARD INITIALISATION
 ============================================================ */
 
-// ✅ prevents chat reset spam
 let introSeeded = false;
 
 function refreshDashboardUIOnly() {
@@ -588,7 +671,9 @@ function initialiseDashboard(seedChat) {
       : "Ask about waste, sales, staffing and crew info.";
   }
 
-  if (navShiftCreator) navShiftCreator.style.display = sessionUser.role === "shiftCreator" ? "" : "none";
+  if (navShiftCreator) {
+    navShiftCreator.style.display = sessionUser.role === "shiftCreator" ? "" : "none";
+  }
 
   if (myProfileBtn) {
     myProfileBtn.style.display = isCrew ? "" : "none";
@@ -620,8 +705,18 @@ function renderTopCards(isCrew, profile) {
         : "No shifts";
 
     const cards = [
-      { title: "This Week’s Hours", icon: "⏱️", main: `${profile.hoursThisWeek.toFixed(2)} hrs`, sub: `Next shift: ${nextLabel}` },
-      { title: "Estimated Pay", icon: "💷", main: `£${profile.estimatedPayThisWeek.toFixed(2)}`, sub: `£${profile.hourlyRate.toFixed(2)}/hr` },
+      {
+        title: "This Week’s Hours",
+        icon: "⏱️",
+        main: `${profile.hoursThisWeek.toFixed(2)} hrs`,
+        sub: `Next shift: ${nextLabel}`
+      },
+      {
+        title: "Estimated Pay",
+        icon: "💷",
+        main: `£${profile.estimatedPayThisWeek.toFixed(2)}`,
+        sub: `£${profile.hourlyRate.toFixed(2)}/hr`
+      },
       {
         title: "Stations",
         icon: "🍔",
@@ -634,8 +729,6 @@ function renderTopCards(isCrew, profile) {
         main: describeStars(profile.stars),
         sub: profile.badge && profile.badge !== "—" ? `Badge: ${profile.badge}` : "No badge assigned yet"
       },
-
-      // ✅ NEW: Break Rewards card
       {
         title: "Break Rewards",
         icon: "🍟",
@@ -703,23 +796,19 @@ function renderBottomSection(isCrew, profile) {
 
   if (isCrew) {
     const scheduleHTML = profile.schedule.length
-      ? profile.schedule
-          .map((s) => `
+      ? profile.schedule.map((s) => `
         <li>
           <span>${s.day}</span>
           <span class="badge-soft">${s.time}</span>
-        </li>`)
-          .join("")
+        </li>`).join("")
       : `<li><span>No shifts scheduled this week.</span></li>`;
 
     const trainingHTML = profile.trainingTodo.length
-      ? profile.trainingTodo
-          .map((t) => `
+      ? profile.trainingTodo.map((t) => `
         <li>
           <span>${t}</span>
           <span class="badge-soft-warn">To do</span>
-        </li>`)
-          .join("")
+        </li>`).join("")
       : `<li><span>${crewData.trainingStatus && crewData.trainingStatus !== "—" ? crewData.trainingStatus : "No training tasks right now."}</span></li>`;
 
     bottomSection.innerHTML = `
@@ -735,8 +824,7 @@ function renderBottomSection(isCrew, profile) {
       <ul class="list">
         ${
           managerData.crewTrainingSummary.length
-            ? managerData.crewTrainingSummary
-                .map((c) => `
+            ? managerData.crewTrainingSummary.map((c) => `
           <li data-id="${c.id}">
             <span>
               <strong>${c.name}</strong><br>
@@ -748,8 +836,7 @@ function renderBottomSection(isCrew, profile) {
               <button class="crew-profile-btn" data-id="${c.id}">Profile</button>
               <button class="crew-edit-btn" data-id="${c.id}">Edit</button>
             </span>
-          </li>`)
-                .join("")
+          </li>`).join("")
             : `<li><span>No crew data available.</span></li>`
         }
       </ul>
@@ -805,7 +892,6 @@ function attachCrewListHandlers() {
   });
 }
 
-// ✅ FIXED: manager view profile now shows station from shift + "On shift now"
 async function openCrewProfile(id) {
   const crew = managerData.crewTrainingSummary.find((x) => x.id === id);
   if (!crew || !crewProfileOverlay) return;
@@ -979,7 +1065,7 @@ function seedIntroMessages(isCrew) {
 }
 
 /* ============================================================
-   SEND MESSAGE TO BACKEND (McAssist on VERCEL)
+   SEND MESSAGE TO BACKEND
 ============================================================ */
 
 async function sendUserMessage(text) {
@@ -1049,9 +1135,18 @@ if (aiForm) {
   });
 }
 
+/* ============================================================
+   SIDEBAR MOBILE TOGGLE
+============================================================ */
+
+if (sidebar && sidebarToggle) {
+  sidebarToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("sidebar-open");
+  });
+}
 
 /* ============================================================
-   VOICE MODE + WAKE WORD ("HEY AMY")
+   VOICE MODE + WAKE WORD
 ============================================================ */
 
 let recognition = null;
@@ -1146,7 +1241,6 @@ if (micBtn && overlay && hasSpeechSupport()) {
     }
   };
 
-  // Wake word
   let wakeRecognition = null;
   let wakeEnabled = false;
   let wakeRunning = false;
