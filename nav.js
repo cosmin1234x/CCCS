@@ -1,5 +1,5 @@
 // Shared McTraining navbar helper
-// Loads the clean navbar CSS on pages that use nav.js.
+// Loads clean navbar CSS and makes the mobile menu button work on all pages.
 
 function loadCleanNavbarCss() {
   const href = "nav-clean.css";
@@ -14,14 +14,80 @@ function loadCleanNavbarCss() {
   document.head.appendChild(link);
 }
 
-function setupSidebarToggle() {
-  const sidebar = document.getElementById("sidebar") || document.querySelector(".sidebar");
-  const toggleBtn = document.getElementById("sidebarToggle");
+function getSidebarParts() {
+  return {
+    sidebar: document.getElementById("sidebar") || document.querySelector(".sidebar"),
+    toggleBtn: document.getElementById("sidebarToggle"),
+    nav: document.querySelector(".sidebar-nav")
+  };
+}
 
+function setSidebarOpen(forceOpen) {
+  const { sidebar, toggleBtn, nav } = getSidebarParts();
   if (!sidebar || !toggleBtn) return;
 
-  toggleBtn.addEventListener("click", () => {
-    sidebar.classList.toggle("sidebar-open");
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !sidebar.classList.contains("sidebar-open");
+
+  sidebar.classList.toggle("sidebar-open", shouldOpen);
+  document.body.classList.toggle("sidebar-open", shouldOpen);
+  toggleBtn.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  toggleBtn.textContent = shouldOpen ? "✕" : "☰";
+
+  // Extra inline fallback for mobile browsers if CSS max-height does not update fast enough.
+  if (nav) {
+    if (shouldOpen) {
+      nav.style.maxHeight = `${nav.scrollHeight + 48}px`;
+      nav.style.opacity = "1";
+    } else {
+      nav.style.maxHeight = "0px";
+      nav.style.opacity = "0";
+    }
+  }
+}
+
+function setupSidebarToggle() {
+  const { sidebar, toggleBtn, nav } = getSidebarParts();
+  if (!sidebar || !toggleBtn) return;
+
+  toggleBtn.type = "button";
+  toggleBtn.setAttribute("aria-label", "Open menu");
+  toggleBtn.setAttribute("aria-expanded", sidebar.classList.contains("sidebar-open") ? "true" : "false");
+
+  if (nav && !sidebar.classList.contains("sidebar-open")) {
+    nav.style.maxHeight = "0px";
+    nav.style.opacity = "0";
+  }
+
+  const handleToggle = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSidebarOpen();
+  };
+
+  toggleBtn.addEventListener("click", handleToggle);
+  toggleBtn.addEventListener("touchend", handleToggle, { passive: false });
+
+  document.addEventListener("click", (event) => {
+    const clickedLink = event.target.closest(".sidebar .nav-link");
+    if (clickedLink && window.matchMedia("(max-width: 900px)").matches) {
+      setSidebarOpen(false);
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    const parts = getSidebarParts();
+    if (!parts.sidebar || !parts.nav) return;
+
+    if (window.matchMedia("(min-width: 901px)").matches) {
+      parts.nav.style.maxHeight = "";
+      parts.nav.style.opacity = "";
+      parts.sidebar.classList.remove("sidebar-open");
+      document.body.classList.remove("sidebar-open");
+      if (parts.toggleBtn) {
+        parts.toggleBtn.textContent = "☰";
+        parts.toggleBtn.setAttribute("aria-expanded", "false");
+      }
+    }
   });
 }
 
@@ -66,7 +132,9 @@ function setupUserUi() {
 
 function setupLogout() {
   const logoutBtn = document.getElementById("logoutBtn");
-  if (!logoutBtn) return;
+  if (!logoutBtn || logoutBtn.dataset.navLogoutAttached === "1") return;
+
+  logoutBtn.dataset.navLogoutAttached = "1";
 
   logoutBtn.addEventListener("click", () => {
     try {
@@ -81,16 +149,15 @@ function setupLogout() {
   });
 }
 
-loadCleanNavbarCss();
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    setupSidebarToggle();
-    setupUserUi();
-    setupLogout();
-  });
-} else {
+function initNav() {
+  loadCleanNavbarCss();
   setupSidebarToggle();
   setupUserUi();
   setupLogout();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initNav);
+} else {
+  initNav();
 }
