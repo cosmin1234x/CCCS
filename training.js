@@ -1,6 +1,7 @@
-// ===============================
-// TRAINING.JS (CLEAN WORKING)
-// ===============================
+const cleanNavCss = document.createElement("link");
+cleanNavCss.rel = "stylesheet";
+cleanNavCss.href = "nav-clean.css";
+document.head.appendChild(cleanNavCss);
 
 const moduleGrid = document.getElementById("moduleGrid");
 const lessonSteps = document.getElementById("lessonSteps");
@@ -9,9 +10,6 @@ const dontList = document.getElementById("dontList");
 const playerTitle = document.getElementById("playerTitle");
 const playerStatus = document.getElementById("playerStatus");
 
-// ===============================
-// DEMO MODULES
-// ===============================
 const modules = [
   {
     title: "Grill Station",
@@ -27,9 +25,6 @@ const modules = [
   }
 ];
 
-// ===============================
-// LOAD MODULES
-// ===============================
 function renderModules() {
   moduleGrid.innerHTML = "";
 
@@ -44,36 +39,21 @@ function renderModules() {
     `;
 
     card.onclick = () => loadModule(i);
-
     moduleGrid.appendChild(card);
   });
 }
 
-// ===============================
-// LOAD MODULE INTO PLAYER
-// ===============================
 function loadModule(index) {
   const m = modules[index];
 
   playerTitle.textContent = m.title;
   playerStatus.textContent = "In progress";
 
-  lessonSteps.innerHTML = m.steps
-    .map(s => `<li><span>${s}</span></li>`)
-    .join("");
-
-  doList.innerHTML = m.do
-    .map(s => `<li><span>${s}</span></li>`)
-    .join("");
-
-  dontList.innerHTML = m.dont
-    .map(s => `<li><span>${s}</span></li>`)
-    .join("");
+  lessonSteps.innerHTML = m.steps.map(s => `<li><span>${s}</span></li>`).join("");
+  doList.innerHTML = m.do.map(s => `<li><span>${s}</span></li>`).join("");
+  dontList.innerHTML = m.dont.map(s => `<li><span>${s}</span></li>`).join("");
 }
 
-// ===============================
-// TABS SYSTEM (FIXES YOUR UI)
-// ===============================
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -85,11 +65,9 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
       p.style.display = "none";
     });
 
-    document.querySelector(`[data-panel="${tab}"]`).style.display = "block";
+    const panel = document.querySelector('[data-panel="' + tab + '"]');
+    if (panel) panel.style.display = "block";
   });
 });
 
-// ===============================
-// INIT
-// ===============================
 renderModules();
