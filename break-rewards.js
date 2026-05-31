@@ -2,6 +2,7 @@
 // break-rewards.js — Upgraded Break Rewards
 // - Daily 4 points reset
 // - +1 bonus once per day (demo)
+// - UK-style McDonald's menu items
 // - Menu + category filter + search
 // - Cart + checkout
 // - Firestore user fields + order history
@@ -64,18 +65,78 @@ const toastEl = document.getElementById("toast");
    DATA
 ========================= */
 
-// You can change this menu anytime (cost = points)
+// UK-style McDonald's menu used for the rewards demo.
+// Exact Hayle availability changes by day/time/app, so keep this editable.
 const MENU_ITEMS = [
-  { id: "small_fries", name: "Small Fries", cost: 1, cat: "Sides", desc: "Classic small fries." },
-  { id: "med_fries", name: "Medium Fries", cost: 2, cat: "Sides", desc: "A bit more for your break." },
-  { id: "apple_pie", name: "Apple Pie", cost: 2, cat: "Dessert", desc: "Warm & sweet." },
-  { id: "mcflurry_snack", name: "Snack McFlurry", cost: 3, cat: "Dessert", desc: "Snack-size treat." },
-  { id: "cheeseburger", name: "Cheeseburger", cost: 3, cat: "Burgers", desc: "Simple & quick." },
-  { id: "hamburger", name: "Hamburger", cost: 3, cat: "Burgers", desc: "Classic burger." },
-  { id: "6_nuggets", name: "6 Chicken McNuggets", cost: 3, cat: "Chicken", desc: "6 nuggets (dip optional)." },
-  { id: "wrap_snack", name: "Snack Wrap", cost: 3, cat: "Chicken", desc: "Light wrap option." },
-  { id: "small_drink", name: "Small Soft Drink", cost: 1, cat: "Drinks", desc: "Small cup." },
-  { id: "bottle_water", name: "Bottled Water", cost: 1, cat: "Drinks", desc: "Stay hydrated." }
+  { id: "small_fries", name: "Small Fries", cost: 1, cat: "Fries & Sides", desc: "Classic small fries." },
+  { id: "medium_fries", name: "Medium Fries", cost: 2, cat: "Fries & Sides", desc: "Medium portion of fries." },
+  { id: "large_fries", name: "Large Fries", cost: 3, cat: "Fries & Sides", desc: "Large portion of fries." },
+  { id: "hash_brown", name: "Hash Brown", cost: 1, cat: "Breakfast", desc: "Crispy breakfast side." },
+  { id: "side_salad", name: "Side Salad", cost: 1, cat: "Fries & Sides", desc: "Light side option." },
+  { id: "carrot_bag", name: "Carrot Bag", cost: 1, cat: "Fries & Sides", desc: "Simple lighter side." },
+
+  { id: "hamburger", name: "Hamburger", cost: 2, cat: "Burgers", desc: "Classic hamburger." },
+  { id: "cheeseburger", name: "Cheeseburger", cost: 2, cat: "Burgers", desc: "Classic cheeseburger." },
+  { id: "double_cheeseburger", name: "Double Cheeseburger", cost: 4, cat: "Burgers", desc: "Two beef patties with cheese." },
+  { id: "big_mac", name: "Big Mac", cost: 5, cat: "Burgers", desc: "Iconic Big Mac with sauce." },
+  { id: "quarter_pounder", name: "Quarter Pounder with Cheese", cost: 5, cat: "Burgers", desc: "Beef burger with cheese." },
+  { id: "filet_o_fish", name: "Filet-O-Fish", cost: 4, cat: "Burgers", desc: "Fish fillet burger." },
+  { id: "mcplant", name: "McPlant", cost: 5, cat: "Vegan & Veggie", desc: "Plant-based burger option." },
+
+  { id: "mayo_chicken", name: "Mayo Chicken", cost: 2, cat: "Chicken", desc: "Saver chicken burger." },
+  { id: "mcchicken", name: "McChicken Sandwich", cost: 5, cat: "Chicken", desc: "Crispy chicken sandwich." },
+  { id: "mccrispy", name: "McCrispy", cost: 5, cat: "Chicken", desc: "Crispy chicken breast burger." },
+  { id: "spicy_mccrispy", name: "Spicy McCrispy", cost: 5, cat: "Chicken", desc: "Spicy crispy chicken burger." },
+  { id: "4_nuggets", name: "4 Chicken McNuggets", cost: 2, cat: "Chicken", desc: "Small McNuggets portion." },
+  { id: "6_nuggets", name: "6 Chicken McNuggets", cost: 3, cat: "Chicken", desc: "Six nuggets with optional dip." },
+  { id: "9_nuggets", name: "9 Chicken McNuggets", cost: 5, cat: "Chicken", desc: "Nine nuggets with optional dip." },
+  { id: "3_selects", name: "3 Chicken Selects", cost: 5, cat: "Chicken", desc: "Three crispy chicken selects." },
+  { id: "veggie_dippers", name: "Veggie Dippers", cost: 4, cat: "Vegan & Veggie", desc: "Veggie dippers option." },
+
+  { id: "sweet_chilli_wrap", name: "Sweet Chilli Chicken Wrap", cost: 5, cat: "Wraps", desc: "Crispy chicken wrap with sweet chilli sauce." },
+  { id: "bbq_bacon_wrap", name: "BBQ & Bacon Chicken Wrap", cost: 5, cat: "Wraps", desc: "Crispy chicken wrap with BBQ and bacon." },
+  { id: "garlic_mayo_wrap", name: "Garlic Mayo Chicken Wrap", cost: 5, cat: "Wraps", desc: "Crispy chicken wrap with garlic mayo." },
+  { id: "spicy_veggie_wrap", name: "Spicy Veggie One", cost: 5, cat: "Vegan & Veggie", desc: "Veggie wrap option." },
+
+  { id: "egg_cheese_mcmuffin", name: "Egg & Cheese McMuffin", cost: 3, cat: "Breakfast", desc: "Breakfast muffin without meat." },
+  { id: "sausage_mcmuffin", name: "Sausage McMuffin", cost: 3, cat: "Breakfast", desc: "Sausage breakfast muffin." },
+  { id: "sausage_egg_mcmuffin", name: "Sausage & Egg McMuffin", cost: 4, cat: "Breakfast", desc: "Sausage and egg muffin." },
+  { id: "bacon_roll", name: "Bacon Roll", cost: 4, cat: "Breakfast", desc: "Breakfast bacon roll." },
+  { id: "pancakes_syrup", name: "Pancakes & Syrup", cost: 4, cat: "Breakfast", desc: "Pancakes with syrup." },
+  { id: "cheesy_bacon_flatbread", name: "Cheesy Bacon Flatbread", cost: 3, cat: "Breakfast", desc: "Cheesy bacon breakfast flatbread." },
+
+  { id: "apple_pie", name: "Apple Pie", cost: 2, cat: "Desserts", desc: "Warm apple pie." },
+  { id: "oreo_mini_mcflurry", name: "Oreo Mini McFlurry", cost: 2, cat: "Desserts", desc: "Mini Oreo McFlurry." },
+  { id: "smarties_mini_mcflurry", name: "Smarties Mini McFlurry", cost: 2, cat: "Desserts", desc: "Mini Smarties McFlurry." },
+  { id: "oreo_mcflurry", name: "Oreo McFlurry", cost: 3, cat: "Desserts", desc: "Regular Oreo McFlurry." },
+  { id: "smarties_mcflurry", name: "Smarties McFlurry", cost: 3, cat: "Desserts", desc: "Regular Smarties McFlurry." },
+  { id: "brownie", name: "Chocolate Brownie", cost: 3, cat: "Desserts", desc: "Chocolate brownie treat." },
+
+  { id: "small_coke_zero", name: "Small Coca-Cola Zero Sugar", cost: 1, cat: "Drinks", desc: "Small fizzy drink." },
+  { id: "small_diet_coke", name: "Small Diet Coke", cost: 1, cat: "Drinks", desc: "Small fizzy drink." },
+  { id: "small_sprite_zero", name: "Small Sprite Zero", cost: 1, cat: "Drinks", desc: "Small fizzy drink." },
+  { id: "small_fanta_zero", name: "Small Fanta Orange Zero", cost: 1, cat: "Drinks", desc: "Small fizzy drink." },
+  { id: "oasis", name: "Oasis Summer Fruits", cost: 2, cat: "Drinks", desc: "Fruit drink." },
+  { id: "bottle_water", name: "Bottled Water", cost: 1, cat: "Drinks", desc: "Still bottled water." },
+  { id: "medium_milkshake", name: "Medium Milkshake", cost: 4, cat: "Drinks", desc: "Chocolate, strawberry, banana, or vanilla style." },
+
+  { id: "americano", name: "Americano", cost: 1, cat: "McCafé", desc: "Black coffee." },
+  { id: "white_coffee", name: "White Coffee", cost: 1, cat: "McCafé", desc: "White coffee." },
+  { id: "regular_latte", name: "Regular Latte", cost: 2, cat: "McCafé", desc: "Regular latte." },
+  { id: "cappuccino", name: "Cappuccino", cost: 2, cat: "McCafé", desc: "Regular cappuccino." },
+  { id: "flat_white", name: "Flat White", cost: 2, cat: "McCafé", desc: "Flat white coffee." },
+  { id: "hot_chocolate", name: "Hot Chocolate", cost: 2, cat: "McCafé", desc: "Hot chocolate drink." },
+  { id: "caramel_frappe", name: "Caramel Frappe", cost: 4, cat: "McCafé", desc: "Cold frappe drink." },
+
+  { id: "happy_hamburger", name: "Happy Meal Hamburger", cost: 3, cat: "Happy Meal", desc: "Happy Meal style hamburger option." },
+  { id: "happy_cheeseburger", name: "Happy Meal Cheeseburger", cost: 3, cat: "Happy Meal", desc: "Happy Meal style cheeseburger option." },
+  { id: "happy_nuggets", name: "Happy Meal 4 McNuggets", cost: 3, cat: "Happy Meal", desc: "Happy Meal style nuggets option." },
+  { id: "happy_veggie_dippers", name: "Happy Meal Veggie Dippers", cost: 3, cat: "Happy Meal", desc: "Happy Meal style veggie option." },
+
+  { id: "bbq_dip", name: "BBQ Dip", cost: 1, cat: "Sauces", desc: "Classic dip." },
+  { id: "sweet_sour_dip", name: "Sweet & Sour Dip", cost: 1, cat: "Sauces", desc: "Classic dip." },
+  { id: "sweet_curry_dip", name: "Sweet Curry Dip", cost: 1, cat: "Sauces", desc: "Classic dip." },
+  { id: "ketchup", name: "Ketchup", cost: 1, cat: "Sauces", desc: "Ketchup dip." }
 ];
 
 const CATS = ["All", ...Array.from(new Set(MENU_ITEMS.map(x => x.cat))).sort()];
