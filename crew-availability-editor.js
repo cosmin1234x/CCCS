@@ -9,32 +9,14 @@ import {
   where
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-const DAYS = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday"
-];
-
-const STATIONS = [
-  "Grill",
-  "Fries",
-  "Front Counter",
-  "Drive Thru",
-  "Kitchen",
-  "Lobby",
-  "Drinks",
-  "Runner",
-  "Cleaning",
-  "Stock"
-];
-
+const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const STATIONS = ["Grill", "Fries", "Front Counter", "Drive Thru", "Kitchen", "Lobby", "Drinks", "Runner", "Cleaning", "Stock"];
 const $ = (id) => document.getElementById(id);
 
 let currentCrewId = "";
+let renderedCrewId = "";
+let editorDirty = false;
+let refreshing = false;
 
 function getSessionUser() {
   try {
@@ -45,10 +27,7 @@ function getSessionUser() {
 }
 
 function canEditCrewAvailability() {
-  const role = String(getSessionUser().role || "")
-    .toLowerCase()
-    .replace(/\s+/g, "");
-
+  const role = String(getSessionUser().role || "").toLowerCase().replace(/\s+/g, "");
   return role === "manager" || role === "shiftcreator" || role === "admin";
 }
 
@@ -89,14 +68,7 @@ function addAvailabilityStyles() {
 
 function getProfileCrewIdFromPage() {
   const overlay = $("crewProfileOverlay");
-
-  return (
-    overlay?.dataset?.crewId ||
-    overlay?.dataset?.userId ||
-    overlay?.dataset?.uid ||
-    window.__lastCrewProfileId ||
-    ""
-  );
+  return overlay?.dataset?.crewId || overlay?.dataset?.userId || overlay?.dataset?.uid || window.__lastCrewProfileId || "";
 }
 
 async function findCrewByProfileName() {
@@ -106,13 +78,11 @@ async function findCrewByProfileName() {
   const storeId = getSessionUser().storeId || "store001";
   const q = query(collection(db, "users"), where("storeId", "==", storeId));
   const snap = await getDocs(q);
-
   let exact = null;
 
   snap.forEach((docSnap) => {
     const data = docSnap.data() || {};
     const name = String(data.name || data.email || "").trim();
-
     if (name.toLowerCase() === profileName.toLowerCase()) {
       exact = { id: docSnap.id, ...data };
     }
@@ -123,12 +93,10 @@ async function findCrewByProfileName() {
 
 async function loadCrewData() {
   const pageId = getProfileCrewIdFromPage();
-
   if (pageId) {
     const snap = await getDoc(doc(db, "users", pageId));
     if (snap.exists()) return { id: pageId, ...snap.data() };
   }
-
   return await findCrewByProfileName();
 }
 
@@ -173,17 +141,33 @@ function getTrainedStations(data) {
   return set;
 }
 
+function markDirty() {
+  editorDirty = true;
+  const status = $("crewAvailStatus");
+  if (status && !status.textContent.includes("Saving")) {
+    status.textContent = "Unsaved changes…";
+    status.style.color = "#b45309";
+  }
+}
+
 function renderAvailabilityEditor(data) {
   if (!canEditCrewAvailability()) return;
   if (!data?.id) return;
+
+  const existingBox = $("crewAvailabilityEditor");
+  const activeInsideEditor = existingBox && existingBox.contains(document.activeElement);
+
+  // Do NOT rebuild the editor while the manager is ticking boxes or changing times.
+  if (existingBox && renderedCrewId === data.id && (editorDirty || activeInsideEditor)) {
+    return;
+  }
 
   addAvailabilityStyles();
 
   const body = document.querySelector(".crew-profile-body");
   if (!body) return;
 
-  let box = $("crewAvailabilityEditor");
-
+  let box = existingBox;
   if (!box) {
     box = document.createElement("div");
     box.id = "crewAvailabilityEditor";
@@ -192,6 +176,8 @@ function renderAvailabilityEditor(data) {
   }
 
   currentCrewId = data.id;
+  renderedCrewId = data.id;
+  editorDirty = false;
 
   const maxWeeklyHours = Number(data.maxWeeklyHours || data.maxHours || data.contractHours || data.hoursPerWeek || 30);
   const trainedStations = getTrainedStations(data);
@@ -229,6 +215,11 @@ function renderAvailabilityEditor(data) {
     <div id="crewAvailStatus" class="crew-avail-status"></div>
   `;
 
+  box.querySelectorAll("input").forEach((input) => {
+    input.addEventListener("input", markDirty);
+    input.addEventListener("change", markDirty);
+  });
+
   $("saveCrewAvailabilityBtn")?.addEventListener("click", saveAvailabilityEditor);
   $("quickWeekdaysBtn")?.addEventListener("click", setWeekdaysPreset);
 }
@@ -243,6 +234,7 @@ function setWeekdaysPreset() {
     if (start) start.value = "09:00";
     if (end) end.value = "17:00";
   });
+  markDirty();
 }
 
 async function saveAvailabilityEditor() {
@@ -269,7 +261,10 @@ async function saveAvailabilityEditor() {
   const skills = Object.fromEntries(stations.map((station) => [station, true]));
   const maxWeeklyHours = Number($("crewMaxHoursInput")?.value || 30);
   const status = $("crewAvailStatus");
-  if (status) status.textContent = "Saving…";
+  if (status) {
+    status.textContent = "Saving…";
+    status.style.color = "#15803d";
+  }
 
   await updateDoc(doc(db, "users", currentCrewId), {
     availability,
@@ -279,17 +274,31 @@ async function saveAvailabilityEditor() {
     updatedAt: Date.now()
   });
 
-  if (status) status.textContent = "Saved ✅ Generate shifts will use this now.";
+  editorDirty = false;
+
+  if (status) {
+    status.textContent = "Saved ✅ Generate shifts will use this now.";
+    status.style.color = "#15803d";
+  }
 }
 
 async function refreshAvailabilityEditor() {
   if (!canEditCrewAvailability()) return;
+  if (refreshing) return;
 
   const overlay = $("crewProfileOverlay");
   if (!overlay || !(overlay.classList.contains("show") || overlay.classList.contains("active"))) return;
 
-  const data = await loadCrewData();
-  if (data) renderAvailabilityEditor(data);
+  const box = $("crewAvailabilityEditor");
+  if (box && (editorDirty || box.contains(document.activeElement))) return;
+
+  refreshing = true;
+  try {
+    const data = await loadCrewData();
+    if (data) renderAvailabilityEditor(data);
+  } finally {
+    refreshing = false;
+  }
 }
 
 function startAvailabilityEditor() {
@@ -301,11 +310,13 @@ function startAvailabilityEditor() {
   new MutationObserver(() => setTimeout(refreshAvailabilityEditor, 150)).observe(overlay, {
     attributes: true,
     childList: true,
-    subtree: true
+    subtree: false
   });
 
-  document.addEventListener("click", () => setTimeout(refreshAvailabilityEditor, 250), true);
-  setInterval(refreshAvailabilityEditor, 1200);
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("#crewAvailabilityEditor")) return;
+    setTimeout(refreshAvailabilityEditor, 250);
+  }, true);
 }
 
 if (document.readyState === "loading") {
