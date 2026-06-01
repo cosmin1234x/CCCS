@@ -1,0 +1,81 @@
+/* Dashboard desktop layout fix: keep dashboard visible and control McAssist width */
+
+body.app-page {
+  justify-content: flex-start !important;
+  overflow-x: hidden !important;
+}
+
+.main-layout {
+  max-width: none !important;
+  width: calc(100vw - 250px) !important;
+  margin: 0 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 28vw, 430px) !important;
+  align-items: start !important;
+  gap: 18px !important;
+  padding: 20px !important;
+  min-width: 0 !important;
+}
+
+.content-area {
+  flex: unset !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.ai-panel {
+  flex: unset !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 430px !important;
+  justify-self: end !important;
+  max-height: calc(100vh - 40px) !important;
+}
+
+.cards-grid {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+}
+
+#bottomSection {
+  width: 100% !important;
+}
+
+.ai-chat {
+  min-height: 280px !important;
+}
+
+@media (max-width: 1250px) {
+  .main-layout {
+    grid-template-columns: 1fr !important;
+    width: calc(100vw - 250px) !important;
+  }
+
+  .ai-panel {
+    max-width: none !important;
+    width: 100% !important;
+    justify-self: stretch !important;
+    position: relative !important;
+    top: auto !important;
+    max-height: none !important;
+  }
+
+  .ai-chat {
+    min-height: 240px !important;
+    max-height: 420px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .main-layout {
+    width: 100% !important;
+    padding: 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .ai-panel {
+    max-width: none !important;
+    width: 100% !important;
+  }
+}
