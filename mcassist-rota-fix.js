@@ -4,6 +4,8 @@ import { collection, addDoc, deleteDoc, doc, getDocs, query, where } from "https
 const $ = (id) => document.getElementById(id);
 const CORE_STATIONS = ["Grill", "Fries", "Front Counter", "Drive Thru", "Kitchen"];
 const ALL_STATIONS = ["Grill", "Fries", "Front Counter", "Drive Thru", "Kitchen", "Lobby", "Drinks", "Runner", "Cleaning", "Stock"];
+const MIN_SHIFT_MINS = 3 * 60;
+const MAX_SHIFT_MINS = 8 * 60;
 
 function norm(v) {
   return String(v || "").toLowerCase().replace(/[^a-z0-9:\s-]/g, " ").replace(/\s+/g, " ").trim();
@@ -57,6 +59,13 @@ function overlaps(aStart, aEnd, bStart, bEnd) {
   return aS < bE && bS < aE;
 }
 
+function hoursBetween(start, end) {
+  let s = toMinutes(start);
+  let e = toMinutes(end);
+  if (e <= s) e += 1440;
+  return Math.max(0, (e - s) / 60);
+}
+
 function parseTime(v) {
   if (!v) return null;
   let raw = String(v).toLowerCase().trim().replace(/\./g, ":");
@@ -67,7 +76,9 @@ function parseTime(v) {
     const p = raw.split(":");
     h = Number(p[0]);
     m = Number(p[1] || 0);
-  } else h = Number(raw);
+  } else {
+    h = Number(raw);
+  }
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
   if (ampm === "pm" && h < 12) h += 12;
   if (ampm === "am" && h === 12) h = 0;
@@ -142,7 +153,9 @@ function canonicalStation(station) {
 
 function getPersonStations(person) {
   const raw = [];
-  [person.stations, person.certifications, person.availableStations, person.trainedStations].forEach((v) => { if (Array.isArray(v)) raw.push(...v); });
+  [person.stations, person.certifications, person.availableStations, person.trainedStations].forEach((v) => {
+    if (Array.isArray(v)) raw.push(...v);
+  });
   [person.skills, person.stationSkills, person.certifiedStations].forEach((obj) => {
     if (!obj || typeof obj !== "object" || Array.isArray(obj)) return;
     Object.entries(obj).forEach(([key, value]) => {
@@ -157,10 +170,14 @@ function knowsStation(person, station) {
   return getPersonStations(person).map(canonicalStation).includes(canonicalStation(station));
 }
 
-function getAvailability(person, dateISO) {
+function getDayKey(dateISO) {
   const d = new Date(`${dateISO}T12:00:00`);
   const long = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][d.getDay()];
-  const short = long.slice(0, 3);
+  return { long, short: long.slice(0, 3) };
+}
+
+function getAvailability(person, dateISO) {
+  const { long, short } = getDayKey(dateISO);
   const sources = [person.availability, person.available, person.availableTimes, person.availabilityByDay].filter(Boolean);
   for (const source of sources) {
     if (typeof source === "boolean") return source;
@@ -173,6 +190,73 @@ function getAvailability(person, dateISO) {
     if (!days.includes(long) && !days.includes(short) && !days.includes(dateISO)) return false;
   }
   return true;
+}
+
+function normaliseRawAvailabilityWindows(raw) {
+  if (raw === undefined || raw === null || raw === "") return [{ start: null, end: null }];
+  if (raw === true || raw === "all" || raw === "any" || raw === "available" || raw === "yes") return [{ start: null, end: null }];
+  if (raw === false || raw === "off" || raw === "no" || raw === "unavailable") return [];
+
+  const list = Array.isArray(raw) ? raw : [raw];
+  const windows = [];
+
+  for (let item of list) {
+    if (item === undefined || item === null || item === "") {
+      windows.push({ start: null, end: null });
+      continue;
+    }
+    if (item === true || item === "all" || item === "any" || item === "available" || item === "yes") {
+      windows.push({ start: null, end: null });
+      continue;
+    }
+    if (item === false || item === "off" || item === "no" || item === "unavailable") continue;
+
+    if (typeof item === "string") {
+      const m = item.match(/(\d{1,2}:?\d{0,2}\s*(?:am|pm)?)\s*(?:-|to)\s*(\d{1,2}:?\d{0,2}\s*(?:am|pm)?)/i);
+      if (!m) {
+        windows.push({ start: null, end: null });
+        continue;
+      }
+      windows.push({ start: parseTime(m[1]), end: parseTime(m[2]) });
+      continue;
+    }
+
+    if (typeof item === "object") {
+      if (item.available === false || item.enabled === false || item.canWork === false || item.off === true) continue;
+      const start = item.start || item.from || item.open || item.begin || null;
+      const end = item.end || item.to || item.close || item.finish || null;
+      windows.push({ start, end });
+    }
+  }
+
+  return windows.length ? windows : [];
+}
+
+function getAvailabilityWindows(person, dateISO, storeHours) {
+  if (person.active === false || person.disabled === true) return [];
+  if (Array.isArray(person.unavailableDates) && person.unavailableDates.includes(dateISO)) return [];
+
+  const open = toMinutes(storeHours.start);
+  let close = toMinutes(storeHours.end);
+  if (close <= open) close += 1440;
+
+  const rawWindows = normaliseRawAvailabilityWindows(getAvailability(person, dateISO));
+  const windows = [];
+
+  for (const raw of rawWindows) {
+    const rawStart = raw.start ? (parseTime(raw.start) || raw.start) : storeHours.start;
+    const rawEnd = raw.end ? (parseTime(raw.end) || raw.end) : storeHours.end;
+
+    let a = toMinutes(rawStart);
+    let b = toMinutes(rawEnd);
+    if (b <= a) b += 1440;
+
+    const start = Math.max(open, a);
+    const end = Math.min(close, b);
+    if (end - start >= MIN_SHIFT_MINS) windows.push({ start, end });
+  }
+
+  return windows;
 }
 
 function rangeCovers(range, start, end) {
@@ -206,8 +290,6 @@ function rangeCovers(range, start, end) {
 }
 
 function isAvailable(person, dateISO, start, end) {
-  if (person.active === false || person.disabled === true) return false;
-  if (Array.isArray(person.unavailableDates) && person.unavailableDates.includes(dateISO)) return false;
   return rangeCovers(getAvailability(person, dateISO), start, end);
 }
 
@@ -265,7 +347,7 @@ function shiftTimeForStation(station, hours) {
   if (close <= open) close += 1440;
   const window = close - open;
   const make = (percent, lengthHours) => {
-    const length = Math.min(lengthHours * 60, window);
+    const length = Math.min(lengthHours * 60, window, MAX_SHIFT_MINS);
     const start = Math.min(open + Math.floor(window * percent), Math.max(open, close - length));
     return { start: toHHMM(start), end: toHHMM(Math.min(start + length, close)) };
   };
@@ -276,26 +358,82 @@ function shiftTimeForStation(station, hours) {
   return make(0.5, 6);
 }
 
-function choosePerson({ people, station, dateISO, start, end, shifts, workDays, shiftCount }) {
-  const base = people.filter((p) => {
-    if (!isAvailable(p, dateISO, start, end)) return false;
-    if ((workDays[p.id]?.size || 0) >= 5) return false;
-    if (shifts.some((s) => s.userId === p.id && s.date === dateISO)) return false;
-    if (shifts.some((s) => s.userId === p.id && s.date === dateISO && overlaps(s.start, s.end, start, end))) return false;
-    return true;
-  });
-  const exact = base.filter((p) => knowsStation(p, station));
-  const candidates = exact.length ? exact : base;
-  return candidates.sort((a, b) => {
-    const aSkill = knowsStation(a, station) ? 0 : 1;
-    const bSkill = knowsStation(b, station) ? 0 : 1;
+function fitShiftIntoWindow(ideal, window) {
+  let idealStart = toMinutes(ideal.start);
+  let idealEnd = toMinutes(ideal.end);
+  if (idealEnd <= idealStart) idealEnd += 1440;
+
+  const preferredLength = Math.min(MAX_SHIFT_MINS, idealEnd - idealStart);
+  const windowLength = window.end - window.start;
+  const length = Math.min(preferredLength, windowLength);
+  if (length < MIN_SHIFT_MINS) return null;
+
+  let start = idealStart;
+  if (start < window.start) start = window.start;
+  if (start + length > window.end) start = window.end - length;
+  if (start < window.start) start = window.start;
+
+  const end = start + length;
+  return {
+    start: toHHMM(start),
+    end: toHHMM(end),
+    adjusted: toHHMM(start) !== ideal.start || toHHMM(end) !== ideal.end
+  };
+}
+
+function bestTimeForPerson(person, dateISO, station, ideal, hours) {
+  const windows = getAvailabilityWindows(person, dateISO, hours);
+  const options = windows.map((window) => fitShiftIntoWindow(ideal, window)).filter(Boolean);
+  if (!options.length) return null;
+
+  // Prefer the time closest to the station's ideal time, but allow adjusted availability-fitting shifts.
+  const idealStart = toMinutes(ideal.start);
+  return options.sort((a, b) => Math.abs(toMinutes(a.start) - idealStart) - Math.abs(toMinutes(b.start) - idealStart))[0];
+}
+
+function choosePersonAndTime({ people, station, dateISO, ideal, hours, shifts, workDays, shiftCount, weeklyHours }) {
+  const candidates = [];
+
+  for (const p of people) {
+    if ((workDays[p.id]?.size || 0) >= 5) continue; // at least 2 days off
+    if (shifts.some((s) => s.userId === p.id && s.date === dateISO)) continue; // one shift per day
+
+    const fitted = bestTimeForPerson(p, dateISO, station, ideal, hours);
+    if (!fitted) continue;
+    if (shifts.some((s) => s.userId === p.id && s.date === dateISO && overlaps(s.start, s.end, fitted.start, fitted.end))) continue;
+
+    const maxH = Number(p.maxWeeklyHours || p.maxHours || p.contractHours || p.hoursPerWeek || 40);
+    const addH = hoursBetween(fitted.start, fitted.end);
+    if ((weeklyHours[p.id] || 0) + addH > maxH + 0.01) continue;
+
+    candidates.push({ person: p, time: fitted });
+  }
+
+  candidates.sort((a, b) => {
+    const aSkill = knowsStation(a.person, station) ? 0 : 1;
+    const bSkill = knowsStation(b.person, station) ? 0 : 1;
     if (aSkill !== bSkill) return aSkill - bSkill;
-    const aDays = workDays[a.id]?.size || 0;
-    const bDays = workDays[b.id]?.size || 0;
+
+    const aAdjusted = a.time.adjusted ? 1 : 0;
+    const bAdjusted = b.time.adjusted ? 1 : 0;
+    if (aAdjusted !== bAdjusted) return aAdjusted - bAdjusted;
+
+    const aDays = workDays[a.person.id]?.size || 0;
+    const bDays = workDays[b.person.id]?.size || 0;
     if (aDays !== bDays) return aDays - bDays;
-    if ((shiftCount[a.id] || 0) !== (shiftCount[b.id] || 0)) return (shiftCount[a.id] || 0) - (shiftCount[b.id] || 0);
-    return String(a.name).localeCompare(String(b.name));
-  })[0] || null;
+
+    if ((shiftCount[a.person.id] || 0) !== (shiftCount[b.person.id] || 0)) {
+      return (shiftCount[a.person.id] || 0) - (shiftCount[b.person.id] || 0);
+    }
+
+    if ((weeklyHours[a.person.id] || 0) !== (weeklyHours[b.person.id] || 0)) {
+      return (weeklyHours[a.person.id] || 0) - (weeklyHours[b.person.id] || 0);
+    }
+
+    return String(a.person.name).localeCompare(String(b.person.name));
+  });
+
+  return candidates[0] || null;
 }
 
 async function generateSmartShifts(text, user) {
@@ -305,28 +443,40 @@ async function generateSmartShifts(text, user) {
   const hours = parseTimeRange(text);
   const people = await getCrew(storeId, user);
   if (people.length < 2) return "Smart shift generation needs at least 2 crew users.";
+
   const oldShifts = await getShifts(storeId, dates);
   for (const shift of oldShifts) await deleteDoc(doc(db, "stores", storeId, "Shifts", shift.id));
+
   const stations = chooseStations(text, people);
   const maxPossible = people.length * Math.min(5, dates.length);
   const requested = dates.length * stations.length;
   const shifts = [];
   const workDays = Object.fromEntries(people.map((p) => [p.id, new Set()]));
   const shiftCount = Object.fromEntries(people.map((p) => [p.id, 0]));
+  const weeklyHours = Object.fromEntries(people.map((p) => [p.id, 0]));
   const coverage = Object.fromEntries(stations.map((s) => [s, 0]));
   const gaps = [];
   let created = 0;
+  let adjustedCount = 0;
+
   for (let dayIndex = 0; dayIndex < dates.length; dayIndex++) {
     const dateISO = toISO(dates[dayIndex]);
     const offset = stations.length ? dayIndex % stations.length : 0;
     const todayStations = [...stations.slice(offset), ...stations.slice(0, offset)];
+
     for (const station of todayStations) {
-      const time = shiftTimeForStation(station, hours);
-      const chosen = choosePerson({ people, station, dateISO, start: time.start, end: time.end, shifts, workDays, shiftCount });
-      if (!chosen) {
+      const ideal = shiftTimeForStation(station, hours);
+      const pick = choosePersonAndTime({ people, station, dateISO, ideal, hours, shifts, workDays, shiftCount, weeklyHours });
+
+      if (!pick) {
         gaps.push(`${dateISO} ${station}`);
         continue;
       }
+
+      const chosen = pick.person;
+      const time = pick.time;
+      if (time.adjusted) adjustedCount++;
+
       await addDoc(collection(db, "stores", storeId, "Shifts"), {
         date: dateISO,
         start: time.start,
@@ -340,20 +490,26 @@ async function generateSmartShifts(text, user) {
         createdByAI: true,
         generatedByAI: true,
         smartGenerated: true,
-        source: "mcassist-generate-shifts-v3",
+        adjustedToAvailability: !!time.adjusted,
+        source: "mcassist-generate-shifts-v4-fit-availability",
         createdBy: user.id || auth.currentUser?.uid || "mcassist",
         createdAt: Date.now()
       });
+
       shifts.push({ date: dateISO, start: time.start, end: time.end, userId: chosen.id, userName: chosen.name, station });
       workDays[chosen.id].add(dateISO);
       shiftCount[chosen.id] = (shiftCount[chosen.id] || 0) + 1;
+      weeklyHours[chosen.id] = (weeklyHours[chosen.id] || 0) + hoursBetween(time.start, time.end);
       coverage[station] = (coverage[station] || 0) + 1;
       created++;
     }
   }
-  const crewBalance = people.map((p) => `${p.name}: ${shiftCount[p.id] || 0} shift(s), ${7 - (workDays[p.id]?.size || 0)} day(s) off`).join("\n");
+
+  const crewBalance = people.map((p) => `${p.name}: ${shiftCount[p.id] || 0} shift(s), ${(weeklyHours[p.id] || 0).toFixed(1)}h, ${7 - (workDays[p.id]?.size || 0)} day(s) off`).join("\n");
   const stationSummary = stations.map((s) => `${s}: ${coverage[s] || 0}`).join(", ");
-  let reply = `Smart shifts generated ✅\n\nRange: ${rangeLabel(text, dates)}\nDates: ${toISO(dates[0])}${dates.length > 1 ? ` to ${toISO(dates[dates.length - 1])}` : ""}\nHours window: ${hours.start}–${hours.end}\nOld shifts removed: ${oldShifts.length}\nNew shifts created: ${created}\nStations attempted: ${stations.join(", ")}\n\nRules used:\n• at least 2 days off per person\n• max 1 shift per person per day\n• 1 station per shift\n• chooses people who know the station first\n• uses availability if saved, blank availability = available\n\nStation coverage count:\n${stationSummary}\n\nCrew balance:\n${crewBalance}`;
+
+  let reply = `Smart shifts generated ✅\n\nRange: ${rangeLabel(text, dates)}\nDates: ${toISO(dates[0])}${dates.length > 1 ? ` to ${toISO(dates[dates.length - 1])}` : ""}\nHours window: ${hours.start}–${hours.end}\nOld shifts removed: ${oldShifts.length}\nNew shifts created: ${created}\nShifts fitted to availability: ${adjustedCount}\nStations attempted: ${stations.join(", ")}\n\nRules used:\n• fits shift times inside saved availability\n• at least 2 days off per person\n• max 1 shift per person per day\n• respects max weekly hours\n• 1 station per shift\n• chooses people who know the station first\n\nStation coverage count:\n${stationSummary}\n\nCrew balance:\n${crewBalance}`;
+
   if (requested > maxPossible) reply += `\n\nHeads up: full coverage is impossible with these rules. Needed ${requested} station shifts, but max possible is ${maxPossible} with ${people.length} crew.`;
   if (gaps.length) reply += `\n\nCoverage gaps: ${gaps.length}\nCould not cover: ${gaps.slice(0, 12).join(" | ")}${gaps.length > 12 ? " | …" : ""}`;
   return reply;
@@ -393,7 +549,7 @@ function wantsHelp(text) {
 }
 
 function helpReply() {
-  return `Rota commands I can run ✅\n\n• generate shifts\n• generate shifts next week 6am-11pm\n• generate shifts this week 6am-11pm core stations\n• generate shifts this week 6am-11pm every station\n• replace team rota for this week 6am-11pm\n• add extra shifts today 12pm-8pm\n• remove all shifts for this week\n• remove today’s shifts\n\n“generate shifts” is the smart one: availability, stations, 2 days off, max 1 shift/day.`;
+  return `Rota commands I can run ✅\n\n• generate shifts\n• generate shifts next week 6am-11pm\n• generate shifts this week 6am-11pm core stations\n• generate shifts this week 6am-11pm every station\n• replace team rota for this week 6am-11pm\n• add extra shifts today 12pm-8pm\n• remove all shifts for this week\n• remove today’s shifts\n\n“generate shifts” is the smart one: availability, stations, 2 days off, max 1 shift/day, and it now fits shift times into availability.`;
 }
 
 document.addEventListener("submit", async (event) => {
