@@ -1,15 +1,11 @@
 // ==========================================================
 // schedule.js — AI SHIFT GENERATOR (CLIENT-SIDE PREVIEW + PUBLISH)
 // ==========================================================
-// ✅ Generates shifts + forecast on the WEBSITE (in-memory preview)
-// ✅ Nothing is written to Firestore until you click "Publish"
-// ✅ Works with skills + availability + maxHoursPerWeek
-// ✅ Keeps your week tabs + schedule rendering
-// ✅ Optional overwrite (delete week shifts) ONLY when publishing
-//
-// ✅ PERMISSIONS FIX:
-//   - Ensures /users/{uid} exists BEFORE querying /users or /stores/*
-//   - Loads storeId + role from Firestore user doc (not localStorage)
+// ✅ Generates shifts + forecast on the website (preview first)
+// ✅ Nothing is written to Firestore until you click Publish
+// ✅ Fair assignment across multiple crew members
+// ✅ Uses skills, availability, clashes, and maxHoursPerWeek when available
+// ✅ If skills/availability are missing, it will not get stuck using only one person
 // ==========================================================
 
 import { auth, db } from "./firebase-init.js";
@@ -44,20 +40,17 @@ const shiftManageCard = document.getElementById("shiftManageCard");
 const sidebar = document.querySelector(".sidebar");
 const sidebarToggle = document.getElementById("sidebarToggle");
 
-/* ===================== SESSION ===================== */
+/* ===================== SESSION / STATE ===================== */
 
 let sessionUser = null;
 let storeId = "store001";
 
-/* ===================== STATE ===================== */
-
-let allShifts = [];             // from Firestore
-let storeCrew = [];             // from Firestore users where storeId matches
+let allShifts = [];
+let storeCrew = [];
 let currentWeekOffset = 0;
 
-// AI preview mode (generated on WEBSITE, not Firestore)
 let aiPreviewActive = false;
-let aiPreviewShifts = [];       // generated shifts for preview only
+let aiPreviewShifts = [];
 
 /* ===================== DATE HELPERS ===================== */
 
@@ -73,7 +66,7 @@ function toISO(d) {
 
 function getMonday(baseDate = new Date()) {
   const d = new Date(baseDate);
-  const day = d.getDay(); // 0–6
+  const day = d.getDay();
   const diff = (day === 0 ? -6 : 1) - day;
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
@@ -102,9 +95,7 @@ function getWeekDays(offsetWeeks = 0, baseDate = new Date()) {
 
 function formatWeekLabel(start, end) {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const s = `${start.getDate()} ${months[start.getMonth()]}`;
-  const e = `${end.getDate()} ${months[end.getMonth()]}`;
-  return `${s} – ${e}`;
+  return `${start.getDate()} ${months[start.getMonth()]} – ${end.getDate()} ${months[end.getMonth()]}`;
 }
 
 /* ===================== TIME HELPERS ===================== */
@@ -122,15 +113,17 @@ function hoursBetween(start, end) {
 }
 
 function overlaps(aStart, aEnd, bStart, bEnd) {
-  let aS = hhmmToMinutes(aStart), aE = hhmmToMinutes(aEnd);
-  let bS = hhmmToMinutes(bStart), bE = hhmmToMinutes(bEnd);
+  let aS = hhmmToMinutes(aStart);
+  let aE = hhmmToMinutes(aEnd);
+  let bS = hhmmToMinutes(bStart);
+  let bE = hhmmToMinutes(bEnd);
   if (aE < aS) aE += 24 * 60;
   if (bE < bS) bE += 24 * 60;
   return aS < bE && bS < aE;
 }
 
-/* ===================== PERMISSIONS FIX ===================== */
-/** Ensures /users/{uid} exists (required by your Firestore rules). */
+/* ===================== FIRESTORE LOAD ===================== */
+
 async function ensureUserDoc(firebaseUser) {
   const ref = doc(db, "users", firebaseUser.uid);
   const snap = await getDoc(ref);
@@ -149,15 +142,15 @@ async function ensureUserDoc(firebaseUser) {
   return payload;
 }
 
-/* ===================== FIRESTORE LOAD ===================== */
-
 async function loadCrew() {
   storeCrew = [];
+
   const qCrew = query(collection(db, "users"), where("storeId", "==", storeId));
   const snap = await getDocs(qCrew);
 
   snap.forEach((docSnap) => {
     const u = docSnap.data() || {};
+
     storeCrew.push({
       id: docSnap.id,
       name: u.name || u.email || "Crew",
@@ -167,14 +160,18 @@ async function loadCrew() {
       maxHoursPerWeek: typeof u.maxHoursPerWeek === "number" ? u.maxHoursPerWeek : 40
     });
   });
+
+  storeCrew.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function loadShifts() {
   allShifts = [];
+
   const snap = await getDocs(collection(db, "stores", storeId, "Shifts"));
   snap.forEach((docSnap) => {
     const d = docSnap.data() || {};
     if (!d.date || !d.start || !d.end || !d.userId) return;
+
     allShifts.push({
       id: docSnap.id,
       date: d.date,
@@ -185,39 +182,58 @@ async function loadShifts() {
       station: d.station || "",
       role: d.role || "crew",
       isShiftManager: !!d.isShiftManager,
-      generatedByAI: !!d.generatedByAI
+      generatedByAI: !!d.generatedByAI,
+      demandLevel: d.demandLevel || "normal"
     });
   });
 }
 
-/* ===================== AI ENGINE (WEBSITE ONLY) ===================== */
+/* ===================== AI ENGINE ===================== */
 
 function stationPlan(demand, dayPart) {
   const low = {
-    core:  ["front","line","grill"],
-    close: ["front","line","grill"]
+    core: ["front", "line", "grill"],
+    close: ["front", "line", "grill"]
   };
+
   const normal = {
-    core:  ["front","drive","fries","line","grill","chicken"],
-    close: ["front","drive","line","grill","chicken"]
+    core: ["front", "drive", "fries", "line", "grill", "chicken"],
+    close: ["front", "drive", "line", "grill", "chicken"]
   };
+
   const high = {
-    core:  ["front","front","drive","fries","line","line","grill","chicken","floater"],
-    close: ["front","drive","fries","line","grill","chicken"]
+    core: ["front", "front", "drive", "fries", "line", "line", "grill", "chicken", "floater"],
+    close: ["front", "drive", "fries", "line", "grill", "chicken"]
   };
 
   const map = demand === "high" ? high : demand === "low" ? low : normal;
   return map[dayPart] || map.core;
 }
 
+function userHasAnySkills(u) {
+  return Object.values(u.skills || {}).some(Boolean);
+}
+
 function hasSkill(u, station) {
   if (station === "floater") return true;
+
+  // Important: if you never filled skills for a worker, do not block them completely.
+  // This fixes the bug where only the one person with skills kept being assigned.
+  if (!userHasAnySkills(u)) return true;
+
   return !!u.skills?.[station];
+}
+
+function hasAvailabilitySet(u, dayKey) {
+  return Array.isArray(u.availability?.[dayKey]) && u.availability[dayKey].length > 0;
 }
 
 function canWork(u, dayKey, start, end) {
   const win = Array.isArray(u.availability?.[dayKey]) ? u.availability[dayKey] : [];
-  if (!win.length) return false;
+
+  // Important: if availability is blank, assume available instead of excluding them.
+  // This makes the generator use all crew unless you add actual availability limits.
+  if (!win.length) return true;
 
   const s = hhmmToMinutes(start);
   let e = hhmmToMinutes(end);
@@ -238,15 +254,82 @@ function hasClashIn(list, userId, date, start, end) {
 
 function computeWeekHoursFrom(list, userId, weekStartISO, weekEndISO) {
   let total = 0;
+
   list.forEach((s) => {
     if (s.userId !== userId) return;
     if (s.date < weekStartISO || s.date > weekEndISO) return;
     total += hoursBetween(s.start, s.end);
   });
+
   return total;
 }
 
-/** Generates shifts in-memory (preview only). Does NOT write to Firestore. */
+function countShiftsFrom(list, userId, weekStartISO, weekEndISO) {
+  return list.filter((s) => (
+    s.userId === userId &&
+    s.date >= weekStartISO &&
+    s.date <= weekEndISO
+  )).length;
+}
+
+function getFairCandidates({ station, dayKey, dateISO, startHHMM, endHHMM, weekStartISO, weekEndISO, plannedHours, plannedShiftCount }) {
+  const eligibleCrew = storeCrew.filter((c) => c.role === "crew");
+
+  const base = eligibleCrew.filter((u) => {
+    if (hasClashIn(allShifts, u.id, dateISO, startHHMM, endHHMM)) return false;
+    if (hasClashIn(aiPreviewShifts, u.id, dateISO, startHHMM, endHHMM)) return false;
+
+    const maxH = typeof u.maxHoursPerWeek === "number" ? u.maxHoursPerWeek : 40;
+    const existingWeekHours = computeWeekHoursFrom(allShifts, u.id, weekStartISO, weekEndISO);
+    const previewWeekHours = computeWeekHoursFrom(aiPreviewShifts, u.id, weekStartISO, weekEndISO);
+    const addH = hoursBetween(startHHMM, endHHMM);
+
+    return existingWeekHours + previewWeekHours + addH <= maxH + 0.01;
+  });
+
+  // Try strict first, then relax in sensible stages.
+  // This prevents the generator from getting stuck with one perfect person.
+  const tiers = [
+    base.filter((u) => hasSkill(u, station) && canWork(u, dayKey, startHHMM, endHHMM)),
+    base.filter((u) => canWork(u, dayKey, startHHMM, endHHMM)),
+    base.filter((u) => hasSkill(u, station)),
+    base
+  ];
+
+  const chosenTier = tiers.find((tier) => tier.length > 0) || [];
+
+  return chosenTier.sort((a, b) => {
+    const aExistingH = computeWeekHoursFrom(allShifts, a.id, weekStartISO, weekEndISO);
+    const bExistingH = computeWeekHoursFrom(allShifts, b.id, weekStartISO, weekEndISO);
+
+    const aPreviewH = computeWeekHoursFrom(aiPreviewShifts, a.id, weekStartISO, weekEndISO);
+    const bPreviewH = computeWeekHoursFrom(aiPreviewShifts, b.id, weekStartISO, weekEndISO);
+
+    const aPlannedH = plannedHours.get(a.id) || 0;
+    const bPlannedH = plannedHours.get(b.id) || 0;
+
+    const aShiftCount = (plannedShiftCount.get(a.id) || 0) + countShiftsFrom(allShifts, a.id, weekStartISO, weekEndISO);
+    const bShiftCount = (plannedShiftCount.get(b.id) || 0) + countShiftsFrom(allShifts, b.id, weekStartISO, weekEndISO);
+
+    // 1) fewer shifts first, 2) fewer total hours first, 3) exact skill bonus, 4) set availability bonus, 5) name
+    if (aShiftCount !== bShiftCount) return aShiftCount - bShiftCount;
+
+    const aTotalH = aExistingH + aPreviewH + aPlannedH;
+    const bTotalH = bExistingH + bPreviewH + bPlannedH;
+    if (aTotalH !== bTotalH) return aTotalH - bTotalH;
+
+    const aSkillBonus = hasSkill(a, station) ? 0 : 1;
+    const bSkillBonus = hasSkill(b, station) ? 0 : 1;
+    if (aSkillBonus !== bSkillBonus) return aSkillBonus - bSkillBonus;
+
+    const aAvailabilityBonus = hasAvailabilitySet(a, dayKey) ? 0 : 1;
+    const bAvailabilityBonus = hasAvailabilitySet(b, dayKey) ? 0 : 1;
+    if (aAvailabilityBonus !== bAvailabilityBonus) return aAvailabilityBonus - bAvailabilityBonus;
+
+    return a.name.localeCompare(b.name);
+  });
+}
+
 function generateAIWeekPreview({ weekOffset, demandMap, coreStart, coreEnd, closeStart, closeEnd }) {
   aiPreviewShifts = [];
   aiPreviewActive = true;
@@ -256,13 +339,14 @@ function generateAIWeekPreview({ weekOffset, demandMap, coreStart, coreEnd, clos
   const weekEndISO = toISO(end);
 
   const days = getWeekDays(weekOffset, new Date());
-  const eligibleCrew = storeCrew.filter((c) => c.role === "crew");
-
   const plannedHours = new Map();
-  const getPlanned = (uid) => plannedHours.get(uid) || 0;
-  const addPlanned = (uid, h) => plannedHours.set(uid, getPlanned(uid) + h);
-
+  const plannedShiftCount = new Map();
   const unfilled = [];
+
+  const addPlanned = (uid, h) => {
+    plannedHours.set(uid, (plannedHours.get(uid) || 0) + h);
+    plannedShiftCount.set(uid, (plannedShiftCount.get(uid) || 0) + 1);
+  };
 
   for (const dayDate of days) {
     const dateISO = toISO(dayDate);
@@ -272,36 +356,22 @@ function generateAIWeekPreview({ weekOffset, demandMap, coreStart, coreEnd, clos
     for (const part of ["core", "close"]) {
       const startHHMM = part === "core" ? coreStart : closeStart;
       const endHHMM = part === "core" ? coreEnd : closeEnd;
-
       const stations = stationPlan(demand, part);
 
       for (const station of stations) {
-        const candidates = eligibleCrew
-          .filter((u) => hasSkill(u, station))
-          .filter((u) => canWork(u, dayKey, startHHMM, endHHMM))
-          .filter((u) => !hasClashIn(allShifts, u.id, dateISO, startHHMM, endHHMM))
-          .filter((u) => !hasClashIn(aiPreviewShifts, u.id, dateISO, startHHMM, endHHMM))
-          .sort((a, b) => {
-            const ah = getPlanned(a.id);
-            const bh = getPlanned(b.id);
-            if (ah !== bh) return ah - bh;
-            return a.name.localeCompare(b.name);
-          });
+        const candidates = getFairCandidates({
+          station,
+          dayKey,
+          dateISO,
+          startHHMM,
+          endHHMM,
+          weekStartISO,
+          weekEndISO,
+          plannedHours,
+          plannedShiftCount
+        });
 
-        let chosen = null;
-
-        for (const c of candidates) {
-          const maxH = typeof c.maxHoursPerWeek === "number" ? c.maxHoursPerWeek : 40;
-
-          const existingWeekHours = computeWeekHoursFrom(allShifts, c.id, weekStartISO, weekEndISO);
-          const previewWeekHours = computeWeekHoursFrom(aiPreviewShifts, c.id, weekStartISO, weekEndISO);
-          const addH = hoursBetween(startHHMM, endHHMM);
-
-          if (existingWeekHours + previewWeekHours + addH <= maxH + 0.01) {
-            chosen = c;
-            break;
-          }
-        }
+        const chosen = candidates[0];
 
         if (!chosen) {
           unfilled.push({ date: dateISO, start: startHHMM, end: endHHMM, station });
@@ -341,12 +411,12 @@ function renderWeekTabs() {
   weekTabs.onclick = (e) => {
     const btn = e.target.closest(".pill-filter");
     if (!btn) return;
+
     currentWeekOffset = Number(btn.dataset.week || 0);
+    aiPreviewActive = false;
+    aiPreviewShifts = [];
 
-    weekTabs.querySelectorAll(".pill-filter").forEach((b) => {
-      b.classList.toggle("active", b === btn);
-    });
-
+    renderWeekTabs();
     renderSchedule();
   };
 }
@@ -360,12 +430,11 @@ function renderSchedule() {
   const { start, end } = getWeekRange(currentWeekOffset, new Date());
   const weekStartISO = toISO(start);
   const weekEndISO = toISO(end);
-
   const sourceShifts = aiPreviewActive ? aiPreviewShifts : allShifts;
 
-  const shiftsInWeek = sourceShifts.filter(
-    (s) => s.date >= weekStartISO && s.date <= weekEndISO
-  );
+  const shiftsInWeek = sourceShifts
+    .filter((s) => s.date >= weekStartISO && s.date <= weekEndISO)
+    .sort((a, b) => `${a.date}${a.start}${a.userName}`.localeCompare(`${b.date}${b.start}${b.userName}`));
 
   const days = getWeekDays(currentWeekOffset, new Date());
 
@@ -408,15 +477,14 @@ function renderSchedule() {
       listHTML = `<li><span>No shifts.</span></li>`;
     } else if (!isManagerLike) {
       const my = dayShifts.filter((s) => s.userId === sessionUser.id);
-      if (!my.length) listHTML = `<li><span>No shift for you.</span></li>`;
-      else {
-        listHTML = my.map((s) => `
-          <li style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-            <span>${s.start}–${s.end}</span>
-            <span class="badge-soft">${s.station || "Shift"}${s.generatedByAI ? " 🤖" : ""}</span>
-          </li>
-        `).join("");
-      }
+      listHTML = my.length
+        ? my.map((s) => `
+            <li style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+              <span>${s.start}–${s.end}</span>
+              <span class="badge-soft">${s.station || "Shift"}${s.generatedByAI ? " 🤖" : ""}</span>
+            </li>
+          `).join("")
+        : `<li><span>No shift for you.</span></li>`;
     } else {
       listHTML = dayShifts.map((s) => `
         <li style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
@@ -480,9 +548,8 @@ function renderSchedule() {
   }
 }
 
-async function attachDeleteHandlers() {
-  const buttons = scheduleCard.querySelectorAll(".shift-del");
-  buttons.forEach((btn) => {
+function attachDeleteHandlers() {
+  scheduleCard.querySelectorAll(".shift-del").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
       if (!id) return;
@@ -500,7 +567,7 @@ async function attachDeleteHandlers() {
   });
 }
 
-/* ===================== SHIFT MANAGER TOOLS (UI) ===================== */
+/* ===================== SHIFT MANAGER TOOLS ===================== */
 
 function renderShiftManageTools() {
   if (!shiftManageCard || !sessionUser) return;
@@ -518,11 +585,10 @@ function renderShiftManageTools() {
     <div class="subsection-title">Manage shifts</div>
     <div class="subsection-sub">
       Create a shift manually OR generate a full week on the website (preview), then publish.
+      The generator now spreads shifts fairly across all crew.
     </div>
 
     <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:10px;">
-
-      <!-- Manual create -->
       <div style="flex:1 1 260px; min-width:260px;">
         <h4 style="font-size:0.8rem; font-weight:800; margin-bottom:6px;">Create shift</h4>
 
@@ -559,7 +625,6 @@ function renderShiftManageTools() {
         <div id="manualMsg" style="font-size:0.75rem; margin-top:8px;"></div>
       </div>
 
-      <!-- AI generate -->
       <div style="flex:1 1 340px; min-width:340px;">
         <h4 style="font-size:0.8rem; font-weight:800; margin-bottom:6px;">AI generate week (PREVIEW)</h4>
 
@@ -601,48 +666,54 @@ function renderShiftManageTools() {
         </div>
 
         <button id="aiGenerateBtn" class="btn" type="button" style="width:100%; justify-content:center; margin-top:10px;">
-          🤖 Generate preview schedule
+          🤖 Generate fair preview schedule
         </button>
 
         <div id="aiMsg" style="font-size:0.75rem; margin-top:8px;"></div>
       </div>
-
     </div>
   `;
 
-  // fill crew select
+  fillManualCrewSelect();
+  buildForecastGrid();
+  attachManualCreateHandler();
+  attachAIGenerateHandler();
+}
+
+function fillManualCrewSelect() {
   const shiftCrew = document.getElementById("shiftCrew");
-  if (shiftCrew) {
-    shiftCrew.innerHTML = "";
-    storeCrew.forEach((c) => {
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = `${c.name} (${c.role})`;
-      shiftCrew.appendChild(opt);
-    });
-  }
+  if (!shiftCrew) return;
 
-  // build forecast grid
+  shiftCrew.innerHTML = "";
+
+  storeCrew.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = `${c.name} (${c.role})`;
+    shiftCrew.appendChild(opt);
+  });
+}
+
+function buildForecastGrid() {
   const forecastGrid = document.getElementById("forecastGrid");
-  if (forecastGrid) {
-    forecastGrid.innerHTML = `
-      ${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((label, i) => {
-        const key = ["mon","tue","wed","thu","fri","sat","sun"][i];
-        return `
-          <label style="display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:0.75rem;">
-            <span style="min-width:36px;">${label}</span>
-            <select data-forecast="${key}" style="flex:1; padding:8px 10px; border-radius:12px; border:1px solid #e5e7eb;">
-              <option value="low">Low</option>
-              <option value="normal" selected>Normal</option>
-              <option value="high">High</option>
-            </select>
-          </label>
-        `;
-      }).join("")}
-    `;
-  }
+  if (!forecastGrid) return;
 
-  // manual create handler
+  forecastGrid.innerHTML = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((label, i) => {
+    const key = ["mon","tue","wed","thu","fri","sat","sun"][i];
+    return `
+      <label style="display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:0.75rem;">
+        <span style="min-width:36px;">${label}</span>
+        <select data-forecast="${key}" style="flex:1; padding:8px 10px; border-radius:12px; border:1px solid #e5e7eb;">
+          <option value="low">Low</option>
+          <option value="normal" selected>Normal</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+    `;
+  }).join("");
+}
+
+function attachManualCreateHandler() {
   document.getElementById("createShiftBtn")?.addEventListener("click", async () => {
     const msg = document.getElementById("manualMsg");
     const date = document.getElementById("shiftDate")?.value;
@@ -650,20 +721,22 @@ function renderShiftManageTools() {
     const start = document.getElementById("shiftStart")?.value;
     const end = document.getElementById("shiftEnd")?.value;
     const station = (document.getElementById("shiftStation")?.value || "").trim();
-
     const crewObj = storeCrew.find((c) => c.id === userId);
 
     if (!date || !userId || !start || !end || !crewObj) {
-      if (msg) { msg.style.color = "#b91c1c"; msg.textContent = "Fill date, crew, start and end."; }
+      if (msg) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Fill date, crew, start and end.";
+      }
       return;
     }
 
-    const clash = allShifts.some(
-      (s) => s.userId === userId && s.date === date && overlaps(s.start, s.end, start, end)
-    );
-
+    const clash = allShifts.some((s) => s.userId === userId && s.date === date && overlaps(s.start, s.end, start, end));
     if (clash) {
-      if (msg) { msg.style.color = "#b91c1c"; msg.textContent = "This person already has an overlapping shift."; }
+      if (msg) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "This person already has an overlapping shift.";
+      }
       return;
     }
 
@@ -680,20 +753,26 @@ function renderShiftManageTools() {
         createdAt: Date.now()
       });
 
-      if (msg) { msg.style.color = "#15803d"; msg.textContent = "Shift created ✅"; }
+      if (msg) {
+        msg.style.color = "#15803d";
+        msg.textContent = "Shift created ✅";
+      }
 
       await loadShifts();
       renderSchedule();
     } catch (e) {
       console.error(e);
-      if (msg) { msg.style.color = "#b91c1c"; msg.textContent = "Failed to create shift."; }
+      if (msg) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Failed to create shift.";
+      }
     }
   });
+}
 
-  // AI generate preview handler
+function attachAIGenerateHandler() {
   document.getElementById("aiGenerateBtn")?.addEventListener("click", () => {
     const msg = document.getElementById("aiMsg");
-
     const weekOffset = Number(document.getElementById("aiWeek")?.value || 0);
     const coreStart = document.getElementById("aiCoreStart")?.value;
     const coreEnd = document.getElementById("aiCoreEnd")?.value;
@@ -701,7 +780,10 @@ function renderShiftManageTools() {
     const closeEnd = document.getElementById("aiCloseEnd")?.value;
 
     if (!coreStart || !coreEnd || !closeStart || !closeEnd) {
-      if (msg) { msg.style.color = "#b91c1c"; msg.textContent = "Set all start/end times."; }
+      if (msg) {
+        msg.style.color = "#b91c1c";
+        msg.textContent = "Set all start/end times.";
+      }
       return;
     }
 
@@ -710,7 +792,10 @@ function renderShiftManageTools() {
       demandMap[sel.dataset.forecast] = sel.value || "normal";
     });
 
-    if (msg) { msg.style.color = "#6b7280"; msg.textContent = "Generating preview…"; }
+    if (msg) {
+      msg.style.color = "#6b7280";
+      msg.textContent = "Generating fair preview…";
+    }
 
     const result = generateAIWeekPreview({
       weekOffset,
@@ -721,9 +806,11 @@ function renderShiftManageTools() {
       closeEnd
     });
 
+    const uniquePeople = new Set(aiPreviewShifts.map((s) => s.userId)).size;
+
     if (msg) {
       msg.style.color = "#15803d";
-      msg.textContent = `Preview created: ${result.created} shifts. Unfilled slots: ${result.unfilled.length}.`;
+      msg.textContent = `Preview created: ${result.created} shifts across ${uniquePeople} people. Unfilled slots: ${result.unfilled.length}.`;
     }
 
     currentWeekOffset = weekOffset;
@@ -773,12 +860,13 @@ async function publishPreviewToFirestore(overwriteWeek = false) {
 /* ===================== AUTH INIT ===================== */
 
 onAuthStateChanged(auth, async (user) => {
-  if (!user) return (location.href = "index.html");
+  if (!user) {
+    location.href = "index.html";
+    return;
+  }
 
-  // ✅ critical fix: ensure /users/{uid} exists for rules
   const userDoc = await ensureUserDoc(user);
 
-  // always trust Firestore user doc for role/storeId
   sessionUser = {
     id: user.uid,
     name: userDoc.name || user.displayName || user.email || "User",
@@ -788,7 +876,6 @@ onAuthStateChanged(auth, async (user) => {
 
   storeId = sessionUser.storeId || "store001";
 
-  // Sidebar labels
   if (sidebarUserName) sidebarUserName.textContent = sessionUser.name;
   if (sidebarUserRole) {
     sidebarUserRole.textContent =
@@ -796,22 +883,25 @@ onAuthStateChanged(auth, async (user) => {
       sessionUser.role === "manager" ? "Restaurant Manager" :
       "Crew Member";
   }
+
   if (roleBadge) {
     roleBadge.textContent =
       sessionUser.role === "shiftCreator" ? "Shift Creator" :
       sessionUser.role === "manager" ? "Manager" :
       "Crew";
   }
+
   if (avatarCircle) avatarCircle.textContent = sessionUser.name.charAt(0).toUpperCase();
 
   if (scheduleTitle) {
     const isManagerLike = sessionUser.role === "manager" || sessionUser.role === "shiftCreator";
     scheduleTitle.textContent = isManagerLike ? "Store shifts" : "Your shifts";
   }
+
   if (scheduleSubtitle) {
     scheduleSubtitle.textContent =
       sessionUser.role === "shiftCreator"
-        ? "Generate a schedule on the website (preview), then publish."
+        ? "Generate a fair schedule on the website (preview), then publish."
         : "View your shifts.";
   }
 
@@ -823,15 +913,13 @@ onAuthStateChanged(auth, async (user) => {
   renderSchedule();
 });
 
-/* ===================== LOGOUT ===================== */
+/* ===================== LOGOUT / SIDEBAR ===================== */
 
 logoutBtn?.addEventListener("click", async () => {
   await signOut(auth);
   localStorage.clear();
   location.href = "index.html";
 });
-
-/* ===================== SIDEBAR TOGGLE (MOBILE) ===================== */
 
 if (sidebar && sidebarToggle) {
   sidebarToggle.addEventListener("click", () => {
