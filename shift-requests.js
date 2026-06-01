@@ -17,7 +17,74 @@ function addStyles() {
   if ($("shiftRequestStyles")) return;
   const s = document.createElement("style");
   s.id = "shiftRequestStyles";
-  s.textContent = `.shift-req-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}.shift-req-btn{border:0;border-radius:999px;padding:5px 7px;background:#fff7ed;border:1px solid #f59e0b;color:#991b1b;font-size:.68rem;font-weight:900;cursor:pointer}.shift-req-btn.dark{background:#111827;color:white;border-color:#111827}.shift-status-pill{display:inline-flex;border-radius:999px;padding:3px 7px;font-size:.67rem;font-weight:900;margin-top:3px}.shift-approved{background:#dcfce7;color:#166534}.shift-draft{background:#fef3c7;color:#92400e}.req-panel{margin-top:14px;padding:14px;border-radius:20px;background:#fff7ed;border:1px solid #f59e0b}.req-panel h3{margin:0 0 8px;color:#991b1b}.req-card{background:white;border:1px solid #fed7aa;border-radius:14px;padding:10px;margin-top:8px;font-size:.78rem}.req-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.req-action{border:0;border-radius:999px;padding:7px 10px;font-weight:900;cursor:pointer;background:#dc0019;color:white}.req-action.deny{background:#111827}.req-status{font-size:.72rem;font-weight:900;color:#92400e;margin-top:4px}`;
+  s.textContent = `
+    #scheduleCard .list li.has-shift-extras{
+      display:flex!important;
+      flex-direction:column!important;
+      align-items:stretch!important;
+      justify-content:flex-start!important;
+      gap:6px!important;
+      overflow:hidden!important;
+    }
+    #scheduleCard .list li.has-shift-extras > span:first-child{
+      display:block!important;
+      width:100%!important;
+      line-height:1.15!important;
+      white-space:normal!important;
+      word-break:break-word!important;
+    }
+    #scheduleCard .list li.has-shift-extras .badge-soft{
+      align-self:flex-start!important;
+      max-width:100%!important;
+      white-space:normal!important;
+      text-align:left!important;
+      line-height:1.1!important;
+    }
+    .shift-req-actions{
+      width:100%;
+      display:grid;
+      grid-template-columns:1fr;
+      gap:5px;
+      margin-top:4px;
+    }
+    .shift-req-btn{
+      width:100%;
+      border:0;
+      border-radius:999px;
+      padding:6px 7px;
+      background:#fff7ed;
+      border:1px solid #f59e0b;
+      color:#991b1b;
+      font-size:.68rem;
+      font-weight:900;
+      line-height:1.05;
+      cursor:pointer;
+      text-align:center;
+      white-space:normal;
+    }
+    .shift-req-btn.dark{background:#111827;color:white;border-color:#111827}
+    .shift-status-pill{
+      width:fit-content;
+      max-width:100%;
+      display:inline-flex;
+      border-radius:999px;
+      padding:4px 7px;
+      font-size:.66rem;
+      font-weight:900;
+      line-height:1.05;
+      margin-top:2px;
+      white-space:normal;
+    }
+    .shift-approved{background:#dcfce7;color:#166534}
+    .shift-draft{background:#fef3c7;color:#92400e}
+    .req-panel{margin-top:14px;padding:14px;border-radius:20px;background:#fff7ed;border:1px solid #f59e0b}
+    .req-panel h3{margin:0 0 8px;color:#991b1b}
+    .req-card{background:white;border:1px solid #fed7aa;border-radius:14px;padding:10px;margin-top:8px;font-size:.78rem}
+    .req-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .req-action{border:0;border-radius:999px;padding:7px 10px;font-weight:900;cursor:pointer;background:#dc0019;color:white}
+    .req-action.deny{background:#111827}
+    .req-status{font-size:.72rem;font-weight:900;color:#92400e;margin-top:4px}
+  `;
   document.head.appendChild(s);
 }
 
@@ -81,10 +148,12 @@ async function injectScheduleExtras() {
     const shift = findShiftForLi(li, shifts);
     if (!shift) return;
 
+    li.classList.add("has-shift-extras");
+
     if (!li.querySelector(".shift-status-pill")) {
       const badge = document.createElement("span");
       badge.className = `shift-status-pill ${shift.approved ? "shift-approved" : "shift-draft"}`;
-      badge.textContent = shift.approved ? "✅ Approved rota" : "⚠️ Draft rota";
+      badge.textContent = shift.approved ? "✅ Approved" : "⚠️ Draft rota";
       li.appendChild(badge);
     }
 
