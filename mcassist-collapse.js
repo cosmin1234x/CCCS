@@ -10,6 +10,7 @@ function loadCollapseCss(){
 
 function createCollapseControls(){
   loadCollapseCss();
+  import('./rota-review.js?v=review-1').catch(console.error);
   const panel=document.querySelector('.ai-panel');
   if(!panel||panel.dataset.collapseReady==='1')return;
   panel.dataset.collapseReady='1';
