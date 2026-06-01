@@ -11,7 +11,7 @@ import {
 
 const $ = (id) => document.getElementById(id);
 
-const STATIONS = [
+const ROTA_STATIONS = [
   "Grill",
   "Fries",
   "Front Counter",
@@ -46,7 +46,6 @@ function addMsg(text, from = "bot") {
 
   const msg = document.createElement("div");
   msg.className = `message ${from === "user" ? "msg-user" : "msg-bot"}`;
-
   msg.innerHTML = `
     <div class="bubble">${safeText(text)}</div>
     <div class="msg-meta">${from === "user" ? "You" : "McAssist"}</div>
@@ -58,23 +57,21 @@ function addMsg(text, from = "bot") {
 
 function getUser() {
   try {
-    return JSON.parse(localStorage.getItem("mc_session_user") || "null") || {
-      id: auth.currentUser?.uid,
-      role: "crew",
-      storeId: "store001"
-    };
-  } catch {
-    return {
-      id: auth.currentUser?.uid,
-      role: "crew",
-      storeId: "store001"
-    };
-  }
+    const cached = JSON.parse(localStorage.getItem("mc_session_user") || "null");
+    if (cached) return cached;
+  } catch {}
+
+  return {
+    id: auth.currentUser?.uid || "",
+    name: auth.currentUser?.displayName || auth.currentUser?.email || "User",
+    role: "crew",
+    storeId: "store001"
+  };
 }
 
 function canManage(user) {
-  const role = String(user?.role || "").toLowerCase();
-  return role === "manager" || role === "shiftcreator" || role === "shift creator";
+  const role = String(user?.role || "").toLowerCase().replace(/\s+/g, "");
+  return role === "manager" || role === "shiftcreator" || role === "admin";
 }
 
 function toISO(date) {
@@ -91,48 +88,22 @@ function toHHMM(mins) {
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
 
-function hoursBetween(start, end) {
-  let s = toMinutes(start);
-  let e = toMinutes(end);
-  if (e <= s) e += 1440;
-  return (e - s) / 60;
-}
-
-function overlaps(aStart, aEnd, bStart, bEnd) {
-  let aS = toMinutes(aStart);
-  let aE = toMinutes(aEnd);
-  let bS = toMinutes(bStart);
-  let bE = toMinutes(bEnd);
-
-  if (aE <= aS) aE += 1440;
-  if (bE <= bS) bE += 1440;
-
-  return aS < bE && bS < aE;
-}
-
-function stationKey(station) {
-  return norm(station)
-    .replace(/drive thru/g, "drive")
-    .replace(/front counter/g, "counter");
-}
-
 function parseTime(value) {
   if (!value) return null;
 
-  let v = String(value).toLowerCase().trim().replace(/\./g, ":");
-  const ampm = v.match(/(am|pm)$/)?.[1] || "";
-
-  v = v.replace(/(am|pm)$/g, "").trim();
+  let raw = String(value).toLowerCase().trim().replace(/\./g, ":");
+  const ampm = raw.match(/(am|pm)$/)?.[1] || "";
+  raw = raw.replace(/(am|pm)$/g, "").trim();
 
   let h = 0;
   let m = 0;
 
-  if (v.includes(":")) {
-    const parts = v.split(":");
+  if (raw.includes(":")) {
+    const parts = raw.split(":");
     h = Number(parts[0]);
     m = Number(parts[1] || 0);
   } else {
-    h = Number(v);
+    h = Number(raw);
   }
 
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
@@ -140,58 +111,64 @@ function parseTime(value) {
   if (ampm === "pm" && h < 12) h += 12;
   if (ampm === "am" && h === 12) h = 0;
 
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function parseTimeRange(text) {
-  const match = norm(text).match(
-    /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|to|until|till)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
+  const match = String(text || "").toLowerCase().match(
+    /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|–|to|until|till)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
   );
 
-  if (!match) return null;
+  if (!match) return { start: "06:00", end: "23:00" };
 
-  let start = parseTime(match[1]);
-  let end = parseTime(match[2]);
+  let left = match[1].trim();
+  const right = match[2].trim();
 
-  if (!start || !end) return null;
+  // If user says 6-11pm or 6 11pm, make the first time AM.
+  if (!/[ap]m/i.test(left) && /pm/i.test(right)) {
+    left += "am";
+  }
 
+  let start = parseTime(left);
+  let end = parseTime(right);
+
+  if (!start || !end) return { start: "06:00", end: "23:00" };
+
+  // If both are plain numbers like 6-11, assume 6am to 11pm for rota commands.
   if (!/[ap]m/i.test(match[1]) && !/[ap]m/i.test(match[2])) {
-    const sHour = Number(start.split(":")[0]);
-    const eHour = Number(end.split(":")[0]);
-
-    if (sHour >= 6 && sHour <= 11 && eHour >= 1 && eHour <= 8) {
-      end = `${String(eHour + 12).padStart(2, "0")}:00`;
+    const sh = Number(start.split(":")[0]);
+    const eh = Number(end.split(":")[0]);
+    if (sh >= 4 && sh <= 11 && eh >= 8 && eh <= 11) {
+      end = `${String(eh + 12).padStart(2, "0")}:00`;
     }
   }
 
   return { start, end };
 }
 
-function parseStoreHours(text) {
-  const t = norm(text);
-
-  if (t.includes("24h") || t.includes("24 hour")) {
-    return { start: "00:00", end: "23:59" };
-  }
-
-  return parseTimeRange(text) || { start: "06:00", end: "23:00" };
-}
-
 function getMonday(date) {
   const d = new Date(date);
   const day = d.getDay();
   const diff = (day === 0 ? -6 : 1) - day;
-
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
-
   return d;
 }
 
-function getWeekDates(text) {
+function getDatesFromText(text) {
   const t = norm(text);
-  const start = getMonday(new Date());
 
+  if (t.includes("today")) return [new Date()];
+
+  if (t.includes("tomorrow")) {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return [d];
+  }
+
+  const start = getMonday(new Date());
   if (t.includes("next week")) start.setDate(start.getDate() + 7);
   if (t.includes("last week")) start.setDate(start.getDate() - 7);
 
@@ -202,238 +179,128 @@ function getWeekDates(text) {
   });
 }
 
-function buildDayShiftTemplates(open, close) {
-  let openM = toMinutes(open);
-  let closeM = toMinutes(close);
-
-  if (closeM <= openM) closeM += 1440;
-
-  const templates = [];
-
-  const add = (name, start, end) => {
-    if (end - start >= 4 * 60) {
-      templates.push({
-        name,
-        start: toHHMM(start),
-        end: toHHMM(end)
-      });
-    }
-  };
-
-  add("early", openM, Math.min(openM + 8 * 60, closeM));
-
-  const midStart = Math.min(openM + 4 * 60, closeM - 4 * 60);
-  add("mid", midStart, Math.min(midStart + 8 * 60, closeM));
-
-  add("late", Math.max(closeM - 8 * 60, openM), closeM);
-
-  const seen = new Set();
-
-  return templates.filter((template) => {
-    const key = `${template.start}-${template.end}`;
-
-    if (seen.has(key)) return false;
-
-    seen.add(key);
-    return true;
-  });
+function rangeName(text, dates) {
+  const t = norm(text);
+  if (t.includes("today")) return "today";
+  if (t.includes("tomorrow")) return "tomorrow";
+  if (t.includes("next week")) return "next week";
+  if (t.includes("last week")) return "last week";
+  return dates.length === 1 ? toISO(dates[0]) : "this week";
 }
 
-function getWeekOffDayMap(people, dates) {
-  const map = {};
+function parsePeopleCount(text, peopleLength) {
+  const t = norm(text);
+  const match = t.match(/(?:with|use|need|for|staff)\s*(\d{1,2})\s*(?:people|person|crew|staff|workers|members)?/i);
 
-  people.forEach((person, index) => {
-    map[person.id] = toISO(dates[index % 7]);
-  });
+  if (match) {
+    return Math.max(1, Math.min(peopleLength, Number(match[1]) || 1));
+  }
 
-  return map;
+  // Good default: use up to 5 people per day if you have them.
+  return Math.min(peopleLength, 5);
 }
 
-function getAvailabilityValue(person, dateISO) {
-  const d = new Date(`${dateISO}T12:00:00`);
-  const long = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][d.getDay()];
-  const short = long.slice(0, 3);
-
-  const sources = [
-    person.availability,
-    person.available,
-    person.availableTimes,
-    person.availabilityByDay
-  ].filter(Boolean);
-
-  for (const source of sources) {
-    if (typeof source === "boolean") return source;
-    if (source[dateISO] !== undefined) return source[dateISO];
-    if (source[long] !== undefined) return source[long];
-    if (source[short] !== undefined) return source[short];
-  }
-
-  if (Array.isArray(person.availableDays) && person.availableDays.length) {
-    const days = person.availableDays.map(norm);
-
-    if (!days.includes(long) && !days.includes(short) && !days.includes(dateISO)) {
-      return false;
-    }
-  }
-
+function shouldReplace(text) {
+  const t = norm(text);
+  if (/\b(add|extra|additional|more)\b/.test(t)) return false;
   return true;
 }
 
-function rangeCovers(range, start, end) {
-  if (range === true || range === "all" || range === "any") return true;
-  if (range === false || range === "off" || range === "no") return false;
+function buildTemplates(open, close, peoplePerDay) {
+  let openM = toMinutes(open);
+  let closeM = toMinutes(close);
+  if (closeM <= openM) closeM += 1440;
 
-  const ranges = Array.isArray(range) ? range : [range];
+  const window = closeM - openM;
+  const count = Math.max(1, peoplePerDay);
 
-  return ranges.some((r) => {
-    if (typeof r === "string") {
-      const match = r.match(
-        /(\d{1,2}:?\d{0,2}\s*(?:am|pm)?)\s*(?:-|to)\s*(\d{1,2}:?\d{0,2}\s*(?:am|pm)?)/i
-      );
+  // Every slot max 8 hours, spread from open to close.
+  const shiftLength = Math.min(8 * 60, Math.max(4 * 60, Math.ceil(window / Math.min(2, count))));
+  const latestStart = Math.max(openM, closeM - shiftLength);
+  const step = count === 1 ? 0 : (latestStart - openM) / (count - 1);
 
-      if (!match) return false;
+  const templates = [];
 
-      r = {
-        start: parseTime(match[1]),
-        end: parseTime(match[2])
-      };
-    }
+  for (let i = 0; i < count; i++) {
+    const start = Math.round((openM + step * i) / 15) * 15;
+    const end = Math.min(start + shiftLength, closeM);
 
-    const rs = r?.start || r?.from || r?.open;
-    const re = r?.end || r?.to || r?.close;
-
-    if (!rs || !re) return false;
-
-    let a = toMinutes(rs);
-    let b = toMinutes(re);
-    let s = toMinutes(start);
-    let e = toMinutes(end);
-
-    if (b <= a) b += 1440;
-    if (e <= s) e += 1440;
-
-    return a <= s && e <= b;
-  });
-}
-
-function isAvailable(person, dateISO, start, end) {
-  if (person.active === false || person.disabled === true) return false;
-
-  if (Array.isArray(person.unavailableDates) && person.unavailableDates.includes(dateISO)) {
-    return false;
+    templates.push({
+      start: toHHMM(start),
+      end: toHHMM(end)
+    });
   }
 
-  return rangeCovers(getAvailabilityValue(person, dateISO), start, end);
+  return templates;
 }
 
-function getPersonStations(person) {
-  const raw = [];
-
-  [
-    person.stations,
-    person.certifications,
-    person.availableStations,
-    person.stationSkills
-  ].forEach((value) => {
-    if (Array.isArray(value)) raw.push(...value);
-  });
-
-  const cleaned = raw
-    .map((item) => String(item).replace(/-/g, " ").trim())
-    .filter(Boolean);
-
-  return cleaned.length ? cleaned : STATIONS;
-}
-
-function hasStationClash(shifts, dateISO, start, end, station) {
-  return shifts.some((shift) => {
-    return (
-      shift.date === dateISO &&
-      stationKey(shift.station) === stationKey(station) &&
-      overlaps(shift.start, shift.end, start, end)
-    );
-  });
-}
-
-function hasShiftSameDay(shifts, personId, dateISO) {
-  return shifts.some((shift) => shift.userId === personId && shift.date === dateISO);
-}
-
-function chooseStation(person, shifts, dateISO, start, end) {
-  const options = [...getPersonStations(person), ...STATIONS];
-
-  for (const station of options) {
-    if (!hasStationClash(shifts, dateISO, start, end, station)) {
-      return station.replace(/\b\w/g, (c) => c.toUpperCase());
-    }
-  }
-
-  return null;
-}
-
-async function getCrew(storeId) {
-  const snap = await getDocs(
-    query(collection(db, "users"), where("storeId", "==", storeId))
-  );
-
-  const people = [];
+async function getCrew(storeId, currentUser) {
+  const snap = await getDocs(query(collection(db, "users"), where("storeId", "==", storeId)));
+  const all = [];
 
   snap.forEach((item) => {
     const data = item.data() || {};
-    const role = String(data.role || "crew").toLowerCase();
+    const role = String(data.role || "crew").toLowerCase().replace(/\s+/g, "");
 
-    if (/admin|manager/.test(role) && !/shiftcreator/.test(role)) return;
-
-    people.push({
+    all.push({
       id: item.id,
       name: data.name || data.email || "Crew",
       role: data.role || "crew",
-      ...data,
-      maxWeeklyHours:
-        Number(data.maxHours || data.contractHours || data.preferredHours || data.hoursPerWeek || 30) || 30
+      roleKey: role,
+      ...data
     });
   });
 
-  return people.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  // Prefer real crew users. Do not assign managers/shift creators unless there is no other option.
+  let crew = all.filter((p) => !/manager|admin|shiftcreator/.test(p.roleKey));
+
+  if (!crew.length) {
+    crew = all.filter((p) => !/manager|admin/.test(p.roleKey));
+  }
+
+  // If the logged-in shift creator is inside the crew list and there are other crew, keep them out of the rota.
+  if (crew.length > 1 && currentUser?.id) {
+    const withoutSelf = crew.filter((p) => p.id !== currentUser.id);
+    if (withoutSelf.length) crew = withoutSelf;
+  }
+
+  return crew.sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
-async function getWeekShifts(storeId, dates) {
+async function getShifts(storeId, dates) {
   const wanted = new Set(dates.map(toISO));
   const snap = await getDocs(collection(db, "stores", storeId, "Shifts"));
   const shifts = [];
 
   snap.forEach((item) => {
     const data = item.data() || {};
-
     if (wanted.has(data.date)) {
-      shifts.push({
-        id: item.id,
-        ...data
-      });
+      shifts.push({ id: item.id, ...data });
     }
   });
 
   return shifts;
 }
 
-async function deleteGeneratedRota(text, user) {
+async function deleteShifts(text, user, onlyGenerated = false) {
   if (!canManage(user)) {
-    return "Only a manager or shift creator can delete generated rotas.";
+    return "Only a manager or shift creator can delete shifts.";
   }
 
   const storeId = user.storeId || "store001";
-  const dates = getWeekDates(text);
-  const shifts = await getWeekShifts(storeId, dates);
+  const dates = getDatesFromText(text);
+  const label = rangeName(text, dates);
+  const shifts = await getShifts(storeId, dates);
 
-  const generated = shifts.filter((shift) => {
-    return shift.autoRota === true || shift.createdByAI === true || shift.generatedByAI === true;
-  });
+  const targets = onlyGenerated
+    ? shifts.filter((s) => s.autoRota === true || s.createdByAI === true || s.generatedByAI === true)
+    : shifts;
 
-  for (const shift of generated) {
+  for (const shift of targets) {
     await deleteDoc(doc(db, "stores", storeId, "Shifts", shift.id));
   }
 
-  return `Deleted ${generated.length} AI-generated shifts for that week ✅`;
+  return `Deleted ${targets.length} ${onlyGenerated ? "AI-generated " : ""}shift(s) for ${label} ✅`;
 }
 
 async function createTeamRota(text, user) {
@@ -442,79 +309,57 @@ async function createTeamRota(text, user) {
   }
 
   const storeId = user.storeId || "store001";
-  const dates = getWeekDates(text);
-  const hours = parseStoreHours(text);
+  const dates = getDatesFromText(text);
+  const label = rangeName(text, dates);
+  const hours = parseTimeRange(text);
+  const people = await getCrew(storeId, user);
 
-  if (/\b(replace|redo|regenerate|rebuild)\b/i.test(text)) {
-    await deleteGeneratedRota(text, user);
+  if (people.length < 2) {
+    return people.length === 1
+      ? "I only found 1 crew member, so I can’t make a team rota yet. Add more crew users first."
+      : "I couldn’t find any crew users for this store.";
   }
 
-  const people = await getCrew(storeId);
+  let deleted = 0;
+  const replace = shouldReplace(text);
 
-  if (!people.length) {
-    return "I couldn’t find any crew for this store.";
-  }
-
-  const shifts = await getWeekShifts(storeId, dates);
-
-  const assignedHours = Object.fromEntries(people.map((person) => [person.id, 0]));
-
-  shifts.forEach((shift) => {
-    if (assignedHours[shift.userId] !== undefined) {
-      assignedHours[shift.userId] += hoursBetween(shift.start, shift.end);
+  if (replace) {
+    const before = await getShifts(storeId, dates);
+    for (const shift of before) {
+      await deleteDoc(doc(db, "stores", storeId, "Shifts", shift.id));
+      deleted++;
     }
-  });
+  }
 
-  const offDays = getWeekOffDayMap(people, dates);
+  const peoplePerDay = parsePeopleCount(text, people.length);
+  const templates = buildTemplates(hours.start, hours.end, peoplePerDay);
+  const assignedCount = Object.fromEntries(people.map((p) => [p.id, 0]));
 
   let created = 0;
-  let gaps = 0;
-  const notes = [];
+  let pointer = 0;
+  const used = new Set();
 
-  for (const day of dates) {
-    const dateISO = toISO(day);
+  for (let dayIndex = 0; dayIndex < dates.length; dayIndex++) {
+    const dateISO = toISO(dates[dayIndex]);
     const dailyUsed = new Set();
-    const templates = buildDayShiftTemplates(hours.start, hours.end);
 
-    for (const template of templates) {
-      const available = people
-        .filter((person) => offDays[person.id] !== dateISO)
-        .filter((person) => isAvailable(person, dateISO, template.start, template.end))
-        .filter((person) => !hasShiftSameDay(shifts, person.id, dateISO))
-        .filter((person) => !dailyUsed.has(person.id))
-        .filter((person) => {
-          const hours = assignedHours[person.id] || 0;
-          const underMax = hours < person.maxWeeklyHours;
-          const everyoneOver = people.every((p) => (assignedHours[p.id] || 0) >= p.maxWeeklyHours);
-          return underMax || everyoneOver;
-        })
-        .sort((a, b) => {
-          return (assignedHours[a.id] || 0) - (assignedHours[b.id] || 0);
-        });
+    // Rotate the starting person each day so the same people do not always get early/late.
+    pointer = dayIndex % people.length;
 
-      if (!available.length) {
-        gaps++;
-        continue;
-      }
-
-      let chosen = null;
-      let station = null;
-
-      for (const person of available) {
-        const freeStation = chooseStation(person, shifts, dateISO, template.start, template.end);
-
-        if (freeStation) {
-          chosen = person;
-          station = freeStation;
-          break;
+    for (let slotIndex = 0; slotIndex < templates.length; slotIndex++) {
+      const sorted = [...people].sort((a, b) => {
+        const aUsedToday = dailyUsed.has(a.id) ? 1 : 0;
+        const bUsedToday = dailyUsed.has(b.id) ? 1 : 0;
+        if (aUsedToday !== bUsedToday) return aUsedToday - bUsedToday;
+        if ((assignedCount[a.id] || 0) !== (assignedCount[b.id] || 0)) {
+          return (assignedCount[a.id] || 0) - (assignedCount[b.id] || 0);
         }
-      }
+        return a.name.localeCompare(b.name);
+      });
 
-      if (!chosen || !station) {
-        gaps++;
-        notes.push(`No free station on ${dateISO} ${template.start}-${template.end}`);
-        continue;
-      }
+      const chosen = sorted.find((p) => !dailyUsed.has(p.id)) || sorted[pointer % sorted.length];
+      const template = templates[slotIndex];
+      const station = ROTA_STATIONS[slotIndex % ROTA_STATIONS.length];
 
       await addDoc(collection(db, "stores", storeId, "Shifts"), {
         date: dateISO,
@@ -528,76 +373,80 @@ async function createTeamRota(text, user) {
         autoRota: true,
         createdByAI: true,
         generatedByAI: true,
+        source: "mcassist-rota-fix-v2",
         createdBy: user.id || auth.currentUser?.uid || "mcassist",
         createdAt: Date.now()
       });
 
-      shifts.push({
-        date: dateISO,
-        start: template.start,
-        end: template.end,
-        userId: chosen.id,
-        userName: chosen.name,
-        station,
-        autoRota: true,
-        createdByAI: true,
-        generatedByAI: true
-      });
-
       dailyUsed.add(chosen.id);
-      assignedHours[chosen.id] = (assignedHours[chosen.id] || 0) + hoursBetween(template.start, template.end);
+      used.add(chosen.id);
+      assignedCount[chosen.id] = (assignedCount[chosen.id] || 0) + 1;
       created++;
+      pointer++;
     }
   }
 
-  const pattern = buildDayShiftTemplates(hours.start, hours.end)
-    .map((item) => `${item.name} ${item.start}-${item.end}`)
+  const namesUsed = people
+    .filter((p) => used.has(p.id))
+    .map((p) => p.name)
+    .slice(0, 8)
     .join(", ");
 
-  let reply = `Team rota created better ✅
+  return `${replace ? "Team rota replaced" : "Team rota added"} ✅
 
-Week: ${toISO(dates[0])} to ${toISO(dates[6])}
+Range: ${label}
+Dates: ${toISO(dates[0])}${dates.length > 1 ? ` to ${toISO(dates[dates.length - 1])}` : ""}
 Hours: ${hours.start}–${hours.end}
-Shift pattern: ${pattern}
+Daily shift slots: ${templates.map((t) => `${t.start}-${t.end}`).join(", ")}
 
-Rules used:
-• max 1 shift per person per day
-• 1 day off per crew member
-• 1 station per shift
-• no same-station overlap
+Old shifts deleted: ${deleted}
+New shifts created: ${created}
+Crew used: ${used.size}/${people.length}${namesUsed ? ` (${namesUsed}${used.size > 8 ? ", …" : ""})` : ""}
 
-Shifts created: ${created}`;
-
-  if (gaps) reply += `\nCoverage gaps: ${gaps}`;
-  if (notes.length) reply += `\nNotes: ${notes.slice(0, 4).join(" | ")}`;
-
-  reply += `\n\nTry: replace team rota for this week 6am-11pm`;
-
-  return reply;
+Useful commands:
+• delete all shifts for this week
+• replace team rota for next week 6am-11pm with 5 people
+• add extra shifts today 12pm-8pm`;
 }
 
-function isTeamRotaCommand(text) {
+function wantsDelete(text) {
   const t = norm(text);
-
-  return (
-    /\b(create|make|generate|build|plan|auto|replace|redo|regenerate|rebuild)\b/.test(t) &&
-    (t.includes("rota") || t.includes("schedule") || t.includes("shifts")) &&
-    (t.includes("team") ||
-      t.includes("entire") ||
-      t.includes("everyone") ||
-      t.includes("all") ||
-      t.includes("this week") ||
-      t.includes("next week"))
-  );
+  return /\b(delete|remove|clear|wipe)\b/.test(t) && (t.includes("shift") || t.includes("shifts") || t.includes("rota") || t.includes("schedule"));
 }
 
-function wantsDeleteGenerated(text) {
+function wantsGeneratedOnlyDelete(text) {
+  const t = norm(text);
+  return wantsDelete(text) && (t.includes("generated") || t.includes("auto rota") || t.includes("ai shifts"));
+}
+
+function wantsTeamRota(text) {
   const t = norm(text);
 
-  return (
-    /\b(delete|remove|clear)\b/.test(t) &&
-    (t.includes("generated rota") || t.includes("auto rota") || t.includes("generated shifts"))
-  );
+  const action = /\b(create|make|generate|build|plan|auto|replace|redo|regenerate|rebuild|add|fill)\b/.test(t);
+  const rota = t.includes("rota") || t.includes("schedule") || t.includes("shifts") || t.includes("shift");
+  const team = t.includes("team") || t.includes("everyone") || t.includes("crew") || t.includes("staff") || t.includes("this week") || t.includes("next week") || t.includes("today");
+  const hasTime = /\d{1,2}\s*(?::\d{2})?\s*(?:am|pm)?\s*(?:-|to|until|till)\s*\d{1,2}/i.test(t);
+
+  return rota && team && (action || hasTime);
+}
+
+function wantsHelp(text) {
+  const t = norm(text);
+  return (t.includes("help") || t.includes("commands") || t.includes("what can you do")) && (t.includes("shift") || t.includes("rota") || t.includes("manager"));
+}
+
+function helpReply() {
+  return `Rota commands I can run ✅
+
+• replace team rota for this week 6am-11pm
+• replace team rota for next week 6am-11pm with 5 people
+• add extra shifts today 12pm-8pm
+• delete all shifts for this week
+• delete all shifts for next week
+• delete today’s shifts
+• delete generated shifts for this week
+
+Use “replace” when you want the old shifts deleted first.`;
 }
 
 document.addEventListener(
@@ -612,11 +461,8 @@ document.addEventListener(
 
     if (!text) return;
 
-    const lower = norm(text);
-
-    if (!isTeamRotaCommand(lower) && !wantsDeleteGenerated(lower)) {
-      return;
-    }
+    const isCommand = wantsHelp(text) || wantsDelete(text) || wantsTeamRota(text);
+    if (!isCommand) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -624,20 +470,24 @@ document.addEventListener(
 
     addMsg(text, "user");
     input.value = "";
-
     if (send) send.disabled = true;
 
     try {
       const user = getUser();
+      let reply = "";
 
-      const reply = wantsDeleteGenerated(lower)
-        ? await deleteGeneratedRota(text, user)
-        : await createTeamRota(text, user);
+      if (wantsHelp(text)) {
+        reply = helpReply();
+      } else if (wantsDelete(text)) {
+        reply = await deleteShifts(text, user, wantsGeneratedOnlyDelete(text));
+      } else {
+        reply = await createTeamRota(text, user);
+      }
 
       addMsg(reply, "bot");
     } catch (error) {
-      console.error("Rota fix error:", error);
-      addMsg("I tried to make the rota, but something went wrong. Check Firebase permissions or crew data.", "bot");
+      console.error("Rota command error:", error);
+      addMsg("I tried to update the rota, but something went wrong. Check Firebase permissions, then try again.", "bot");
     }
 
     if (send) send.disabled = false;
