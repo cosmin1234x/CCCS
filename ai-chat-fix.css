@@ -1,0 +1,9 @@
+/* Compact AI buttons and bigger typing box */
+.ai-suggestions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;padding:0!important;margin-top:2px!important}
+.ai-suggestions button{width:100%!important;min-width:0!important;padding:8px 10px!important;font-size:.78rem!important;line-height:1.1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.ai-suggestions button:nth-child(5),.ai-suggestions button:nth-child(6),.ai-suggestions button:nth-child(7),.ai-suggestions button:nth-child(8),.ai-suggestions button:nth-child(9),.ai-suggestions button:nth-child(10){display:none!important}
+.ai-input-row{border-radius:24px!important;align-items:center!important}
+#aiInput{min-height:42px!important;font-size:1rem!important;padding-left:10px!important}
+.ai-send-btn{padding:11px 13px!important;white-space:nowrap!important}
+.voice-btn{flex:0 0 42px!important;width:42px!important;height:42px!important}
+@media(max-width:640px){.ai-suggestions{grid-template-columns:1fr 1fr!important}.ai-suggestions button{font-size:.74rem!important;padding:8px!important}.ai-send-btn{padding:10px 11px!important;font-size:.82rem!important}}
