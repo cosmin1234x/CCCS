@@ -1,4 +1,15 @@
+function loadCollapseCss(){
+  const href='mcassist-collapse.css';
+  const exists=[...document.querySelectorAll('link[rel="stylesheet"]')].some(l=>(l.getAttribute('href')||'').includes(href));
+  if(exists)return;
+  const link=document.createElement('link');
+  link.rel='stylesheet';
+  link.href=href+'?v=collapse-2';
+  document.head.appendChild(link);
+}
+
 function createCollapseControls(){
+  loadCollapseCss();
   const panel=document.querySelector('.ai-panel');
   if(!panel||panel.dataset.collapseReady==='1')return;
   panel.dataset.collapseReady='1';
