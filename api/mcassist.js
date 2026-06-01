@@ -2,8 +2,7 @@
  * api/mcassist.js — Vercel Serverless Function
  *
  * McAssist chat backend.
- * Also handles manager commands like:
- * "replace team rota for this week 6am-11pm"
+ * Handles real manager rota commands BEFORE OpenAI so the bot does not fake shift creation.
  */
 
 import admin from "firebase-admin";
@@ -109,6 +108,30 @@ function getWeekDays(offsetWeeks = 0) {
   return days;
 }
 
+function getRequestedDays(message) {
+  const text = String(message || "").toLowerCase();
+  const weekOffset = text.includes("next week") ? 1 : 0;
+
+  if (text.includes("today")) {
+    return [new Date()];
+  }
+
+  if (text.includes("tomorrow")) {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return [d];
+  }
+
+  return getWeekDays(weekOffset);
+}
+
+function getRangeLabel(days, message) {
+  const text = String(message || "").toLowerCase();
+  if (text.includes("today")) return "today";
+  if (text.includes("tomorrow")) return "tomorrow";
+  return text.includes("next week") ? "next week" : "this week";
+}
+
 function normaliseTime(hour, minute = 0, meridiem = "") {
   let h = Number(hour);
   const m = Number(minute || 0);
@@ -154,36 +177,89 @@ function parseTimeRange(message) {
   };
 }
 
-function parseWeekOffset(message) {
+function extractRequestedStaffCount(message, fallback) {
   const text = String(message || "").toLowerCase();
-  if (text.includes("next week")) return 1;
-  return 0;
+  const match = text.match(/(?:with|use|for|need|staff)\s*(\d{1,2})\s*(?:people|person|crew|staff|workers|members)?/);
+  if (match) return Math.max(1, Math.min(20, Number(match[1]) || fallback));
+  return fallback;
 }
 
-function isTeamRotaCommand(message) {
+function isManagerLike(user, context) {
+  const role = String(user?.role || context?.role || "").toLowerCase();
+  return role === "manager" || role === "shiftcreator" || role === "admin";
+}
+
+function isHelpCommand(message) {
+  const text = String(message || "").toLowerCase();
+  return (
+    (text.includes("command") || text.includes("what can you do") || text.includes("help")) &&
+    (text.includes("rota") || text.includes("shift") || text.includes("schedule") || text.includes("manager"))
+  );
+}
+
+function isDeleteShiftCommand(message) {
   const text = String(message || "").toLowerCase();
 
-  const mentionsRota =
+  const deleteWords =
+    text.includes("delete") ||
+    text.includes("remove") ||
+    text.includes("clear") ||
+    text.includes("wipe");
+
+  const shiftWords =
+    text.includes("shift") ||
+    text.includes("shifts") ||
+    text.includes("rota") ||
+    text.includes("schedule");
+
+  return deleteWords && shiftWords;
+}
+
+function isRotaWriteCommand(message) {
+  const text = String(message || "").toLowerCase();
+
+  const rotaWords =
     text.includes("rota") ||
     text.includes("schedule") ||
     text.includes("shifts") ||
-    text.includes("shift");
+    text.includes("shift") ||
+    text.includes("staffing");
 
-  const wantsReplaceOrCreate =
+  const actionWords =
     text.includes("replace") ||
     text.includes("redo") ||
     text.includes("rebuild") ||
     text.includes("generate") ||
     text.includes("create") ||
-    text.includes("make");
+    text.includes("make") ||
+    text.includes("plan") ||
+    text.includes("fill");
 
-  const mentionsTeam =
-    text.includes("team") ||
-    text.includes("everyone") ||
-    text.includes("crew") ||
-    text.includes("staff");
+  // The time range makes commands like "team rota this week 6am-11pm" count too.
+  const hasTimeRange = /\d{1,2}\s*(am|pm)?\s*(?:-|–|to|until|till)\s*\d{1,2}/.test(text);
 
-  return mentionsRota && wantsReplaceOrCreate && mentionsTeam;
+  return rotaWords && (actionWords || hasTimeRange);
+}
+
+function shouldReplaceBeforeCreate(message) {
+  const text = String(message || "").toLowerCase();
+  if (text.includes("add") || text.includes("extra")) return false;
+  return true;
+}
+
+function commandHelpReply() {
+  return {
+    reply:
+      "Manager rota commands I can run now:\n\n" +
+      "• replace team rota for this week 6am-11pm\n" +
+      "• replace team rota for next week 6am-11pm\n" +
+      "• create team rota this week 7am-10pm with 5 people\n" +
+      "• add extra shifts today 12pm-8pm\n" +
+      "• delete all shifts for this week\n" +
+      "• delete all shifts for next week\n" +
+      "• delete today’s shifts\n\n" +
+      "Tip: use “replace” when you want the old rota removed first. Use “add extra shifts” when you want to keep existing shifts."
+  };
 }
 
 function buildShiftTemplates(startHHMM, endHHMM, peopleCount, staffNeeded) {
@@ -194,15 +270,17 @@ function buildShiftTemplates(startHHMM, endHHMM, peopleCount, staffNeeded) {
   const windowMinutes = end - start;
   const targetCount = Math.min(
     peopleCount,
-    Math.max(2, Math.min(6, Number(staffNeeded) || 4))
+    Math.max(2, Math.min(8, Number(staffNeeded) || 4))
   );
 
   if (targetCount <= 1) {
     return [{ start: startHHMM, end: endHHMM }];
   }
 
+  // Stagger shifts across the full opening window. A 06:00–23:00 rota becomes multiple overlapping shifts,
+  // not one person stuck on a 17-hour shift.
   const shiftLength = Math.min(8 * 60, Math.max(4 * 60, Math.ceil(windowMinutes / 2)));
-  const latestStart = end - shiftLength;
+  const latestStart = Math.max(start, end - shiftLength);
   const step = targetCount === 1 ? 0 : (latestStart - start) / (targetCount - 1);
 
   const templates = [];
@@ -219,17 +297,16 @@ function buildShiftTemplates(startHHMM, endHHMM, peopleCount, staffNeeded) {
   return templates;
 }
 
-async function deleteWeekShifts(db, storeId, weekStartISO, weekEndISO) {
+async function deleteShiftsForDays(db, storeId, days) {
   const shiftsRef = db.collection("stores").doc(storeId).collection("Shifts");
-
-  const snap = await shiftsRef
-    .where("date", ">=", weekStartISO)
-    .where("date", "<=", weekEndISO)
-    .get();
+  const dates = days.map(toISO);
 
   let deleted = 0;
   let batch = db.batch();
   let ops = 0;
+
+  // Firestore "in" supports up to 30 values, and we only use max 7 here.
+  const snap = await shiftsRef.where("date", "in", dates).get();
 
   for (const docSnap of snap.docs) {
     batch.delete(docSnap.ref);
@@ -268,7 +345,7 @@ async function loadCrewForStore(db, storeId, context) {
     return crew.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  // Fallback if Firestore query has no users but the page sent manager context.
+  // Fallback if the server cannot see users but the dashboard sent crew names.
   const summary = context?.managerData?.crewTrainingSummary;
   if (Array.isArray(summary)) {
     return summary
@@ -280,12 +357,21 @@ async function loadCrewForStore(db, storeId, context) {
   return [];
 }
 
+async function runDeleteCommand({ db, storeId, message }) {
+  const days = getRequestedDays(message);
+  const label = getRangeLabel(days, message);
+  const deleted = await deleteShiftsForDays(db, storeId, days);
+
+  return {
+    reply: `Done ✅ I deleted ${deleted} shift(s) for ${label}.`
+  };
+}
+
 async function publishTeamRota({ db, storeId, user, context, message }) {
-  const weekOffset = parseWeekOffset(message);
-  const weekDays = getWeekDays(weekOffset);
-  const weekStartISO = toISO(weekDays[0]);
-  const weekEndISO = toISO(weekDays[6]);
+  const days = getRequestedDays(message);
+  const label = getRangeLabel(days, message);
   const { start, end } = parseTimeRange(message);
+  const replaceFirst = shouldReplaceBeforeCreate(message);
 
   const crew = await loadCrewForStore(db, storeId, context);
 
@@ -298,24 +384,29 @@ async function publishTeamRota({ db, storeId, user, context, message }) {
     };
   }
 
-  const deleted = await deleteWeekShifts(db, storeId, weekStartISO, weekEndISO);
+  let deleted = 0;
+  if (replaceFirst) {
+    deleted = await deleteShiftsForDays(db, storeId, days);
+  }
 
-  const staffNeeded = context?.managerData?.staffNeeded || 4;
-  const templates = buildShiftTemplates(start, end, crew.length, staffNeeded);
+  const requestedStaff = extractRequestedStaffCount(message, context?.managerData?.staffNeeded || 4);
+  const templates = buildShiftTemplates(start, end, crew.length, requestedStaff);
   const shiftsRef = db.collection("stores").doc(storeId).collection("Shifts");
 
   let created = 0;
   let pointer = 0;
+  const usedPeople = new Set();
   let batch = db.batch();
   let ops = 0;
 
-  for (let dayIndex = 0; dayIndex < weekDays.length; dayIndex++) {
-    const dateISO = toISO(weekDays[dayIndex]);
-    const dayKey = dayKeys[weekDays[dayIndex].getDay()];
+  for (let dayIndex = 0; dayIndex < days.length; dayIndex++) {
+    const dateISO = toISO(days[dayIndex]);
+    const dayKey = dayKeys[days[dayIndex].getDay()];
 
     for (let slotIndex = 0; slotIndex < templates.length; slotIndex++) {
       const person = crew[pointer % crew.length];
       pointer += 1;
+      usedPeople.add(person.id);
 
       const ref = shiftsRef.doc();
       batch.set(ref, {
@@ -348,39 +439,51 @@ async function publishTeamRota({ db, storeId, user, context, message }) {
 
   if (ops > 0) await batch.commit();
 
-  const uniquePeople = new Set(
-    Array.from({ length: created }, (_, i) => crew[i % crew.length]?.id).filter(Boolean)
-  ).size;
+  const firstFewNames = crew.slice(0, Math.min(usedPeople.size, 5)).map((p) => p.name).join(", ");
 
   return {
     reply:
-      `Done ✅ I replaced the ${weekOffset === 1 ? "next week" : "this week"} team rota ` +
-      `from ${start}–${end}. I deleted ${deleted} old shift(s) and created ${created} new shift(s) ` +
-      `across ${Math.min(uniquePeople, crew.length)} people.`
+      `Done ✅ I ${replaceFirst ? "replaced" : "added"} the ${label} team rota from ${start}–${end}.\n\n` +
+      `${replaceFirst ? `Deleted old shifts: ${deleted}\n` : "Kept existing shifts.\n"}` +
+      `Created new shifts: ${created}\n` +
+      `People used: ${usedPeople.size}/${crew.length}${firstFewNames ? ` (${firstFewNames}${usedPeople.size > 5 ? ", …" : ""})` : ""}\n` +
+      `Daily shift slots: ${templates.map((t) => `${t.start}-${t.end}`).join(", ")}`
   };
 }
 
-async function tryHandleRotaCommand({ message, user, context }) {
-  if (!isTeamRotaCommand(message)) return null;
+async function tryHandleManagerCommand({ message, user, context }) {
+  const text = String(message || "").toLowerCase();
 
-  const role = String(user?.role || context?.role || "").toLowerCase();
-  const canManage = role === "manager" || role === "shiftcreator" || role === "admin";
+  if (isHelpCommand(message)) return commandHelpReply();
 
-  if (!canManage) {
-    return { reply: "Only a manager or shift creator can replace the team rota." };
+  const looksLikeManagerCommand =
+    isDeleteShiftCommand(message) ||
+    isRotaWriteCommand(message) ||
+    text.includes("team rota") ||
+    text.includes("delete all shifts");
+
+  if (!looksLikeManagerCommand) return null;
+
+  if (!isManagerLike(user, context)) {
+    return { reply: "Only a manager or shift creator can edit or delete the rota." };
   }
 
   const storeId = user?.storeId || context?.storeId || "store001";
 
   try {
     const db = getAdminDb();
+
+    if (isDeleteShiftCommand(message)) {
+      return await runDeleteCommand({ db, storeId, message });
+    }
+
     return await publishTeamRota({ db, storeId, user, context, message });
   } catch (err) {
-    console.error("Team rota command failed:", err);
+    console.error("Manager command failed:", err);
     return {
       reply:
-        "I understood the rota command, but I couldn’t write it to Firestore. " +
-        "Check Vercel env has FIREBASE_SERVICE_ACCOUNT_KEY set, then redeploy."
+        "I understood that as a rota command, but I couldn’t write to Firestore from the server. " +
+        "Check Vercel env has FIREBASE_SERVICE_ACCOUNT_KEY set, redeploy, then try again."
     };
   }
 }
@@ -401,9 +504,10 @@ export default async function handler(req, res) {
     const user = body?.user || {};
     const context = body?.contextData || {};
 
-    const rotaResult = await tryHandleRotaCommand({ message, user, context });
-    if (rotaResult) {
-      return res.status(200).json(rotaResult);
+    // Real commands run before OpenAI. This prevents fake "shifts created" replies.
+    const managerCommand = await tryHandleManagerCommand({ message, user, context });
+    if (managerCommand) {
+      return res.status(200).json(managerCommand);
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
@@ -442,7 +546,12 @@ STYLE:
 - Use UK wording (e.g., queue, till, chips, takeaway, bins) when relevant.
 - Use "store process/SOP" language, not American corporate tone.
 
-GROUNDING RULES (VERY IMPORTANT):
+ROTA SAFETY RULE:
+- Never claim you created, replaced, deleted, saved, or published shifts in text-only chat.
+- If a rota command reaches you, say: "Use the manager rota command format, for example: replace team rota for this week 6am-11pm".
+- Do not invent fake rota counts, fake coverage gaps, or fake shift creation results.
+
+GROUNDING RULES:
 1) If the user asks for exact build steps/recipes/procedures:
    - ONLY provide exact, step-by-step instructions if those specifics appear in SELECTED_MODULE content or explicitly provided context.
    - If not present, DO NOT guess or invent. Say you don't have their UK store's exact spec in your modules yet.
