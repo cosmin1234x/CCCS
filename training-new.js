@@ -7,9 +7,10 @@ const modules=[
 {id:"clean",emoji:"🧽",title:"Cleanliness",cat:"Cleanliness",xp:60,desc:"Keep areas clean, safe, and ready.",lesson:["Check tables and floors.","Deal with mess quickly.","Tell someone if help is needed."],checks:["Tables checked","Floors checked","Supplies checked"],tips:["Small checks stop big mess.","Safety first."],q:"Why clean small messes quickly?",opts:["To stop bigger problems","No reason","To slow down"],a:0}
 ];
 let state=loadState();
-let selected=state.last||modules[0].id;
+let selected=getUrlModule()||state.last||modules[0].id;
 let filter="All";
 let tab="lesson";
+function getUrlModule(){try{let id=new URLSearchParams(location.search).get("module");return modules.some(m=>m.id===id)?id:null}catch{return null}}
 function loadState(){try{return Object.assign({xp:0,done:{},checks:{},last:null},JSON.parse(localStorage.getItem(KEY)||"{}"))}catch{return{xp:0,done:{},checks:{},last:null}}}
 function saveState(){localStorage.setItem(KEY,JSON.stringify(state))}
 function getModule(id){return modules.find(m=>m.id===id)||modules[0]}
@@ -31,3 +32,4 @@ $("continueBtn").addEventListener("click",()=>{selected=(modules.find(m=>!state.
 $("quickQuizBtn").addEventListener("click",()=>{tab="quiz";renderDetail();$("moduleDetail").scrollIntoView({behavior:"smooth",block:"center"})});
 $("resetProgressBtn").addEventListener("click",()=>{state={xp:0,done:{},checks:{},last:selected};saveState();render();toast("Progress reset")});
 render();
+if(getUrlModule()) setTimeout(()=>$("moduleDetail")?.scrollIntoView({behavior:"smooth",block:"center"}),350);
