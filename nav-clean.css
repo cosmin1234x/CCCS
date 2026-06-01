@@ -128,6 +128,20 @@
   font-weight: 850 !important;
 }
 
+/* Critical fix: old cached nav.js may put inline max-height:0 on desktop. Force desktop nav visible. */
+@media (min-width: 901px) {
+  .sidebar-nav {
+    max-height: none !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .sidebar-toggle {
+    display: none !important;
+  }
+}
+
 @media (max-width: 900px) {
   .sidebar {
     z-index: 9999 !important;
