@@ -127,6 +127,106 @@
   <link rel="stylesheet" href="./nav-clean.css?v=mobile-fix-2" />
   <link rel="stylesheet" href="./mcassist-redesign.css?v=ai-redesign-1" />
   <link rel="stylesheet" href="./dashboard-layout-fix.css?v=dashboard-fix-1" />
+
+  <style id="force-dashboard-layout">
+    /* Hard dashboard layout fix: this loads after every CSS file */
+    @media (min-width: 901px) {
+      html,
+      body {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+      }
+
+      body.app-page {
+        display: flex !important;
+        align-items: stretch !important;
+        justify-content: flex-start !important;
+      }
+
+      body.app-page > .sidebar {
+        flex: 0 0 250px !important;
+        width: 250px !important;
+        min-width: 250px !important;
+      }
+
+      body.app-page > .main-layout {
+        flex: 1 1 auto !important;
+        width: calc(100vw - 250px) !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 18px !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 360px !important;
+        gap: 16px !important;
+        align-items: start !important;
+        box-sizing: border-box !important;
+      }
+
+      body.app-page > .main-layout > .content-area {
+        grid-column: 1 !important;
+        flex: unset !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+      }
+
+      body.app-page > .main-layout > .ai-panel {
+        grid-column: 2 !important;
+        flex: unset !important;
+        width: 360px !important;
+        min-width: 0 !important;
+        max-width: 360px !important;
+        justify-self: end !important;
+        position: sticky !important;
+        top: 18px !important;
+        max-height: calc(100vh - 36px) !important;
+      }
+
+      body.app-page .cards-grid {
+        grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)) !important;
+      }
+
+      body.app-page .ai-chat {
+        min-height: 230px !important;
+      }
+    }
+
+    @media (min-width: 901px) and (max-width: 1350px) {
+      body.app-page > .main-layout {
+        grid-template-columns: 1fr !important;
+      }
+
+      body.app-page > .main-layout > .ai-panel {
+        grid-column: 1 !important;
+        width: 100% !important;
+        max-width: none !important;
+        justify-self: stretch !important;
+        position: relative !important;
+        top: auto !important;
+        max-height: none !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      body.app-page > .main-layout {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 14px !important;
+        display: flex !important;
+        flex-direction: column !important;
+      }
+
+      body.app-page > .main-layout > .ai-panel {
+        width: 100% !important;
+        max-width: none !important;
+        position: relative !important;
+        top: auto !important;
+      }
+    }
+  </style>
 </head>
 
 <body class="app-page">
