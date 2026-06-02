@@ -4,193 +4,33 @@
   <meta charset="UTF-8" />
   <title>McTraining Portal - Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    :root {
-      --mc-red: #d62828;
-      --mc-yellow: #ffcc00;
-      --mc-dark: #1a1a1a;
-      --card-bg: rgba(255, 255, 255, 0.96);
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    body {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at top, #ffd166, #ff9f1c, #d62828);
-      color: #111;
-    }
-
-    .login-container {
-      width: 100%;
-      max-width: 420px;
-      background: var(--card-bg);
-      border-radius: 18px;
-      padding: 28px 26px 24px;
-      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.22);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .login-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .logo-circle {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: var(--mc-red);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--mc-yellow);
-      font-size: 26px;
-      font-weight: 900;
-    }
-
-    .login-header h1 {
-      font-size: 1.2rem;
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .login-header p {
-      font-size: 0.82rem;
-      color: #555;
-    }
-
-    form {
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #333;
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    input {
-      border-radius: 999px;
-      border: 1px solid #ddd;
-      padding: 9px 13px;
-      font-size: 0.88rem;
-      outline: none;
-      transition: border 0.2s, box-shadow 0.2s, transform 0.1s;
-      background: #fafafa;
-    }
-
-    input:focus {
-      border-color: var(--mc-red);
-      box-shadow: 0 0 0 2px rgba(214, 40, 40, 0.15);
-      transform: translateY(-1px);
-      background: #fff;
-    }
-
-    .login-button {
-      margin-top: 6px;
-      border-radius: 999px;
-      border: none;
-      padding: 11px 16px;
-      font-size: 0.95rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--mc-red), #a71d1d);
-      color: #fff;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
-      box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
-    }
-
-    .login-button:hover {
-      filter: brightness(1.05);
-      transform: translateY(-1px);
-    }
-
-    .login-button:active {
-      transform: translateY(0);
-      box-shadow: 0 6px 10px rgba(0, 0, 0, 0.22);
-    }
-
-    .login-button:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-
-    .error {
-      margin-top: 8px;
-      font-size: 0.8rem;
-      color: #c1121f;
-    }
-
-    .link-row {
-      margin-top: 12px;
-      font-size: 0.8rem;
-      text-align: center;
-    }
-
-    .link-row a {
-      color: #b91c1c;
-      text-decoration: none;
-      font-weight: 600;
-    }
-
-    .link-row a:hover {
-      text-decoration: underline;
-    }
-  </style>
+  <link rel="stylesheet" href="./mc-theme.css?v=cartoon-1" />
 </head>
-<body>
-  <div class="login-container">
-    <div class="login-header">
+<body class="auth-page">
+  <div class="login-container auth-shell">
+    <div class="login-header auth-header">
       <div class="logo-circle">M</div>
-      <div>
+      <div class="auth-header-text">
         <h1>Welcome back</h1>
         <p>Log in to the McTraining portal.</p>
       </div>
     </div>
 
-    <form id="loginForm">
+    <div class="tagline"><span>🍟</span><span>Fast, friendly crew training dashboard</span></div>
+
+    <form id="loginForm" class="auth-form">
       <div class="field-group">
         <label for="email">Email</label>
-        <input
-          type="email"
-          id="email"
-          placeholder="e.g. alex@restaurant.com"
-          required
-        />
+        <input type="email" id="email" placeholder="e.g. alex@restaurant.com" required />
       </div>
 
       <div class="field-group">
         <label for="password">Password</label>
-        <input
-          type="password"
-          id="password"
-          placeholder="Your password"
-          required
-        />
+        <input type="password" id="password" placeholder="Your password" required />
       </div>
 
       <button type="submit" class="login-button" id="loginButton">
-        <span>→</span>
+        <span>🍔</span>
         <span>Sign in</span>
       </button>
 
@@ -219,17 +59,15 @@
 
     // 🔁 Auto-login / remember me
     onAuthStateChanged(auth, async (user) => {
-      if (!user) return; // not logged in, show normal login page
+      if (!user) return;
 
       try {
-        // If we already have a session in localStorage, just go in
         const existing = localStorage.getItem("mc_session_user");
         if (existing) {
           window.location.href = "main.html";
           return;
         }
 
-        // Otherwise build a session from Firestore
         const profileRef = doc(db, "users", user.uid);
         const snap = await getDoc(profileRef);
 
@@ -259,7 +97,6 @@
         window.location.href = "main.html";
       } catch (e) {
         console.error("Auto-login failed:", e);
-        // If something goes wrong, we just leave them on the login page
       }
     });
 
@@ -282,7 +119,6 @@
       try {
         const cred = await signInWithEmailAndPassword(auth, email, password);
 
-        // Load profile from Firestore
         const profileRef = doc(db, "users", cred.user.uid);
         const snap = await getDoc(profileRef);
 
