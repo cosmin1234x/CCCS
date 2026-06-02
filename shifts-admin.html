@@ -2,249 +2,63 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal – Shift Creator</title>
+  <title>McTraining - Shift Creator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- ✅ correct for your domain root -->
-  <link rel="stylesheet" href="/mc-theme.css" />
-
-  <!-- Small extra styles just for this page -->
-  <style>
-    .nav-item { padding: 0; }
-    .nav-link{
-      display:flex; align-items:center; gap:10px; width:100%;
-      padding:12px 14px; text-decoration:none; color:inherit;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-
-    .shift-meta { font-size: 0.75rem; color: #6b7280; }
-    .shift-pill{
-      display:inline-flex; align-items:center; gap:4px;
-      border-radius:999px; padding:3px 6px; font-size:0.72rem;
-      background:#f9fafb; border:1px solid #e5e7eb;
-    }
-    .shift-pill-manager{
-      background:#fef3c7; border-color:#fbbf24; color:#92400e;
-    }
-    .shift-actions{
-      display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; align-items:center;
-      font-size:0.72rem;
-    }
-    .shift-btn{
-      border-radius:999px; border:1px solid #e5e7eb;
-      padding:3px 8px; font-size:0.72rem; background:#ffffff; cursor:pointer;
-    }
-    .shift-btn:hover{ background:#f3f4f6; }
-
-    /* Overlay for creating / editing shifts */
-    .shift-editor-overlay{
-      position:fixed; inset:0; background:rgba(15,23,42,0.45);
-      display:none; align-items:center; justify-content:center; z-index:200;
-    }
-    .shift-editor-overlay.show{ display:flex; }
-    .shift-editor-card{
-      width:100%; max-width:420px;
-      background:#fff7ed;
-      border-radius:18px;
-      padding:16px 18px 14px;
-      box-shadow:0 18px 40px rgba(148, 27, 12, 0.45);
-      border:1px solid rgba(250, 204, 21, 0.9);
-    }
-    .shift-editor-header{
-      display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
-    }
-    .shift-editor-header h3{ font-size:0.95rem; font-weight:800; }
-    .shift-editor-close{ border:none; background:transparent; cursor:pointer; font-size:1rem; }
-
-    .shift-editor-form{ display:flex; flex-direction:column; gap:8px; font-size:0.8rem; }
-    .shift-editor-form label{ font-size:0.78rem; margin-bottom:2px; }
-    .shift-editor-form select,
-    .shift-editor-form input{
-      border-radius:999px;
-      border:1px solid #fecaca;
-      padding:7px 11px;
-      font-size:0.8rem;
-      background:#fff;
-      outline:none;
-    }
-    .shift-editor-form-row{ display:flex; gap:6px; }
-    .shift-editor-form-row > div{ flex:1; }
-
-    .shift-editor-footer{
-      display:flex; justify-content:space-between; align-items:center;
-      margin-top:8px; gap:8px;
-    }
-    .shift-primary-btn{
-      border-radius:999px; border:none;
-      padding:8px 14px; font-size:0.85rem; font-weight:700;
-      background:linear-gradient(135deg,#d9091c,#a30716);
-      color:#fefce8;
-      cursor:pointer;
-      box-shadow:0 10px 18px rgba(148, 27, 12, 0.5);
-    }
-    .shift-danger-link{
-      border:none; background:transparent;
-      color:#b91c1c; font-size:0.78rem; cursor:pointer;
-    }
-    .shift-danger-link:disabled{ opacity:0.4; cursor:default; }
-  </style>
+  <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
 </head>
-
 <body class="app-page">
-
-  <!-- ========= SIDEBAR ========= -->
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-circle">M</div>
-      <div class="sidebar-header-text">
-        <h1>McTraining</h1>
-        <p>Crew &amp; Manager portal</p>
-      </div>
-      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
-    </div>
-
-    <nav class="sidebar-nav">
-      <div class="nav-section-title">MAIN</div>
-
-      <ul class="nav-list">
-        <!-- ✅ this fixes your "Dashboard" button -->
-        <li class="nav-item">
-          <a class="nav-link" href="/main">
-            <span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="/training.html">
-            <span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="/schedule.html">
-            <span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="/break-rewards.html">
-            <span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span>
-          </a>
-        </li>
-
-        <li class="nav-item active" id="navShiftCreator">
-          <a class="nav-link" href="/shifts-admin.html">
-            <span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span>
-          </a>
-        </li>
-      </ul>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user-label">
-        <strong id="sidebarUserName">User Name</strong><br />
-        <span id="sidebarUserRole">Crew Member</span>
-      </div>
-      <button id="logoutBtn" type="button">Log out</button>
-    </div>
+    <div class="brand"><div class="logo">M</div><div class="side-title"><h1>McTraining</h1><p>Plan the rota</p></div><button id="sidebarToggle" class="btn alt toggle" type="button">☰</button></div>
+    <nav class="nav"><small>MAIN</small><a href="main.html" data-page="dashboard">🏠 Dashboard</a><a href="training.html" data-page="training">🎓 Training</a><a href="schedule.html" data-page="schedule">📅 Shifts</a><a href="break-rewards.html" data-page="rewards">🍔 Break Rewards</a><a id="navShiftCreator" href="shifts-admin.html" data-page="shifts">🛠️ Shift creator</a></nav>
+    <div class="side-foot"><b id="sidebarUserName">User</b><br><span id="sidebarUserRole">Manager</span><button id="logoutBtn" class="btn dark" type="button" style="width:100%;margin-top:10px;">Log out</button></div>
   </aside>
 
-  <!-- ========= MAIN LAYOUT ========= -->
-  <div class="main-layout">
-    <div class="content-area">
-
-      <div class="top-bar">
-        <div class="top-bar-left">
-          <h2 id="pageTitle">Shift creator</h2>
-          <p id="pageSubtitle">Plan weekly shifts and assign a shift manager for each day.</p>
-        </div>
-        <div class="top-bar-right">
-          <span id="roleBadge" class="badge-role">Shift Creator</span>
-          <div id="avatarCircle" class="avatar">U</div>
-        </div>
-      </div>
-
-      <!-- Week selector -->
-      <div class="card section-card" style="margin-top:6px;">
-        <div class="subsection-title">Week selection</div>
-        <div class="subsection-sub">
-          Only shift creators can edit. Other roles can view shifts on the Shifts page.
-        </div>
-        <div id="weekTabs" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
-          <button class="pill-filter active" data-week-offset="0" type="button">This week</button>
-          <button class="pill-filter" data-week-offset="1" type="button">Next week</button>
-        </div>
-      </div>
-
-      <!-- Week grid -->
-      <section id="adminScheduleGrid" class="card section-card" style="margin-top:10px;">
-        <!-- Filled by shifts-admin.js -->
+  <main class="main">
+    <section class="content">
+      <section class="hero">
+        <div class="tag">🛠️ Shift Creator</div>
+        <h2 style="margin-top:14px;">Build a better rota in minutes.</h2>
+        <p>Designed for managers and shift creators: pick crew, assign stations, mark shift lead, spot coverage risk, and keep the rota easier to understand.</p>
+        <div class="hero-actions"><button id="saveShiftBtn" class="btn" type="button">💾 Save demo shift</button><a class="btn alt" href="schedule.html">View rota</a><button class="btn dark" onclick="document.getElementById('aiInput').value='What should I fix before dinner rush?';document.getElementById('aiForm').requestSubmit();">Ask McAssist</button></div>
       </section>
 
-    </div>
-  </div>
-
-  <!-- ========= SHIFT EDITOR OVERLAY ========= -->
-  <div id="shiftEditorOverlay" class="shift-editor-overlay">
-    <div class="shift-editor-card">
-      <div class="shift-editor-header">
-        <h3 id="shiftEditorTitle">Add shift</h3>
-        <button id="shiftEditorClose" class="shift-editor-close" type="button">✕</button>
-      </div>
-
-      <form id="shiftEditorForm" class="shift-editor-form">
-        <div>
-          <label for="shiftDate">Date</label>
-          <input type="date" id="shiftDate" required />
-        </div>
-
-        <div>
-          <label for="shiftPerson">Crew / Manager</label>
-          <select id="shiftPerson" required></select>
-        </div>
-
-        <div class="shift-editor-form-row">
-          <div>
-            <label for="shiftStart">Start</label>
-            <input type="time" id="shiftStart" required />
+      <section class="grid two">
+        <article class="card">
+          <h3>Create / edit shift</h3>
+          <p class="muted">Demo editor for the corporate presentation.</p>
+          <div class="grid" style="margin-top:14px;">
+            <div class="field"><label>Crew / Manager</label><select id="crewPicker"></select></div>
+            <div class="grid two"><div class="field"><label>Date</label><input type="date"></div><div class="field"><label>Station</label><select><option>Front Counter</option><option>Kitchen</option><option>Drive-thru</option><option>Lobby</option><option>Shift Lead</option></select></div></div>
+            <div class="grid two"><div class="field"><label>Start</label><input type="time" value="14:00"></div><div class="field"><label>End</label><input type="time" value="22:00"></div></div>
+            <label class="mini row"><input type="checkbox" style="width:auto;"> Mark as shift manager for that day</label>
           </div>
-          <div>
-            <label for="shiftEnd">End</label>
-            <input type="time" id="shiftEnd" required />
+        </article>
+        <article class="card">
+          <h3>Auto rota suggestions</h3>
+          <p class="muted">This is what makes the idea feel useful to managers.</p>
+          <div class="grid" style="margin-top:14px;">
+            <div class="mini between"><span>Front counter support</span><span class="pill warn">Add 1</span></div>
+            <div class="mini between"><span>New starter pairing</span><span class="pill bad">Needs trainer</span></div>
+            <div class="mini between"><span>Shift lead coverage</span><span class="pill ok">Covered</span></div>
+            <div class="mini between"><span>Overtime risk</span><span class="pill ok">Low</span></div>
           </div>
-        </div>
+        </article>
+      </section>
 
-        <div>
-          <label for="shiftStation">Station (optional)</label>
-          <input type="text" id="shiftStation" placeholder="e.g. Front counter, Kitchen, Drive-thru" />
-        </div>
+      <section class="card">
+        <div class="between wrap"><div><h3>Current rota preview</h3><p class="muted">The same rota appears for crew on the Shifts page.</p></div><span class="pill ok">Live preview</span></div>
+        <div id="shiftTable" style="margin-top:14px;"></div>
+      </section>
+    </section>
 
-        <div>
-          <label>
-            <input type="checkbox" id="shiftIsManager" />
-            Mark as shift manager for that day
-          </label>
-        </div>
-
-        <div class="shift-editor-footer">
-          <button type="button" id="shiftDeleteBtn" class="shift-danger-link">Delete shift</button>
-          <button type="submit" class="shift-primary-btn">Save shift</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- tiny sidebar toggle (since nav.js is removed) -->
-  <script>
-    const sidebar = document.getElementById("sidebar");
-    const toggleBtn = document.getElementById("sidebarToggle");
-    if (toggleBtn && sidebar) {
-      toggleBtn.addEventListener("click", () => sidebar.classList.toggle("sidebar-open"));
-    }
-  </script>
-
-  <!-- ✅ correct for your domain root -->
-  <script type="module" src="/shifts-admin.js"></script>
+    <aside class="panel ai">
+      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Rota planning assistant</p></div></div><span class="online">● Online</span></div>
+      <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about staffing risk..." /><button class="btn send" type="submit">Send</button></form>
+    </aside>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script src="./pitch-app.js?v=pitch-1"></script>
+  <script>window.McPitch.initPage('shifts');</script>
 </body>
 </html>
