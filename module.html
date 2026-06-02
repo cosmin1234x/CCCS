@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>McTraining - Module</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
+  <style>
+    .module-step{animation:moduleRise .45s ease both}.module-step:nth-child(2){animation-delay:.08s}.module-step:nth-child(3){animation-delay:.16s}.module-check{cursor:pointer;transition:.18s}.module-check:hover{transform:translateX(4px);background:#fff5bd}.quiz-card{animation:moduleRise .45s ease both}.correct-answer{background:linear-gradient(180deg,#dcffe6,#8af06c)!important}.wrong-answer{background:linear-gradient(180deg,#ffe1e5,#ffb3ba)!important}.confetti-layer{position:fixed;inset:0;pointer-events:none;z-index:99999;overflow:hidden}.confetti-layer span{position:absolute;top:-40px;left:var(--x);font-size:1.4rem;animation:fall var(--d) linear forwards;transform:rotate(var(--r))}@keyframes fall{to{transform:translateY(110vh) rotate(calc(var(--r) + 360deg));opacity:.1}}@keyframes moduleRise{from{opacity:0;transform:translateY(18px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+  </style>
+</head>
+<body class="app-page">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="logo">M</div><div class="side-title"><h1>McTraining</h1><p>Training module</p></div><button id="sidebarToggle" class="btn alt toggle" type="button">☰</button></div>
+    <nav class="nav"><small>MAIN</small><a href="main.html" data-page="dashboard">🏠 Dashboard</a><a href="training.html" data-page="training">🎓 Training</a><a href="schedule.html" data-page="schedule">📅 Shifts</a><a href="break-rewards.html" data-page="rewards">🍔 Break Rewards</a><a id="navShiftCreator" href="shifts-admin.html" data-page="shifts">🛠️ Shift creator</a></nav>
+    <div class="side-foot"><b id="sidebarUserName">User</b><br><span id="sidebarUserRole">Manager</span><button id="logoutBtn" class="btn dark" type="button" style="width:100%;margin-top:10px;">Log out</button></div>
+  </aside>
+
+  <main class="main">
+    <section class="content">
+      <section class="hero">
+        <div class="between wrap">
+          <div>
+            <div id="moduleTag" class="tag">Module</div>
+            <h2 id="moduleTitle" style="margin-top:14px;">Training Module</h2>
+            <p id="moduleHeroCopy">Loading module...</p>
+          </div>
+          <div class="card stat" style="min-width:230px;"><span id="moduleIcon" style="font-size:2rem;">🎓</span><strong id="moduleXp">0</strong><p class="muted">XP reward • <span id="moduleTime">0 min</span></p></div>
+        </div>
+        <div class="hero-actions"><a class="btn alt" href="training.html">← Back to training</a><button id="completeModuleBtn" class="btn" type="button">Complete module</button><button class="btn dark" onclick="document.getElementById('aiInput').value='Explain this training module';document.getElementById('aiForm').requestSubmit();">Ask McAssist</button></div>
+      </section>
+
+      <section class="grid four">
+        <article class="card stat"><span>Level</span><strong id="moduleLevel">—</strong><p class="muted">Module type</p></article>
+        <article class="card stat"><span>Status</span><strong id="moduleProgressLabel">In progress</strong><p class="muted">Saved on this browser</p></article>
+        <article class="card stat"><span>Checklist</span><strong>4</strong><p class="muted">Practical actions</p></article>
+        <article class="card stat"><span>Quiz</span><strong>2</strong><p class="muted">Fast knowledge check</p></article>
+      </section>
+
+      <section class="card">
+        <div class="between wrap"><div><h3>Module progress</h3><p class="muted">Complete the lesson, checklist, and quiz before marking done.</p></div><span class="pill ok">Interactive</span></div>
+        <div class="progress" style="margin-top:12px"><div id="moduleProgressBar" class="bar" style="width:35%"></div></div>
+      </section>
+
+      <section id="lessonSections" class="grid three"></section>
+
+      <section class="grid two">
+        <article class="card">
+          <h3>Practical checklist</h3>
+          <p class="muted">Tick each point as you understand it.</p>
+          <div class="progress" style="margin-top:12px"><div id="checklistBar" class="bar" style="width:0%"></div></div>
+          <div id="moduleChecklist" class="grid" style="margin-top:14px;"></div>
+        </article>
+        <article class="card">
+          <h3>Quick quiz</h3>
+          <p class="muted">Tap answers to check yourself.</p>
+          <div id="quizBox" class="grid" style="margin-top:14px;"></div>
+        </article>
+      </section>
+    </section>
+
+    <aside class="panel ai">
+      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Module coach</p></div></div><span class="online">● Online</span></div>
+      <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about this module..." /><button class="btn send" type="submit">Send</button></form>
+    </aside>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script src="./pitch-app.js?v=pitch-1"></script>
+  <script src="./live-shifts.js?v=live-2"></script>
+  <script src="./module-data.js?v=modules-1"></script>
+  <script src="./training-module.js?v=modules-1"></script>
+  <script>window.McPitch.initPage('training'); window.McLive.init('training'); window.McTrainingModule.renderModule();</script>
+</body>
+</html>
