@@ -2,166 +2,67 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining – Training</title>
+  <title>McTraining - Training Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="mc-theme.css" />
-  <link rel="stylesheet" href="nav-clean.css?v=training-campus-1" />
-  <link rel="stylesheet" href="training-redesign.css?v=training-campus-1" />
-  <link rel="stylesheet" href="training-campus.css?v=training-campus-1" />
+  <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
 </head>
-
 <body class="app-page">
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-circle">M</div>
-      <div class="sidebar-header-text">
-        <h1>McTraining</h1>
-        <p>Training &amp; Rewards</p>
-      </div>
-      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
-    </div>
-
-    <nav class="sidebar-nav">
-      <div class="nav-section-title">MAIN</div>
-      <ul class="nav-list">
-        <li class="nav-item"><a class="nav-link" href="main.html"><span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span></a></li>
-        <li class="nav-item active"><a class="nav-link" href="training.html"><span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span></a></li>
-        <li class="nav-item"><a class="nav-link" href="schedule.html"><span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span></a></li>
-        <li class="nav-item"><a class="nav-link" href="break-rewards.html"><span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span></a></li>
-        <li class="nav-item" id="navShiftCreator" style="display:none;"><a class="nav-link" href="shifts-admin.html"><span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span></a></li>
-      </ul>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user-label"><strong id="sidebarUserName">User Name</strong><br /><span id="sidebarUserRole">Crew Member</span></div>
-      <button id="logoutBtn" type="button">Log out</button>
-    </div>
+    <div class="brand"><div class="logo">M</div><div class="side-title"><h1>McTraining</h1><p>Crew learning hub</p></div><button id="sidebarToggle" class="btn alt toggle" type="button">☰</button></div>
+    <nav class="nav"><small>MAIN</small><a href="main.html" data-page="dashboard">🏠 Dashboard</a><a href="training.html" data-page="training">🎓 Training</a><a href="schedule.html" data-page="schedule">📅 Shifts</a><a href="break-rewards.html" data-page="rewards">🍔 Break Rewards</a><a id="navShiftCreator" href="shifts-admin.html" data-page="shifts">🛠️ Shift creator</a></nav>
+    <div class="side-foot"><b id="sidebarUserName">User</b><br><span id="sidebarUserRole">Manager</span><button id="logoutBtn" class="btn dark" type="button" style="width:100%;margin-top:10px;">Log out</button></div>
   </aside>
 
-  <div class="main-layout">
-    <main class="training-page">
-      <section class="training-hero-new">
-        <div class="training-kicker">🍟 Hamburger University • McTraining Campus</div>
-        <h2 class="training-hero-title">Learn the crew basics before the rush hits.</h2>
-        <p class="training-hero-copy">A clean training hub for new starters: station confidence, customer service, hygiene basics, UK workplace habits, quick scenarios, and XP progress. This is a practice guide, not official company policy.</p>
-        <div class="training-actions">
-          <button class="training-btn" id="continueBtn" type="button">Continue next module</button>
-          <button class="training-btn secondary" id="quickQuizBtn" type="button">Start quick quiz</button>
-          <button class="training-btn light" id="resetProgressBtn" type="button">Reset progress</button>
-        </div>
+  <main class="main">
+    <section class="content">
+      <section class="hero">
+        <div class="tag">🎓 Hamburger University style training</div>
+        <h2 style="margin-top:14px;">Make new crew useful faster, safer, and calmer.</h2>
+        <p>A simple training campus for first-shift confidence, station basics, customer service, hygiene habits, quizzes, XP, and manager sign-off. It helps crew know what to learn next instead of guessing.</p>
+        <div class="hero-actions"><button class="btn" onclick="window.McPitch.toast('Next module opened')">Continue next module</button><button class="btn alt" onclick="window.McPitch.toast('Quick quiz started')">Start quick quiz</button><button class="btn dark" onclick="document.getElementById('aiInput').value='Who needs training?';document.getElementById('aiForm').requestSubmit();">Ask McAssist</button></div>
       </section>
 
-      <section class="training-stats-grid">
-        <article class="training-stat"><span>Current level</span><strong id="statLevel">1</strong></article>
-        <article class="training-stat"><span>Total XP</span><strong id="statXp">0</strong></article>
-        <article class="training-stat"><span>Completed</span><strong id="statCompleted">0/0</strong></article>
-        <article class="training-stat"><span>Progress</span><strong id="statProgress">0%</strong></article>
+      <section class="grid four">
+        <article class="card stat"><span>Current level</span><strong>7</strong><p class="muted">Crew confidence path</p></article>
+        <article class="card stat"><span>Total XP</span><strong>1240</strong><p class="muted">Across station modules</p></article>
+        <article class="card stat"><span>Completed</span><strong>18/24</strong><p class="muted">6 left for full readiness</p></article>
+        <article class="card stat"><span>Priority gaps</span><strong>4</strong><p class="muted">Food safety + fries refresh</p></article>
       </section>
 
-      <section class="campus-grid section-gap">
-        <article class="campus-card">
-          <div class="campus-kicker">🧭 First shift path</div>
-          <h3 class="campus-title">From new starter to shift-ready</h3>
-          <p class="campus-copy">A simple route for trainees: learn the rules, practise one station, get trainer feedback, then build confidence during quieter times.</p>
-          <div class="path-row">
-            <div class="path-step"><span>1</span><strong>Know the basics</strong><p>Uniform, timekeeping, safety, hygiene, and asking for help.</p></div>
-            <div class="path-step"><span>2</span><strong>Shadow a trainer</strong><p>Watch the station flow before trying it alone.</p></div>
-            <div class="path-step"><span>3</span><strong>Practise slowly</strong><p>Accuracy first, then speed. Do not rush unsafe work.</p></div>
-            <div class="path-step"><span>4</span><strong>Get signed off</strong><p>Ask for feedback and repeat the weak points.</p></div>
+      <section class="grid two">
+        <article class="card">
+          <h3>First shift path</h3>
+          <p class="muted">A manager-friendly route from new starter to shift-ready.</p>
+          <div class="grid" style="margin-top:12px;">
+            <div class="mini"><b>1. Know the basics</b><br><span class="muted">Uniform, timekeeping, hygiene, safety, and asking for help.</span></div>
+            <div class="mini"><b>2. Shadow a trainer</b><br><span class="muted">Watch the station flow before trying it alone.</span></div>
+            <div class="mini"><b>3. Practise slowly</b><br><span class="muted">Accuracy first, speed second. No unsafe shortcuts.</span></div>
+            <div class="mini"><b>4. Get signed off</b><br><span class="muted">Trainer feedback becomes visible for managers.</span></div>
           </div>
         </article>
-
-        <article class="campus-card">
-          <div class="campus-kicker">📋 Trainee basics</div>
-          <h3 class="campus-title">Rules new crew should remember</h3>
-          <p class="campus-copy">These are general UK fast-food workplace habits. Always follow your store trainer, manager, and official workplace documents.</p>
-          <ul class="campus-list">
-            <li><span class="campus-dot">⏰</span><span><b>Be on time.</b> Arrive ready, not just inside the building at start time.</span></li>
-            <li><span class="campus-dot">🧼</span><span><b>Wash hands often.</b> Especially after breaks, cleaning, toilets, bins, or changing tasks.</span></li>
-            <li><span class="campus-dot">🗣️</span><span><b>Ask when unsure.</b> Guessing on food safety, tills, or customer issues is a bad plan.</span></li>
-            <li><span class="campus-dot">🤝</span><span><b>Respect the team.</b> No shouting, no mocking, no drama in front of customers.</span></li>
-          </ul>
-        </article>
-      </section>
-
-      <section class="campus-card section-gap">
-        <div class="campus-kicker">🇬🇧 UK crew starter pack</div>
-        <h3 class="campus-title">Things trainees usually learn in UK stores</h3>
-        <p class="campus-copy">Use this as a practical learning checklist. Exact rules can change by store and company policy.</p>
-        <div class="rule-pills">
-          <span class="rule-pill">🧢 Uniform clean and presentable</span>
-          <span class="rule-pill">📱 Phone away during work</span>
-          <span class="rule-pill">🧾 Ask manager for refund/complaint help</span>
-          <span class="rule-pill">🧽 Clean as you go</span>
-          <span class="rule-pill">🥤 Breaks follow rota/manager plan</span>
-          <span class="rule-pill">🚪 Tell manager before leaving station</span>
-          <span class="rule-pill">🧯 Report hazards quickly</span>
-          <span class="rule-pill">🍔 Allergen questions go to trained person/manager</span>
-        </div>
-        <div class="campus-note"><b>Safety note:</b> This app should not replace official food safety, allergen, fire safety, cash handling, or HR training. If unsure, ask your trainer or manager.</div>
-      </section>
-
-      <section class="station-grid section-gap">
-        <article class="station-card"><div class="station-icon">🍔</div><h4>Kitchen</h4><p>Learn clean habits, teamwork, timers, communication, and safe handling basics.</p></article>
-        <article class="station-card"><div class="station-icon">🧾</div><h4>Front counter</h4><p>Practise greeting, listening, confirming orders, and asking for help with issues.</p></article>
-        <article class="station-card"><div class="station-icon">🚗</div><h4>Drive-thru</h4><p>Focus on clear speech, order accuracy, headset confidence, and calm teamwork.</p></article>
-        <article class="station-card"><div class="station-icon">🧽</div><h4>Lobby</h4><p>Keep customer areas tidy, spot hazards, clean spills, and make the restaurant feel good.</p></article>
-      </section>
-
-      <section class="campus-grid section-gap">
-        <article class="campus-card">
-          <div class="campus-kicker">✅ Shift-ready checklist</div>
-          <h3 class="campus-title">Before you start learning today</h3>
-          <div class="mini-check">
-            <label><input type="checkbox"> I know who my trainer/manager is</label>
-            <label><input type="checkbox"> I understand where I am working today</label>
-            <label><input type="checkbox"> I know when my break is likely to be</label>
-            <label><input type="checkbox"> I know what to do if I feel unsure</label>
-            <label><input type="checkbox"> I know where to report a safety issue</label>
-            <label><input type="checkbox"> I know not to answer allergen questions alone</label>
+        <article class="card">
+          <h3>Why managers care</h3>
+          <p class="muted">This turns training from “someone should explain it” into visible action.</p>
+          <div class="grid" style="margin-top:12px;">
+            <div class="mini between"><span>Food safety confidence</span><span class="pill warn">68%</span></div>
+            <div class="mini between"><span>Service scripts</span><span class="pill ok">91%</span></div>
+            <div class="mini between"><span>Fries station refresh</span><span class="pill bad">31%</span></div>
+            <div class="mini between"><span>Trainer feedback</span><span class="pill ok">Live</span></div>
           </div>
         </article>
-
-        <article class="campus-card">
-          <div class="campus-kicker">💬 How to sound confident</div>
-          <h3 class="campus-title">Useful trainee phrases</h3>
-          <ul class="campus-list">
-            <li><span class="campus-dot">🙋</span><span>“Can you show me that once more, please?”</span></li>
-            <li><span class="campus-dot">✅</span><span>“I understand the first part, but I need help with the next step.”</span></li>
-            <li><span class="campus-dot">👥</span><span>“Can I get a manager to help with this?”</span></li>
-            <li><span class="campus-dot">🧼</span><span>“I’m going to wash my hands before switching task.”</span></li>
-          </ul>
-        </article>
       </section>
 
-      <section class="campus-card section-gap">
-        <div class="campus-kicker">🎮 Practice scenarios</div>
-        <h3 class="campus-title">What would you do?</h3>
-        <p class="campus-copy">Tap each scenario to reveal a good trainee response.</p>
-        <div class="scenario-grid">
-          <article class="scenario-card"><h4>A customer asks about allergens</h4><p>You are not fully trained on allergen info yet.</p><details><summary>Show best response</summary><div class="answer">Do not guess. Ask a manager or trained person and follow the official allergen process.</div></details></article>
-          <article class="scenario-card"><h4>You are late for shift</h4><p>You realise you will not make it on time.</p><details><summary>Show best response</summary><div class="answer">Contact the store as early as possible, explain clearly, and follow manager instructions.</div></details></article>
-          <article class="scenario-card"><h4>You see a spill near customers</h4><p>The area could become unsafe.</p><details><summary>Show best response</summary><div class="answer">Make it safe quickly, tell the team/manager, and follow the store cleaning process.</div></details></article>
-          <article class="scenario-card"><h4>You do not understand a station task</h4><p>The queue is busy and you feel pressure.</p><details><summary>Show best response</summary><div class="answer">Ask your trainer. Accuracy and safety matter more than pretending you know.</div></details></article>
-          <article class="scenario-card"><h4>A customer is annoyed</h4><p>They complain about waiting.</p><details><summary>Show best response</summary><div class="answer">Stay calm, listen, apologise politely, and get a manager if needed.</div></details></article>
-          <article class="scenario-card"><h4>Your station is running low</h4><p>You notice stock may run out soon.</p><details><summary>Show best response</summary><div class="answer">Tell the team early. Good communication prevents panic later.</div></details></article>
-        </div>
-      </section>
+      <section class="grid two" id="trainingModules"></section>
+    </section>
 
-      <section class="training-layout-new">
-        <div class="training-panel-new">
-          <div class="panel-head-new"><div><h3 class="panel-title-new">Learning library</h3><div class="panel-sub-new">Pick a module, finish tasks, and earn XP.</div></div></div>
-          <div class="training-toolbar"><input id="moduleSearch" class="training-search" type="search" placeholder="Search grill, fries, food safety, customers..." /></div>
-          <div class="filter-row-new" id="filterRow"></div>
-          <div class="module-grid-new" id="moduleGrid"></div>
-        </div>
-        <aside class="training-panel-new detail-card-new"><div id="moduleDetail"></div></aside>
-      </section>
-    </main>
-  </div>
-
-  <div id="trainingToast" class="toast-new"></div>
-  <script type="module" src="nav.js?v=training-campus-1"></script>
-  <script type="module" src="training-new.js?v=training-campus-1"></script>
+    <aside class="panel ai">
+      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Training assistant</p></div></div><span class="online">● Online</span></div>
+      <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about training gaps..." /><button class="btn send" type="submit">Send</button></form>
+    </aside>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script src="./pitch-app.js?v=pitch-1"></script>
+  <script>window.McPitch.initPage('training');</script>
 </body>
 </html>
