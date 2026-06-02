@@ -16,39 +16,43 @@
   <main class="main">
     <section class="content">
       <section class="hero">
-        <div class="tag">📅 Shift risk board</div>
-        <h2 style="margin-top:14px;">See coverage before it becomes a problem.</h2>
-        <p>Managers can quickly spot dinner-rush gaps, new-starter risk, training needs, and who is leading the shift. Crew can see their next shift clearly.</p>
-        <div class="hero-actions"><button class="btn" onclick="window.McPitch.toast('This week selected')">This week</button><button class="btn alt" onclick="window.McPitch.toast('Next week selected')">Next week</button><button class="btn dark" onclick="document.getElementById('aiInput').value='What should I fix before dinner rush?';document.getElementById('aiForm').requestSubmit();">Ask risk check</button></div>
+        <div class="tag">📅 Live shift risk board</div>
+        <h2 style="margin-top:14px;">See this week and next week before it becomes a problem.</h2>
+        <p>Managers can generate weekly rotas, spot peak-hour gaps, and see every shift by day. Crew can use the same page to understand their upcoming week.</p>
+        <div class="hero-actions"><button class="btn" onclick="window.McLive.generateWeek(0);window.McLive.renderAllSchedules();">🤖 Generate this week</button><button class="btn alt" onclick="window.McLive.generateWeek(1);window.McLive.renderAllSchedules();">Generate next week</button><button class="btn dark" onclick="document.getElementById('aiInput').value='Show this week shifts';document.getElementById('aiForm').requestSubmit();">Ask McAssist</button></div>
       </section>
 
       <section class="grid four">
-        <article class="card stat"><span>Coverage</span><strong>91%</strong><p class="muted">Friday needs attention</p></article>
-        <article class="card stat"><span>On shift now</span><strong>18</strong><p class="muted">2 managers present</p></article>
-        <article class="card stat"><span>Risk alerts</span><strong>3</strong><p class="muted">Training + peak hours</p></article>
-        <article class="card stat"><span>Next rush</span><strong>17:30</strong><p class="muted">Dinner peak window</p></article>
+        <article class="card stat"><span>Coverage</span><strong>Live</strong><p class="muted">Updates after generation</p></article>
+        <article class="card stat"><span>Week view</span><strong>3</strong><p class="muted">This, next, week after</p></article>
+        <article class="card stat"><span>AI generator</span><strong>On</strong><p class="muted">Fair rota preview</p></article>
+        <article class="card stat"><span>McAssist</span><strong>Actions</strong><p class="muted">Create/show/generate shifts</p></article>
       </section>
 
       <section class="card">
-        <div class="between wrap"><div><h3>Weekly shifts</h3><p class="muted">Presentation data showing how managers would see risk and staffing at a glance.</p></div><a class="btn alt" href="shifts-admin.html">Open shift creator</a></div>
-        <div id="shiftTable" style="margin-top:14px;"></div>
+        <div class="between wrap"><div><h3>Week selector</h3><p class="muted">Switch between weeks and see the shifts generated for each week.</p></div><a class="btn alt" href="shifts-admin.html">Open shift creator</a></div>
+        <div id="weekTabs" class="hero-actions"></div>
       </section>
 
-      <section class="grid three">
-        <article class="card"><h3>Peak-hour warning</h3><p class="muted">5pm to 7pm has the highest pressure. Add front counter support or move a trained crew member forward.</p><span class="pill warn">⚠️ Action needed</span></article>
-        <article class="card"><h3>New starter support</h3><p class="muted">Maya should be paired with a trainer during the first 60 minutes of shift.</p><span class="pill bad">👀 Monitor</span></article>
-        <article class="card"><h3>Covered station</h3><p class="muted">Shift lead is assigned and kitchen coverage is mostly stable.</p><span class="pill ok">✅ Good</span></article>
+      <section id="scheduleCard" class="card">
+        <p class="muted">Loading weekly shifts...</p>
+      </section>
+
+      <section class="card">
+        <div class="between wrap"><div><h3>Full rota table</h3><p class="muted">Every shift for the selected week.</p></div><span class="pill ok">Working rota</span></div>
+        <div id="shiftTable" style="margin-top:14px;"></div>
       </section>
     </section>
 
     <aside class="panel ai">
       <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Shift risk assistant</p></div></div><span class="online">● Online</span></div>
       <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
-      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about rota risk..." /><button class="btn send" type="submit">Send</button></form>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Try: generate next week shifts" /><button class="btn send" type="submit">Send</button></form>
     </aside>
   </main>
   <div id="toast" class="toast"></div>
   <script src="./pitch-app.js?v=pitch-1"></script>
-  <script>window.McPitch.initPage('schedule');</script>
+  <script src="./live-shifts.js?v=live-1"></script>
+  <script>window.McPitch.initPage('schedule'); window.McLive.init('schedule');</script>
 </body>
 </html>
