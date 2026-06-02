@@ -2,211 +2,47 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal - Sign up</title>
+  <title>McTraining - Create Test Profile</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="./mc-theme.css?v=cartoon-1" />
+  <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
 </head>
 <body class="auth-page">
-  <div class="container auth-shell">
-    <div class="header auth-header">
-      <div class="logo-circle">M</div>
-      <div class="auth-header-text">
-        <h1>Create account</h1>
-        <p class="subtitle">Set up an account for the McTraining portal.</p>
+  <main class="shell grid two" style="align-items:center;">
+    <section class="hero">
+      <div class="tag">⭐ Test profile</div>
+      <h2 style="margin-top:16px;">Create a crew or manager demo view.</h2>
+      <p>This page is rebuilt for the pitch flow. It creates a local presentation profile, then opens the portal with the right navigation and role label.</p>
+      <div class="grid three" style="margin-top:20px;">
+        <div class="mini"><b>👤 Crew</b><br><span class="muted">See shifts, training, and rewards.</span></div>
+        <div class="mini"><b>🧑‍💼 Manager</b><br><span class="muted">See risk, gaps, and priorities.</span></div>
+        <div class="mini"><b>🛠️ Shift Creator</b><br><span class="muted">Plan rota and stations.</span></div>
       </div>
-    </div>
+    </section>
 
-    <div class="tagline"><span>⭐</span><span>Join the crew dashboard</span></div>
-
-    <form id="signupForm" class="auth-form">
-      <div class="field-group">
-        <label for="name">Full name</label>
-        <input id="name" type="text" placeholder="e.g. Alex Johnson" required />
+    <section class="auth-card">
+      <div class="brand">
+        <div class="logo">M</div>
+        <div><h1>Create test profile</h1><p>Choose the view for tomorrow’s demo.</p></div>
       </div>
-
-      <div class="field-group">
-        <label for="email">Work email</label>
-        <input id="email" type="email" placeholder="e.g. alex@restaurant.com" required />
-      </div>
-
-      <div class="field-group">
-        <label for="password">Password</label>
-        <input id="password" type="password" placeholder="At least 6 characters" required />
-        <div class="hint">Minimum is 6 characters.</div>
-      </div>
-
-      <div class="field-group">
-        <label for="role">Role</label>
-        <select id="role" required>
-          <option value="crew">Crew Member</option>
-          <option value="manager">Manager</option>
-          <option value="shiftCreator">Shift Creator (Scheduler)</option>
-        </select>
-        <div class="hint">If you restrict manager emails, unauthorized emails can be forced back to Crew.</div>
-      </div>
-
-      <div class="field-group">
-        <label for="storeId">Store / Restaurant ID</label>
-        <input id="storeId" type="text" placeholder="e.g. store001" />
-        <div class="hint">Everyone in the same restaurant must use the same storeId.</div>
-      </div>
-
-      <button type="submit" class="btn-primary" id="signupBtn">
-        <span>🍟</span>
-        <span>Create account</span>
-      </button>
-
-      <div id="error" class="error" style="display:none;"></div>
-      <div id="success" class="success" style="display:none;"></div>
-    </form>
-
-    <div class="link-row">
-      Already have an account? <a href="index.html">Log in</a>
-    </div>
-  </div>
-
-  <script type="module">
-    import { auth, db } from "./firebase-init.js";
-    import {
-      createUserWithEmailAndPassword,
-      updateProfile
-    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
-    import {
-      doc,
-      writeBatch,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-    const form = document.getElementById("signupForm");
-    const errorBox = document.getElementById("error");
-    const successBox = document.getElementById("success");
-    const signupBtn = document.getElementById("signupBtn");
-
-    // OPTIONAL: restrict manager-like roles to approved emails
-    // If you don't want restrictions, set RESTRICT_MANAGER_ROLES = false.
-    const RESTRICT_MANAGER_ROLES = false;
-
-    const ALLOWED_ADMIN_EMAILS = [
-      // "cosmin@yourdomain.com",
-      // "owner@yourdomain.com"
-    ];
-
-    function normalizeEmail(e) {
-      return String(e || "").trim().toLowerCase();
-    }
-
-    function showError(msg) {
-      errorBox.textContent = msg;
-      errorBox.style.display = "block";
-      successBox.style.display = "none";
-      successBox.textContent = "";
-    }
-
-    function showSuccess(msg) {
-      successBox.textContent = msg;
-      successBox.style.display = "block";
-      errorBox.style.display = "none";
-      errorBox.textContent = "";
-    }
-
-    form.addEventListener("submit", async (e) => {
+      <div class="tag">🍟 Presentation mode</div>
+      <form id="profileForm">
+        <div class="field"><label for="name">Name</label><input id="name" placeholder="Cosmin" /></div>
+        <div class="field"><label for="role">Role</label><select id="role"><option value="crew">Crew Member</option><option value="manager" selected>Manager</option><option value="shiftCreator">Shift Creator</option></select></div>
+        <div class="field"><label for="storeId">Store ID</label><input id="storeId" placeholder="store001" value="store001" /></div>
+        <button class="btn" type="submit">🚀 Open portal</button>
+      </form>
+      <p style="margin-top:12px;">Already ready? <a class="link" href="index.html">Back to demo entry</a></p>
+    </section>
+  </main>
+  <script src="./pitch-app.js?v=pitch-1"></script>
+  <script>
+    document.getElementById('profileForm').addEventListener('submit', function(e){
       e.preventDefault();
-
-      const name = document.getElementById("name").value.trim();
-      const emailRaw = document.getElementById("email").value.trim();
-      const password = document.getElementById("password").value;
-      const requestedRole = document.getElementById("role").value;
-      const storeId = document.getElementById("storeId").value.trim() || "store001";
-
-      if (!name || !emailRaw || !password) {
-        showError("Please fill in all required fields.");
-        return;
-      }
-      if (password.length < 6) {
-        showError("Password is too short. Minimum is 6 characters.");
-        return;
-      }
-
-      signupBtn.disabled = true;
-
-      try {
-        const emailNorm = normalizeEmail(emailRaw);
-
-        let finalRole = requestedRole;
-        if (
-          RESTRICT_MANAGER_ROLES &&
-          (requestedRole === "manager" || requestedRole === "shiftCreator")
-        ) {
-          const allowed = ALLOWED_ADMIN_EMAILS.map(normalizeEmail).includes(emailNorm);
-          if (!allowed) finalRole = "crew";
-        }
-
-        const cred = await createUserWithEmailAndPassword(auth, emailNorm, password);
-        await updateProfile(cred.user, { displayName: name });
-
-        const uid = cred.user.uid;
-        const batch = writeBatch(db);
-
-        const userRef = doc(db, "users", uid);
-        const crewRef = doc(db, "stores", storeId, "crewSummary", uid);
-
-        batch.set(userRef, {
-          name,
-          email: emailNorm,
-          role: finalRole,
-          requestedRole,
-          storeId,
-          createdAt: serverTimestamp(),
-          maxHoursPerWeek: 40,
-          skills: { grill:false, chicken:false, line:false, fries:false, front:false, drive:false },
-          availability: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] }
-        });
-
-        batch.set(crewRef, {
-          userId: uid,
-          name,
-          status: "New starter",
-          badge: "—",
-          stars: 0,
-          createdAt: serverTimestamp()
-        });
-
-        await batch.commit();
-
-        if (finalRole !== requestedRole) {
-          showSuccess("Account created ✅\n(Manager roles are restricted, so you were created as Crew.)\nYou can now log in.");
-        } else {
-          showSuccess("Account created ✅\nYou can now log in.");
-        }
-
-        setTimeout(() => {
-          window.location.href = "index.html";
-        }, 900);
-      } catch (err) {
-        console.error(err);
-
-        if (err?.code === "auth/email-already-in-use") {
-          showError("That email is already in use.\nTry logging in, or use a different email.");
-        } else if (err?.code === "auth/invalid-email") {
-          showError("That email address is invalid.");
-        } else if (err?.code === "auth/weak-password") {
-          showError("Password is too weak (minimum 6 characters).");
-        } else if (String(err?.message || "").includes("Missing or insufficient permissions")) {
-          showError(
-            "Firestore permissions blocked the profile write.\n\n" +
-            "Check:\n" +
-            "1) You published the latest Firestore rules\n" +
-            "2) Your rules allow users/{uid} create for signed-in user\n" +
-            "3) Your store rules allow writing crewSummary only after users/{uid} exists\n\n" +
-            "This page uses a batch to avoid the usual race condition."
-          );
-        } else {
-          showError(err?.message || "Sign up failed.");
-        }
-      } finally {
-        signupBtn.disabled = false;
-      }
+      const name = document.getElementById('name').value.trim() || 'Cosmin';
+      const role = document.getElementById('role').value;
+      const storeId = document.getElementById('storeId').value.trim() || 'store001';
+      localStorage.setItem('mc_session_user', JSON.stringify({ id:'test-profile', name, role, storeId }));
+      window.location.href = 'main.html';
     });
   </script>
 </body>
