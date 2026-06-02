@@ -2,127 +2,53 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal – Shifts</title>
+  <title>McTraining - Shifts</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="mc-theme.css" />
-  <link rel="stylesheet" href="nav-clean.css" />
+  <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
 </head>
-
 <body class="app-page">
-
-  <!-- ========= SIDEBAR ========= -->
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-circle">M</div>
-      <div class="sidebar-header-text">
-        <h1>McTraining</h1>
-        <p>Crew &amp; Manager portal</p>
-      </div>
-      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
-    </div>
-
-    <nav class="sidebar-nav">
-      <div class="nav-section-title">Main</div>
-
-      <ul class="nav-list">
-        <li class="nav-item">
-          <a class="nav-link" href="main.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🏠</span>
-            <span class="nav-label">Dashboard</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="training.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🎓</span>
-            <span class="nav-label">Training</span>
-          </a>
-        </li>
-
-        <li class="nav-item active">
-          <a class="nav-link" href="schedule.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">📅</span>
-            <span class="nav-label">Shifts</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="break-rewards.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🍔</span>
-            <span class="nav-label">Break Rewards</span>
-          </a>
-        </li>
-
-        <!-- Shift Creator (shown via nav.js for role) -->
-        <li class="nav-item" id="navShiftCreator" style="display:none;">
-          <a class="nav-link" href="shifts-admin.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🛠️</span>
-            <span class="nav-label">Shift creator</span>
-          </a>
-        </li>
-      </ul>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user-label">
-        <strong id="sidebarUserName">User Name</strong><br />
-        <span id="sidebarUserRole">Crew Member</span>
-      </div>
-      <button id="logoutBtn" type="button">Log out</button>
-    </div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="logo">M</div><div class="side-title"><h1>McTraining</h1><p>Shift visibility</p></div><button id="sidebarToggle" class="btn alt toggle" type="button">☰</button></div>
+    <nav class="nav"><small>MAIN</small><a href="main.html" data-page="dashboard">🏠 Dashboard</a><a href="training.html" data-page="training">🎓 Training</a><a href="schedule.html" data-page="schedule">📅 Shifts</a><a href="break-rewards.html" data-page="rewards">🍔 Break Rewards</a><a id="navShiftCreator" href="shifts-admin.html" data-page="shifts">🛠️ Shift creator</a></nav>
+    <div class="side-foot"><b id="sidebarUserName">User</b><br><span id="sidebarUserRole">Manager</span><button id="logoutBtn" class="btn dark" type="button" style="width:100%;margin-top:10px;">Log out</button></div>
   </aside>
 
-  <!-- ========= MAIN LAYOUT ========= -->
-  <div class="main-layout">
-    <div class="content-area">
-
-      <div class="top-bar">
-        <div class="top-bar-left">
-          <h2 id="scheduleTitle">Weekly schedule</h2>
-          <p id="scheduleSubtitle">
-            See your shifts for this week and upcoming weeks.
-          </p>
-        </div>
-        <div class="top-bar-right">
-          <span id="roleBadge" class="badge-role">Crew</span>
-          <div id="avatarCircle" class="avatar">U</div>
-        </div>
-      </div>
-
-      <!-- Week selector -->
-      <div class="card section-card" style="margin-top:6px;">
-        <div class="subsection-title">Week selection</div>
-        <div class="subsection-sub">
-          Switch between this week and next week. If no schedule exists, you'll see a message.
-        </div>
-        <div id="weekTabs" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
-          <button class="pill-filter active" data-week-offset="0" type="button">This week</button>
-          <button class="pill-filter" data-week-offset="1" type="button">Next week</button>
-        </div>
-      </div>
-
-      <!-- Schedule card -->
-      <section id="scheduleCard" class="card section-card" style="margin-top:10px;">
-        <!-- Filled by schedule.js -->
+  <main class="main">
+    <section class="content">
+      <section class="hero">
+        <div class="tag">📅 Shift risk board</div>
+        <h2 style="margin-top:14px;">See coverage before it becomes a problem.</h2>
+        <p>Managers can quickly spot dinner-rush gaps, new-starter risk, training needs, and who is leading the shift. Crew can see their next shift clearly.</p>
+        <div class="hero-actions"><button class="btn" onclick="window.McPitch.toast('This week selected')">This week</button><button class="btn alt" onclick="window.McPitch.toast('Next week selected')">Next week</button><button class="btn dark" onclick="document.getElementById('aiInput').value='What should I fix before dinner rush?';document.getElementById('aiForm').requestSubmit();">Ask risk check</button></div>
       </section>
 
-      <!-- Manager-only: shift creation + auto-generate -->
-      <section id="shiftManageCard" class="card section-card" style="margin-top:10px;">
-        <!-- Filled by schedule.js for managers; hidden for crew -->
+      <section class="grid four">
+        <article class="card stat"><span>Coverage</span><strong>91%</strong><p class="muted">Friday needs attention</p></article>
+        <article class="card stat"><span>On shift now</span><strong>18</strong><p class="muted">2 managers present</p></article>
+        <article class="card stat"><span>Risk alerts</span><strong>3</strong><p class="muted">Training + peak hours</p></article>
+        <article class="card stat"><span>Next rush</span><strong>17:30</strong><p class="muted">Dinner peak window</p></article>
       </section>
 
-    </div>
-  </div>
+      <section class="card">
+        <div class="between wrap"><div><h3>Weekly shifts</h3><p class="muted">Presentation data showing how managers would see risk and staffing at a glance.</p></div><a class="btn alt" href="shifts-admin.html">Open shift creator</a></div>
+        <div id="shiftTable" style="margin-top:14px;"></div>
+      </section>
 
-  <!-- ✅ IMPORTANT: nav.js FIRST -->
-  <script type="module" src="nav.js"></script>
-  <script type="module" src="schedule.js"></script>
-  <script type="module" src="shift-requests.js?v=requests-1"></script>
+      <section class="grid three">
+        <article class="card"><h3>Peak-hour warning</h3><p class="muted">5pm to 7pm has the highest pressure. Add front counter support or move a trained crew member forward.</p><span class="pill warn">⚠️ Action needed</span></article>
+        <article class="card"><h3>New starter support</h3><p class="muted">Maya should be paired with a trainer during the first 60 minutes of shift.</p><span class="pill bad">👀 Monitor</span></article>
+        <article class="card"><h3>Covered station</h3><p class="muted">Shift lead is assigned and kitchen coverage is mostly stable.</p><span class="pill ok">✅ Good</span></article>
+      </section>
+    </section>
 
+    <aside class="panel ai">
+      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Shift risk assistant</p></div></div><span class="online">● Online</span></div>
+      <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about rota risk..." /><button class="btn send" type="submit">Send</button></form>
+    </aside>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script src="./pitch-app.js?v=pitch-1"></script>
+  <script>window.McPitch.initPage('schedule');</script>
 </body>
 </html>
