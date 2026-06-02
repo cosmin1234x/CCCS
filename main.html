@@ -2,429 +2,56 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal – Dashboard</title>
+  <title>McTraining Portal - Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="./mc-theme.css" />
-
-  <style>
-    /* Clean simple sidebar navbar */
-    .sidebar-nav {
-      margin-top: 16px;
-    }
-
-    .nav-section-title {
-      margin: 8px 8px 14px;
-      font-size: 0.62rem;
-      letter-spacing: 0.18em;
-      opacity: 0.82;
-    }
-
-    .nav-list {
-      gap: 14px;
-    }
-
-    .nav-item {
-      padding: 0;
-      border-radius: 999px;
-      background: transparent !important;
-      transform: none !important;
-      position: relative;
-    }
-
-    .nav-item:hover {
-      background: transparent !important;
-      transform: none !important;
-    }
-
-    .nav-item.active::before {
-      content: "";
-      position: absolute;
-      left: -6px;
-      top: 9px;
-      bottom: 9px;
-      width: 4px;
-      border-radius: 999px;
-      background: #fff7bf;
-      display: block;
-      pointer-events: none;
-    }
-
-    .nav-link {
-      min-height: 42px;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 14px;
-      border-radius: 999px;
-      text-decoration: none;
-      color: inherit;
-      transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-
-    .nav-link:hover {
-      background: rgba(255, 255, 255, 0.10);
-      transform: translateX(2px);
-    }
-
-    .nav-item.active .nav-link {
-      background: #fff9c3;
-      color: #a30716;
-      box-shadow: none;
-      font-weight: 800;
-    }
-
-    .nav-dot {
-      width: 7px;
-      height: 7px;
-      flex: 0 0 auto;
-      background: #ffc300;
-      box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.28);
-      opacity: 0.95;
-    }
-
-    .nav-item.active .nav-dot {
-      background: #ffc300;
-      box-shadow: 0 0 0 3px rgba(255, 195, 0, 0.28);
-    }
-
-    .nav-icon {
-      width: 18px;
-      height: 18px;
-      flex: 0 0 auto;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.9rem;
-      line-height: 1;
-      background: transparent !important;
-      border-radius: 0;
-    }
-
-    .nav-item.active .nav-icon {
-      background: transparent !important;
-    }
-
-    .nav-label {
-      font-size: 0.82rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      white-space: nowrap;
-    }
-
-    .nav-item.active .nav-label {
-      font-weight: 850;
-    }
-
-    .dashboard-hero {
-      overflow: hidden;
-      isolation: isolate;
-    }
-  </style>
-
-  <link rel="stylesheet" href="./nav-clean.css?v=nav-fix-2" />
-  <link rel="stylesheet" href="./mcassist-redesign.css?v=ai-redesign-1" />
-  <link rel="stylesheet" href="./dashboard-layout-fix.css?v=dashboard-fix-1" />
-  <link rel="stylesheet" href="./mcassist-collapse.css?v=collapse-2" />
-
-  <style id="force-dashboard-layout">
-    /* Hard dashboard layout fix: this loads after every CSS file */
-    @media (min-width: 901px) {
-      html,
-      body {
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow-x: hidden !important;
-      }
-
-      body.app-page {
-        display: flex !important;
-        align-items: stretch !important;
-        justify-content: flex-start !important;
-      }
-
-      body.app-page > .sidebar {
-        flex: 0 0 250px !important;
-        width: 250px !important;
-        min-width: 250px !important;
-      }
-
-      body.app-page > .main-layout {
-        flex: 1 1 auto !important;
-        width: calc(100vw - 250px) !important;
-        max-width: none !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 18px !important;
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) 360px !important;
-        gap: 16px !important;
-        align-items: start !important;
-        box-sizing: border-box !important;
-      }
-
-      body.app-page > .main-layout > .content-area {
-        grid-column: 1 !important;
-        flex: unset !important;
-        width: 100% !important;
-        max-width: none !important;
-        min-width: 0 !important;
-      }
-
-      body.app-page > .main-layout > .ai-panel {
-        grid-column: 2 !important;
-        flex: unset !important;
-        width: 360px !important;
-        min-width: 0 !important;
-        max-width: 360px !important;
-        justify-self: end !important;
-        position: sticky !important;
-        top: 18px !important;
-        max-height: calc(100vh - 36px) !important;
-      }
-
-      body.app-page .cards-grid {
-        grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)) !important;
-      }
-
-      body.app-page .ai-chat {
-        min-height: 230px !important;
-      }
-    }
-
-    @media (min-width: 901px) and (max-width: 1350px) {
-      body.app-page > .main-layout {
-        grid-template-columns: 1fr !important;
-      }
-
-      body.app-page > .main-layout > .ai-panel {
-        grid-column: 1 !important;
-        width: 100% !important;
-        max-width: none !important;
-        justify-self: stretch !important;
-        position: relative !important;
-        top: auto !important;
-        max-height: none !important;
-      }
-    }
-
-    @media (max-width: 900px) {
-      body.app-page > .main-layout {
-        width: 100% !important;
-        max-width: none !important;
-        margin: 0 !important;
-        padding: 14px !important;
-        display: flex !important;
-        flex-direction: column !important;
-      }
-
-      body.app-page > .main-layout > .ai-panel {
-        width: 100% !important;
-        max-width: none !important;
-        position: relative !important;
-        top: auto !important;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
 </head>
-
 <body class="app-page">
-
-  <!-- ========= SIDEBAR ========= -->
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-circle">M</div>
-      <div class="sidebar-header-text">
-        <h1>McTraining</h1>
-        <p>Crew &amp; Manager portal</p>
-      </div>
-      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
+    <div class="brand">
+      <div class="logo">M</div>
+      <div class="side-title"><h1>McTraining</h1><p>Manager + crew hub</p></div>
+      <button id="sidebarToggle" class="btn alt toggle" type="button">☰</button>
     </div>
-
-    <nav class="sidebar-nav">
-      <div class="nav-section-title">MAIN</div>
-
-      <ul class="nav-list">
-        <li class="nav-item active">
-          <a class="nav-link" href="./main.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🏠</span>
-            <span class="nav-label">Dashboard</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="./training.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🎓</span>
-            <span class="nav-label">Training</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="./schedule.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">📅</span>
-            <span class="nav-label">Shifts</span>
-          </a>
-        </li>
-
-        <li class="nav-item">
-          <a class="nav-link" href="./break-rewards.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🍔</span>
-            <span class="nav-label">Break Rewards</span>
-          </a>
-        </li>
-
-        <li class="nav-item" id="navShiftCreator" style="display:none;">
-          <a class="nav-link" href="./shifts-admin.html">
-            <span class="nav-dot"></span>
-            <span class="nav-icon">🛠️</span>
-            <span class="nav-label">Shift creator</span>
-          </a>
-        </li>
-      </ul>
+    <nav class="nav">
+      <small>MAIN</small>
+      <a href="main.html" data-page="dashboard">🏠 Dashboard</a>
+      <a href="training.html" data-page="training">🎓 Training</a>
+      <a href="schedule.html" data-page="schedule">📅 Shifts</a>
+      <a href="break-rewards.html" data-page="rewards">🍔 Break Rewards</a>
+      <a id="navShiftCreator" href="shifts-admin.html" data-page="shifts">🛠️ Shift creator</a>
     </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user-label">
-        <strong id="sidebarUserName">User Name</strong><br />
-        <span id="sidebarUserRole">Crew Member</span>
-      </div>
-      <button id="logoutBtn" type="button">Log out</button>
-    </div>
+    <div class="side-foot"><b id="sidebarUserName">User</b><br><span id="sidebarUserRole">Manager</span><button id="logoutBtn" class="btn dark" type="button" style="width:100%;margin-top:10px;">Log out</button></div>
   </aside>
 
-  <!-- ========= MAIN LAYOUT ========= -->
-  <div class="main-layout">
-
-    <div class="content-area">
-      <section class="card section-card dashboard-hero">
-        <div class="top-bar">
-          <div class="top-bar-left">
-            <h2 id="welcomeTitle">Welcome back</h2>
-            <p id="welcomeSubtitle">Here’s your shift and progress overview.</p>
-          </div>
-
-          <div class="top-bar-right">
-            <span id="roleBadge" class="badge-role">CREW</span>
-            <button
-              id="myProfileBtn"
-              class="crew-profile-top-btn"
-              style="display:none;"
-              type="button"
-            >
-              My profile
-            </button>
-            <div id="avatarCircle" class="avatar">U</div>
-          </div>
-        </div>
-      </section>
-
-      <section id="topCards" class="cards-grid">
-        <!-- Injected by main.js -->
-      </section>
-
-      <section id="bottomSection" class="card section-card">
-        <!-- Injected by main.js -->
-      </section>
-    </div>
-
-    <aside class="ai-panel">
-      <div class="ai-header">
-        <div class="ai-header-left">
-          <div class="ai-avatar">A</div>
-          <div class="ai-header-text">
-            <h3>McAssist</h3>
-            <p id="aiSubtitle">Ask about shifts, training or rewards</p>
-          </div>
-        </div>
-        <div class="ai-status">
-          <span class="ai-status-dot"></span>
-          <span>Online</span>
-        </div>
-      </div>
-
-      <div id="aiSuggestions" class="ai-suggestions"></div>
-      <div id="aiChat" class="ai-chat"></div>
-
-      <form id="aiForm" class="ai-input-row">
-        <input id="aiInput" type="text" placeholder="Ask McAssist something…" />
-        <button id="aiSendBtn" type="submit" class="ai-send-btn">Send ➤</button>
-        <button type="button" id="aiMicBtn" class="voice-btn">🎤</button>
-      </form>
-
-      <label class="wake-toggle">
-        <input type="checkbox" id="wakeToggle" />
-        <span>Enable “Hey Amy”</span>
-      </label>
-    </aside>
-  </div>
-
-  <!-- ===== VOICE OVERLAY ===== -->
-  <div id="voiceOverlay" class="voice-overlay">
-    <div id="overlayText" class="overlay-text">Ask me anything</div>
-    <button id="overlayMic" class="overlay-mic-btn" type="button">🎤</button>
-  </div>
-
-  <!-- ===== CREW PROFILE OVERLAY ===== -->
-  <div id="crewProfileOverlay" class="crew-profile-overlay">
-    <div class="crew-profile-card">
-      <div class="crew-profile-header">
-        <div class="crew-profile-main">
-          <div id="crewProfileAvatar" class="crew-profile-avatar">C</div>
+  <main class="main">
+    <section class="content">
+      <section class="hero">
+        <div class="between wrap">
           <div>
-            <h3 id="crewProfileName"></h3>
-            <p id="crewProfileRole"></p>
-            <p id="crewProfileStore" class="crew-profile-store"></p>
+            <div class="tag">🍟 Today’s restaurant command centre</div>
+            <h2 id="welcomeTitle" style="margin-top:14px;">Welcome back</h2>
+            <p id="welcomeSubtitle">See staffing, training, rewards, and shift risks in one clean place before the rush starts.</p>
           </div>
+          <div class="row"><span id="roleBadge" class="pill">Manager</span><div id="avatarCircle" class="logo" style="width:54px;height:54px;font-size:1.4rem;">U</div></div>
         </div>
-        <button id="crewProfileClose" class="crew-profile-close" type="button">✕</button>
-      </div>
+        <div class="hero-actions"><a class="btn" href="schedule.html">📅 Check shift risk</a><a class="btn alt" href="training.html">🎓 View training gaps</a><button class="btn dark" onclick="document.getElementById('aiInput').value='Pitch this to corporate';document.getElementById('aiForm').requestSubmit();">🤖 Ask McAssist</button></div>
+      </section>
 
-      <div class="crew-profile-body">
-        <div class="crew-profile-row">
-          <span class="crew-profile-label">Training status</span>
-          <span id="crewProfileStatus"></span>
-        </div>
+      <section id="topCards" class="grid four"></section>
+      <section id="bottomSection" class="card"></section>
+    </section>
 
-        <div class="crew-profile-row">
-          <span class="crew-profile-label">Badge</span>
-          <span id="crewProfileBadge"></span>
-        </div>
+    <aside class="panel ai">
+      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted" id="aiSubtitle">Shift, training and rewards assistant</p></div></div><span class="online">● Online</span></div>
+      <div id="aiSuggestions" class="suggestions"></div>
+      <div id="aiChat" class="chat"></div>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask McAssist something..." /><button id="aiSendBtn" class="btn send" type="submit">Send</button></form>
+    </aside>
+  </main>
 
-        <div class="crew-profile-row">
-          <span class="crew-profile-label">McStars</span>
-          <span id="crewProfileStars"></span>
-        </div>
-
-        <div class="crew-profile-row">
-          <span class="crew-profile-label">Next shift</span>
-          <span id="crewProfileNextShift"></span>
-        </div>
-
-        <div class="crew-profile-row">
-          <span class="crew-profile-label">Stations</span>
-          <span id="crewProfileStations"></span>
-        </div>
-
-        <div class="crew-profile-notes">
-          <div class="crew-profile-label">Notes</div>
-          <p id="crewProfileNotes"></p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script type="module" src="./nav.js?v=nav-fix-2"></script>
-  <script type="module" src="./main.js"></script>
-  <script type="module" src="./mcassist-rota-fix.js?v=rota-fix-1"></script>
-  <script type="module" src="./mcassist-actions.js?v=smart-actions-1"></script>
-  <script src="./mcassist-collapse.js?v=collapse-2"></script>
-  <script type="module" src="./crew-availability-editor.js?v=avail-1"></script>
-  <script type="module" src="./rota-review.js?v=review-1"></script>
+  <div id="toast" class="toast"></div>
+  <script src="./pitch-app.js?v=pitch-1"></script>
+  <script>window.McPitch.initPage('dashboard');</script>
 </body>
 </html>
