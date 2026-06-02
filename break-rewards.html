@@ -2,131 +2,61 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining – Break Rewards</title>
+  <title>McTraining - Break Rewards</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="mc-theme.css" />
-  <link rel="stylesheet" href="nav-clean.css?v=break-redesign-1" />
-  <link rel="stylesheet" href="break-rewards-redesign.css?v=break-redesign-1" />
+  <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
 </head>
-
 <body class="app-page">
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-circle">M</div>
-      <div class="sidebar-header-text">
-        <h1>McTraining</h1>
-        <p>Training &amp; Rewards</p>
-      </div>
-      <button id="sidebarToggle" class="sidebar-toggle" type="button">☰</button>
-    </div>
-
-    <nav class="sidebar-nav">
-      <div class="nav-section-title">MAIN</div>
-      <ul class="nav-list">
-        <li class="nav-item"><a class="nav-link" href="main.html"><span class="nav-dot"></span><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span></a></li>
-        <li class="nav-item"><a class="nav-link" href="training.html"><span class="nav-dot"></span><span class="nav-icon">🎓</span><span class="nav-label">Training</span></a></li>
-        <li class="nav-item"><a class="nav-link" href="schedule.html"><span class="nav-dot"></span><span class="nav-icon">📅</span><span class="nav-label">Shifts</span></a></li>
-        <li class="nav-item active"><a class="nav-link" href="break-rewards.html"><span class="nav-dot"></span><span class="nav-icon">🍔</span><span class="nav-label">Break Rewards</span></a></li>
-        <li class="nav-item" id="navShiftCreator" style="display:none;"><a class="nav-link" href="shifts-admin.html"><span class="nav-dot"></span><span class="nav-icon">🛠️</span><span class="nav-label">Shift creator</span></a></li>
-      </ul>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="sidebar-user-label"><strong id="sidebarUserName">User Name</strong><br /><span id="sidebarUserRole">Crew Member</span></div>
-      <button id="logoutBtn" type="button">Log out</button>
-    </div>
+    <div class="brand"><div class="logo">M</div><div class="side-title"><h1>McTraining</h1><p>Rewards that motivate</p></div><button id="sidebarToggle" class="btn alt toggle" type="button">☰</button></div>
+    <nav class="nav"><small>MAIN</small><a href="main.html" data-page="dashboard">🏠 Dashboard</a><a href="training.html" data-page="training">🎓 Training</a><a href="schedule.html" data-page="schedule">📅 Shifts</a><a href="break-rewards.html" data-page="rewards">🍔 Break Rewards</a><a id="navShiftCreator" href="shifts-admin.html" data-page="shifts">🛠️ Shift creator</a></nav>
+    <div class="side-foot"><b id="sidebarUserName">User</b><br><span id="sidebarUserRole">Manager</span><button id="logoutBtn" class="btn dark" type="button" style="width:100%;margin-top:10px;">Log out</button></div>
   </aside>
 
-  <div class="main-layout">
-    <main class="rewards-page">
-      <section class="rewards-hero-card">
-        <div class="rewards-hero">
+  <main class="main">
+    <section class="content">
+      <section class="hero">
+        <div class="between wrap">
           <div>
-            <div class="reward-kicker">🍟 Break shop • McTraining Rewards</div>
-            <h2>Build your break with points.</h2>
-            <p>You get <strong>4 break points</strong> daily. Managers can award a <strong>+1 bonus</strong> for teamwork, helping others, speed, or great shift effort.</p>
+            <div class="tag">🍔 Break Rewards</div>
+            <h2 style="margin-top:14px;">Reward good shifts without messy admin.</h2>
+            <p>Crew get simple daily points for break food. Managers can add a small bonus for teamwork, speed, helping others, or great shift attitude.</p>
           </div>
-          <div class="hero-right">
-            <div class="points-card">
-              <div class="points-badge">⭐</div>
-              <div class="points-meta">
-                <div class="points-now"><span id="pointsNow">—</span> points</div>
-                <div class="points-sub" id="pointsMeta">Daily reset: — • Bonus claimed: —</div>
-              </div>
-            </div>
-            <button id="claimBonusBtn" class="btn-primary" type="button">+1 Bonus</button>
-            <button id="backBtn" class="btn" type="button">← Dashboard</button>
-          </div>
+          <div class="card stat" style="min-width:230px;"><span>Available points</span><strong id="pointsNow">4</strong><p class="muted">Daily reset demo</p></div>
         </div>
+        <div class="hero-actions"><button id="claimBonusBtn" class="btn" type="button">⭐ +1 bonus</button><button class="btn alt" onclick="window.McPitch.toast('Manager reward note saved')">Save reward note</button><button class="btn dark" onclick="document.getElementById('aiInput').value='How do rewards help managers?';document.getElementById('aiForm').requestSubmit();">Ask why it helps</button></div>
       </section>
 
-      <section class="rewards-guide">
-        <article class="guide-card"><div class="guide-icon">⭐</div><strong>Earn points</strong><span>Daily points refresh automatically. Bonus points are for good shift habits.</span></article>
-        <article class="guide-card"><div class="guide-icon">🍔</div><strong>Pick food</strong><span>Search the menu, filter categories, and add items to your cart.</span></article>
-        <article class="guide-card"><div class="guide-icon">🛒</div><strong>Stay in budget</strong><span>Your cart total must be less than or equal to your available points.</span></article>
-        <article class="guide-card"><div class="guide-icon">✅</div><strong>Checkout</strong><span>Spend points and save your recent break orders.</span></article>
+      <section class="grid four">
+        <article class="card"><h3>Earn</h3><p class="muted">Daily points refresh automatically.</p><span class="pill ok">✅ Simple</span></article>
+        <article class="card"><h3>Recognise</h3><p class="muted">Managers can reward helpful crew behaviour.</p><span class="pill warn">⭐ Bonus</span></article>
+        <article class="card"><h3>Spend</h3><p class="muted">Food choices stay within point balance.</p><span class="pill">🍟 Controlled</span></article>
+        <article class="card"><h3>Review</h3><p class="muted">Recent orders and bonuses are visible.</p><span class="pill ok">📊 Trackable</span></article>
       </section>
 
-      <section class="rewards-grid">
-        <section class="reward-panel">
-          <div class="subsection-title">Break menu</div>
-          <div class="subsection-sub">Choose your food using points. This is a demo reward system.</div>
-
-          <div class="quick-picks">
-            <span class="quick-pick">🍟 Fries</span>
-            <span class="quick-pick">🍔 Burgers</span>
-            <span class="quick-pick">🥤 Drinks</span>
-            <span class="quick-pick">🍦 Desserts</span>
-          </div>
-
-          <div class="toolbar">
-            <input id="menuSearch" placeholder="Search fries, burger, nuggets, drink..." />
-            <button id="menuSearchBtn" class="btn-primary" type="button">Search</button>
-            <button id="menuResetBtn" class="btn" type="button">Reset</button>
-          </div>
-
-          <div class="category-row" id="categoryRow"></div>
-          <div id="menuGrid"></div>
-        </section>
-
-        <aside class="reward-side-stack">
-          <section class="reward-panel sticky">
-            <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;">
-              <div>
-                <div class="subsection-title" style="margin:0;">Your break cart</div>
-                <div class="subsection-sub" style="margin:4px 0 0;">Keep your order inside your points balance.</div>
-              </div>
-              <div class="cart-total"><span class="tag tag-cost">⭐ <span id="cartTotal">0</span> pts</span></div>
-            </div>
-
-            <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px;">
-              <button id="clearCartBtn" class="btn" type="button">Clear</button>
-              <button id="checkoutBtn" class="btn-primary" type="button" disabled>Checkout</button>
-            </div>
-
-            <div class="cart-lines" id="cartList"></div>
-            <div class="cart-summary"><div class="hint" id="cartHint">Add items to begin.</div></div>
-            <div class="reward-note"><b>Tip:</b> If your cart goes over your points, remove an item before checkout.</div>
-          </section>
-
-          <section class="reward-panel">
-            <div class="subsection-title">How points work</div>
-            <div class="mini-note"><strong>Daily points</strong>4 points every day. They reset automatically.</div>
-            <div class="mini-note"><strong>Bonus +1</strong>Bonus points are for teamwork, helping others, speed, or outstanding shifts.</div>
-            <div class="mini-note"><strong>Spend points</strong>Food only • break time • stay inside your balance.</div>
-          </section>
-
-          <section class="reward-panel">
-            <div class="subsection-title">Recent orders</div>
-            <div id="historyList"></div>
-          </section>
-        </aside>
+      <section class="grid two">
+        <article class="card">
+          <div class="between wrap"><div><h3>Break menu</h3><p class="muted">Add items to the demo cart using points.</p></div><span class="pill">Cart: <span id="cartTotal">0</span> pts</span></div>
+          <div id="menuGrid" class="grid three" style="margin-top:14px;"></div>
+        </article>
+        <article class="card">
+          <h3>Your break cart</h3>
+          <p class="muted">The cart cannot go above available points.</p>
+          <div id="cartList" class="grid" style="margin-top:12px;"></div>
+          <div class="hero-actions"><button id="clearCartBtn" class="btn alt" type="button">Clear</button><button id="checkoutBtn" class="btn" type="button">Checkout</button></div>
+          <div class="mini" style="margin-top:14px;"><b>Manager value</b><br><span class="muted">Rewards encourage good habits while giving managers a low-friction recognition tool.</span></div>
+        </article>
       </section>
-    </main>
-  </div>
+    </section>
 
+    <aside class="panel ai">
+      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Rewards assistant</p></div></div><span class="online">● Online</span></div>
+      <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about break rewards..." /><button class="btn send" type="submit">Send</button></form>
+    </aside>
+  </main>
   <div id="toast" class="toast"></div>
-  <script type="module" src="nav.js?v=break-redesign-1"></script>
-  <script type="module" src="break-rewards.js?v=break-redesign-1"></script>
+  <script src="./pitch-app.js?v=pitch-1"></script>
+  <script>window.McPitch.initPage('rewards');</script>
 </body>
 </html>
