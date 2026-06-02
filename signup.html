@@ -2,47 +2,101 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining - Create Test Profile</title>
+  <title>McTraining - Create Account</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
 </head>
 <body class="auth-page">
   <main class="shell grid two" style="align-items:center;">
     <section class="hero">
-      <div class="tag">⭐ Test profile</div>
-      <h2 style="margin-top:16px;">Create a crew or manager demo view.</h2>
-      <p>This page is rebuilt for the pitch flow. It creates a local presentation profile, then opens the portal with the right navigation and role label.</p>
+      <div class="tag">⭐ Create account</div>
+      <h2 style="margin-top:16px;">Join your McTraining restaurant portal.</h2>
+      <p>Create a real Firebase account. Your role decides what you can access: crew see crew tools, managers and shift creators get rota planning tools.</p>
       <div class="grid three" style="margin-top:20px;">
-        <div class="mini"><b>👤 Crew</b><br><span class="muted">See shifts, training, and rewards.</span></div>
-        <div class="mini"><b>🧑‍💼 Manager</b><br><span class="muted">See risk, gaps, and priorities.</span></div>
-        <div class="mini"><b>🛠️ Shift Creator</b><br><span class="muted">Plan rota and stations.</span></div>
+        <div class="mini"><b>👤 Crew</b><br><span class="muted">Shifts, training, rewards and profile.</span></div>
+        <div class="mini"><b>🧑‍💼 Manager</b><br><span class="muted">Profiles, McStars, and store overview.</span></div>
+        <div class="mini"><b>🛠️ Shift Creator</b><br><span class="muted">Generate and manage rotas.</span></div>
       </div>
     </section>
 
     <section class="auth-card">
       <div class="brand">
         <div class="logo">M</div>
-        <div><h1>Create test profile</h1><p>Choose the view for tomorrow’s demo.</p></div>
+        <div><h1>Create account</h1><p>Set up your real login.</p></div>
       </div>
-      <div class="tag">🍟 Presentation mode</div>
-      <form id="profileForm">
-        <div class="field"><label for="name">Name</label><input id="name" placeholder="Cosmin" /></div>
-        <div class="field"><label for="role">Role</label><select id="role"><option value="crew">Crew Member</option><option value="manager" selected>Manager</option><option value="shiftCreator">Shift Creator</option></select></div>
-        <div class="field"><label for="storeId">Store ID</label><input id="storeId" placeholder="store001" value="store001" /></div>
-        <button class="btn" type="submit">🚀 Open portal</button>
+      <div class="tag">🔐 Firebase account</div>
+
+      <form id="signupForm">
+        <div class="field"><label for="name">Full name</label><input id="name" placeholder="Cosmin" required /></div>
+        <div class="field"><label for="email">Email</label><input id="email" type="email" placeholder="name@email.com" autocomplete="email" required /></div>
+        <div class="field"><label for="password">Password</label><input id="password" type="password" placeholder="At least 6 characters" autocomplete="new-password" required /></div>
+        <div class="field"><label for="role">Role</label><select id="role"><option value="crew" selected>Crew Member</option><option value="manager">Manager</option><option value="shiftCreator">Shift Creator</option></select></div>
+        <div class="field"><label for="storeId">Store ID</label><input id="storeId" placeholder="store001" value="store001" required /></div>
+        <button id="signupBtn" class="btn" type="submit">🚀 Create account</button>
       </form>
-      <p style="margin-top:12px;">Already ready? <a class="link" href="index.html">Back to demo entry</a></p>
+
+      <div id="authMsg" class="mini" style="display:none;margin-top:14px;"></div>
+      <p style="margin-top:12px;">Already have an account? <a class="link" href="index.html">Log in</a></p>
     </section>
   </main>
-  <script src="./pitch-app.js?v=pitch-1"></script>
-  <script>
-    document.getElementById('profileForm').addEventListener('submit', function(e){
+
+  <script type="module">
+    import { auth, db } from "./firebase-init.js";
+    import { createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const form = document.getElementById("signupForm");
+    const msg = document.getElementById("authMsg");
+    const btn = document.getElementById("signupBtn");
+
+    function show(message, ok = false) {
+      msg.style.display = "block";
+      msg.style.color = ok ? "#087a2b" : "#8d0710";
+      msg.textContent = message;
+    }
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const name = document.getElementById('name').value.trim() || 'Cosmin';
-      const role = document.getElementById('role').value;
-      const storeId = document.getElementById('storeId').value.trim() || 'store001';
-      localStorage.setItem('mc_session_user', JSON.stringify({ id:'test-profile', name, role, storeId }));
-      window.location.href = 'main.html';
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim().toLowerCase();
+      const password = document.getElementById("password").value;
+      const role = document.getElementById("role").value;
+      const storeId = document.getElementById("storeId").value.trim() || "store001";
+
+      if (password.length < 6) return show("Password must be at least 6 characters.");
+
+      btn.disabled = true;
+      show("Creating account...", true);
+
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(cred.user, { displayName: name });
+
+        const profile = {
+          name,
+          email,
+          role,
+          storeId,
+          stars: role === "crew" ? 0 : 5,
+          badge: role === "crew" ? "New Starter" : role === "manager" ? "Manager" : "Shift Creator",
+          status: role === "crew" ? "New starter" : "Ready",
+          createdAt: serverTimestamp()
+        };
+
+        await setDoc(doc(db, "users", cred.user.uid), profile, { merge: true });
+        localStorage.setItem("mc_session_user", JSON.stringify({ id: cred.user.uid, name, email, role, storeId }));
+        show("Account created. Opening portal...", true);
+        window.location.href = "main.html";
+      } catch (err) {
+        console.error(err);
+        if (err?.code === "auth/email-already-in-use") show("That email already has an account.");
+        else if (err?.code === "auth/invalid-email") show("That email is invalid.");
+        else if (err?.code === "auth/weak-password") show("Password is too weak.");
+        else if (String(err?.message || "").includes("Missing or insufficient permissions")) show("Firebase profile write was blocked. Check Firestore rules for users/{uid}.");
+        else show(err?.message || "Signup failed.");
+      } finally {
+        btn.disabled = false;
+      }
     });
   </script>
 </body>
