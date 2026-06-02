@@ -5,6 +5,9 @@
   <title>McTraining - Training Hub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
+  <style>
+    .training-module-card{animation:moduleCardIn .45s ease both;transition:.18s}.training-module-card:hover{transform:translateY(-6px) rotate(-.35deg)}.module-icon-bubble{width:58px;height:58px;border:4px solid var(--line);border-radius:22px;display:grid;place-items:center;background:linear-gradient(180deg,#fff8c4,var(--yellow));font-size:2rem;box-shadow:0 6px 0 rgba(35,18,10,.2)}.module-done{background:linear-gradient(180deg,#f4fff5,#dbffe6)!important}.learning-road{position:relative}.learning-road:before{content:"";position:absolute;left:26px;top:44px;bottom:44px;width:6px;background:var(--yellow);border:3px solid var(--line);border-radius:999px}.road-item{position:relative;padding-left:56px}.road-dot{position:absolute;left:0;top:8px;width:58px;height:58px;border-radius:50%;border:4px solid var(--line);background:var(--yellow);display:grid;place-items:center;font-size:1.6rem;box-shadow:0 6px 0 rgba(35,18,10,.2)}@keyframes moduleCardIn{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+  </style>
 </head>
 <body class="app-page">
   <aside class="sidebar" id="sidebar">
@@ -16,43 +19,45 @@
   <main class="main">
     <section class="content">
       <section class="hero">
-        <div class="tag">🎓 Hamburger University style training</div>
-        <h2 style="margin-top:14px;">Make new crew useful faster, safer, and calmer.</h2>
-        <p>A simple training campus for first-shift confidence, station basics, customer service, hygiene habits, quizzes, XP, and manager sign-off. It helps crew know what to learn next instead of guessing.</p>
-        <div class="hero-actions"><button class="btn" onclick="window.McPitch.toast('Next module opened')">Continue next module</button><button class="btn alt" onclick="window.McPitch.toast('Quick quiz started')">Start quick quiz</button><button class="btn dark" onclick="document.getElementById('aiInput').value='Who needs training?';document.getElementById('aiForm').requestSubmit();">Ask McAssist</button></div>
+        <div class="tag">🎓 Interactive Training Campus</div>
+        <h2 style="margin-top:14px;">Every module now has its own page.</h2>
+        <p>Each training module includes lesson cards, practical checklist, quiz, progress, XP, completion animation, and McAssist coaching. This makes the site feel more like a real learning platform, not just a static page.</p>
+        <div class="hero-actions"><a class="btn" href="module.html?id=first-shift">Start first module</a><a class="btn alt" href="module.html?id=food-safety">Food safety</a><button class="btn dark" onclick="document.getElementById('aiInput').value='What training should I do first?';document.getElementById('aiForm').requestSubmit();">Ask McAssist</button></div>
       </section>
 
       <section class="grid four">
-        <article class="card stat"><span>Current level</span><strong>7</strong><p class="muted">Crew confidence path</p></article>
-        <article class="card stat"><span>Total XP</span><strong>1240</strong><p class="muted">Across station modules</p></article>
-        <article class="card stat"><span>Completed</span><strong>18/24</strong><p class="muted">6 left for full readiness</p></article>
-        <article class="card stat"><span>Priority gaps</span><strong>4</strong><p class="muted">Food safety + fries refresh</p></article>
+        <article class="card stat"><span>Level</span><strong id="statLevel">Starter</strong><p class="muted">Based on completed XP</p></article>
+        <article class="card stat"><span>Total XP</span><strong id="statXp">0</strong><p class="muted">Saved locally</p></article>
+        <article class="card stat"><span>Completed</span><strong id="statDone">0/6</strong><p class="muted">Training modules</p></article>
+        <article class="card stat"><span>Progress</span><strong id="statPct">0%</strong><p class="muted">Overall campus</p></article>
       </section>
 
       <section class="grid two">
-        <article class="card">
-          <h3>First shift path</h3>
-          <p class="muted">A manager-friendly route from new starter to shift-ready.</p>
-          <div class="grid" style="margin-top:12px;">
-            <div class="mini"><b>1. Know the basics</b><br><span class="muted">Uniform, timekeeping, hygiene, safety, and asking for help.</span></div>
-            <div class="mini"><b>2. Shadow a trainer</b><br><span class="muted">Watch the station flow before trying it alone.</span></div>
-            <div class="mini"><b>3. Practise slowly</b><br><span class="muted">Accuracy first, speed second. No unsafe shortcuts.</span></div>
-            <div class="mini"><b>4. Get signed off</b><br><span class="muted">Trainer feedback becomes visible for managers.</span></div>
+        <article class="card learning-road">
+          <h3>Learning roadmap</h3>
+          <p class="muted">Show corporate how crew can go from new starter to station-ready.</p>
+          <div class="grid" style="margin-top:18px;">
+            <div class="road-item"><div class="road-dot">1</div><div class="mini"><b>First shift basics</b><br><span class="muted">Know who to ask, where to go, and how to avoid guessing.</span></div></div>
+            <div class="road-item"><div class="road-dot">2</div><div class="mini"><b>Food safety</b><br><span class="muted">Hygiene, allergens, hazards, and safe behaviour.</span></div></div>
+            <div class="road-item"><div class="road-dot">3</div><div class="mini"><b>Station skills</b><br><span class="muted">Fries, front counter, drive-thru, and rush confidence.</span></div></div>
           </div>
         </article>
         <article class="card">
-          <h3>Why managers care</h3>
-          <p class="muted">This turns training from “someone should explain it” into visible action.</p>
+          <h3>Extra manager functions</h3>
+          <p class="muted">Useful things managers can show during the pitch.</p>
           <div class="grid" style="margin-top:12px;">
-            <div class="mini between"><span>Food safety confidence</span><span class="pill warn">68%</span></div>
-            <div class="mini between"><span>Service scripts</span><span class="pill ok">91%</span></div>
-            <div class="mini between"><span>Fries station refresh</span><span class="pill bad">31%</span></div>
-            <div class="mini between"><span>Trainer feedback</span><span class="pill ok">Live</span></div>
+            <div class="mini between"><span>Module completion saved</span><span class="pill ok">Yes</span></div>
+            <div class="mini between"><span>Quick quizzes</span><span class="pill ok">Live</span></div>
+            <div class="mini between"><span>McAssist coaching</span><span class="pill warn">Smarter</span></div>
+            <div class="mini between"><span>XP progression</span><span class="pill ok">Working</span></div>
           </div>
         </article>
       </section>
 
-      <section class="grid two" id="trainingModules"></section>
+      <section class="card">
+        <div class="between wrap"><div><h3>Training modules</h3><p class="muted">Open any module to view its own training page.</p></div><span class="pill ok">6 modules</span></div>
+      </section>
+      <section class="grid three" id="trainingModules"></section>
     </section>
 
     <aside class="panel ai">
@@ -61,9 +66,20 @@
       <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask training or shift questions..." /><button class="btn send" type="submit">Send</button></form>
     </aside>
   </main>
+
+  <div id="modulePreviewModal" class="modal">
+    <div class="modal-card">
+      <div class="between wrap"><h3 id="previewTitle">Module preview</h3><button id="closePreviewBtn" class="btn alt" type="button">Close</button></div>
+      <div id="previewBody" style="margin-top:12px;"></div>
+      <div class="hero-actions"><a id="previewOpenLink" class="btn" href="module.html?id=first-shift">Open module</a></div>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
   <script src="./pitch-app.js?v=pitch-1"></script>
-  <script src="./live-shifts.js?v=live-1"></script>
-  <script>window.McPitch.initPage('training'); window.McLive.init('training');</script>
+  <script src="./live-shifts.js?v=live-2"></script>
+  <script src="./module-data.js?v=modules-1"></script>
+  <script src="./training-hub.js?v=modules-1"></script>
+  <script>window.McPitch.initPage('training'); window.McLive.init('training'); window.McTrainingHub.init();</script>
 </body>
 </html>
