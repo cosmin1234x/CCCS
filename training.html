@@ -56,13 +56,14 @@
     </section>
 
     <aside class="panel ai">
-      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Training assistant</p></div></div><span class="online">● Online</span></div>
+      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Training and rota assistant</p></div></div><span class="online">● Online</span></div>
       <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
-      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about training gaps..." /><button class="btn send" type="submit">Send</button></form>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask training or shift questions..." /><button class="btn send" type="submit">Send</button></form>
     </aside>
   </main>
   <div id="toast" class="toast"></div>
   <script src="./pitch-app.js?v=pitch-1"></script>
-  <script>window.McPitch.initPage('training');</script>
+  <script src="./live-shifts.js?v=live-1"></script>
+  <script>window.McPitch.initPage('training'); window.McLive.init('training');</script>
 </body>
 </html>
