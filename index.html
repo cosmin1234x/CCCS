@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>McTraining Portal - Demo</title>
+  <title>McTraining Portal - Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="./pitch-theme.css?v=pitch-1" />
 </head>
@@ -10,16 +10,12 @@
   <main class="shell grid two" style="align-items:center;">
     <section class="hero">
       <div class="tag">🍟 McTraining Portal</div>
-      <h2 style="margin-top:16px;">A smarter shift hub for crew and managers.</h2>
-      <p>Built to reduce manager admin, speed up crew learning, make shift risks visible, and give teams a fun daily reason to engage with training and rewards.</p>
-      <div class="hero-actions">
-        <button id="demoLoginBtn" class="btn" type="button">🚀 Open presentation demo</button>
-        <a class="btn alt" href="signup.html">Create test profile</a>
-      </div>
+      <h2 style="margin-top:16px;">Sign in to your restaurant hub.</h2>
+      <p>Managers get shift planning, crew profiles, McStars and rota tools. Crew members get their own dashboard for shifts, training, rewards and profile progress.</p>
       <div class="grid three" style="margin-top:20px;">
-        <div class="mini"><b>📅 Rota view</b><br><span class="muted">Spot gaps before the rush.</span></div>
-        <div class="mini"><b>🎓 Crew training</b><br><span class="muted">Track confidence and sign-offs.</span></div>
-        <div class="mini"><b>🤖 McAssist</b><br><span class="muted">Ask for priorities instantly.</span></div>
+        <div class="mini"><b>📅 Shifts</b><br><span class="muted">See your rota and coverage.</span></div>
+        <div class="mini"><b>🎓 Training</b><br><span class="muted">Complete modules and earn XP.</span></div>
+        <div class="mini"><b>⭐ McStars</b><br><span class="muted">Track recognition and profiles.</span></div>
       </div>
     </section>
 
@@ -28,39 +24,113 @@
         <div class="logo">M</div>
         <div>
           <h1>Welcome back</h1>
-          <p>Open the pitch-ready manager experience.</p>
+          <p>Log in with your McTraining account.</p>
         </div>
       </div>
-      <div class="tag">⭐ Tomorrow-ready pitch mode</div>
+      <div class="tag">🔐 Secure account login</div>
+
       <form id="loginForm">
         <div class="field">
-          <label for="name">Presenter name</label>
-          <input id="name" type="text" placeholder="Cosmin" />
+          <label for="email">Email</label>
+          <input id="email" type="email" placeholder="name@email.com" autocomplete="email" required />
         </div>
         <div class="field">
-          <label for="role">View as</label>
-          <select id="role">
-            <option value="manager">Manager</option>
-            <option value="crew">Crew Member</option>
-            <option value="shiftCreator">Shift Creator</option>
-          </select>
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="Your password" autocomplete="current-password" required />
         </div>
-        <button class="btn" type="submit">🍔 Enter portal</button>
+        <button id="loginBtn" class="btn" type="submit">🍔 Log in</button>
       </form>
-      <p class="muted" style="margin-top:14px;line-height:1.5;">This demo loads sample shifts, training progress, break rewards, and McAssist so the whole idea is easy to show even with no live store data.</p>
-      <p style="margin-top:12px;">Need a test profile? <a class="link" href="signup.html">Create one</a></p>
+
+      <div id="authMsg" class="mini" style="display:none;margin-top:14px;"></div>
+      <p style="margin-top:12px;">Need an account? <a class="link" href="signup.html">Create one</a></p>
     </section>
   </main>
 
-  <script src="./pitch-app.js?v=pitch-1"></script>
-  <script>
-    window.McPitch.initAuth();
-    document.getElementById("loginForm").addEventListener("submit", function(e){
+  <script type="module">
+    import { auth, db } from "./firebase-init.js";
+    import { signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const form = document.getElementById("loginForm");
+    const msg = document.getElementById("authMsg");
+    const btn = document.getElementById("loginBtn");
+
+    function show(message, ok = false) {
+      msg.style.display = "block";
+      msg.style.color = ok ? "#087a2b" : "#8d0710";
+      msg.textContent = message;
+    }
+
+    function cleanRole(role) {
+      const r = String(role || "crew").toLowerCase().replace(/\s+/g, "");
+      if (r === "manager") return "manager";
+      if (r === "shiftcreator") return "shiftCreator";
+      return "crew";
+    }
+
+    async function buildSession(user) {
+      const ref = doc(db, "users", user.uid);
+      const snap = await getDoc(ref);
+      let data = snap.exists() ? snap.data() : null;
+
+      if (!data) {
+        data = {
+          name: user.displayName || user.email?.split("@")[0] || "Crew Member",
+          email: user.email || "",
+          role: "crew",
+          storeId: "store001",
+          createdAt: serverTimestamp()
+        };
+        await setDoc(ref, data, { merge: true });
+      }
+
+      const session = {
+        id: user.uid,
+        name: data.name || user.displayName || user.email?.split("@")[0] || "Crew Member",
+        email: user.email || data.email || "",
+        role: cleanRole(data.role),
+        storeId: data.storeId || "store001"
+      };
+
+      localStorage.setItem("mc_session_user", JSON.stringify(session));
+      return session;
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+      try {
+        await buildSession(user);
+        window.location.href = "main.html";
+      } catch (err) {
+        console.error(err);
+        show("Logged in, but profile could not load. Check Firebase rules.");
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const name = document.getElementById("name").value.trim() || "Cosmin";
-      const role = document.getElementById("role").value;
-      localStorage.setItem("mc_session_user", JSON.stringify({ id:"pitch-user", name, role, storeId:"store001" }));
-      window.location.href = "main.html";
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      btn.disabled = true;
+      show("Signing in...", true);
+
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        await buildSession(cred.user);
+        window.location.href = "main.html";
+      } catch (err) {
+        console.error(err);
+        const code = err?.code || "";
+        if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) {
+          show("Email or password is wrong.");
+        } else if (code.includes("too-many-requests")) {
+          show("Too many attempts. Try again later.");
+        } else {
+          show(err?.message || "Login failed.");
+        }
+      } finally {
+        btn.disabled = false;
+      }
     });
   </script>
 </body>
