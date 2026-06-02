@@ -48,12 +48,13 @@
 
   <script type="module">
     import { auth, db } from "./firebase-init.js";
-    import { signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const form = document.getElementById("loginForm");
     const msg = document.getElementById("authMsg");
     const btn = document.getElementById("loginBtn");
+    let forcedLogoutHandled = false;
 
     function show(message, ok = false) {
       msg.style.display = "block";
@@ -89,7 +90,9 @@
         name: data.name || user.displayName || user.email?.split("@")[0] || "Crew Member",
         email: user.email || data.email || "",
         role: cleanRole(data.role),
-        storeId: data.storeId || "store001"
+        storeId: data.storeId || "store001",
+        stars: Number(data.stars || 0),
+        badge: data.badge || "Crew Path"
       };
 
       localStorage.setItem("mc_session_user", JSON.stringify(session));
@@ -97,6 +100,15 @@
     }
 
     onAuthStateChanged(auth, async (user) => {
+      if (localStorage.getItem("mc_force_logout") === "1" && !forcedLogoutHandled) {
+        forcedLogoutHandled = true;
+        localStorage.removeItem("mc_force_logout");
+        localStorage.removeItem("mc_session_user");
+        if (user) await signOut(auth);
+        show("Logged out successfully.", true);
+        return;
+      }
+
       if (!user) return;
       try {
         await buildSession(user);
@@ -121,13 +133,9 @@
       } catch (err) {
         console.error(err);
         const code = err?.code || "";
-        if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) {
-          show("Email or password is wrong.");
-        } else if (code.includes("too-many-requests")) {
-          show("Too many attempts. Try again later.");
-        } else {
-          show(err?.message || "Login failed.");
-        }
+        if (code.includes("invalid-credential") || code.includes("wrong-password") || code.includes("user-not-found")) show("Email or password is wrong.");
+        else if (code.includes("too-many-requests")) show("Too many attempts. Try again later.");
+        else show(err?.message || "Login failed.");
       } finally {
         btn.disabled = false;
       }
