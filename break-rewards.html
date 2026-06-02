@@ -24,7 +24,7 @@
           </div>
           <div class="card stat" style="min-width:230px;"><span>Available points</span><strong id="pointsNow">4</strong><p class="muted">Daily reset demo</p></div>
         </div>
-        <div class="hero-actions"><button id="claimBonusBtn" class="btn" type="button">⭐ +1 bonus</button><button class="btn alt" onclick="window.McPitch.toast('Manager reward note saved')">Save reward note</button><button class="btn dark" onclick="document.getElementById('aiInput').value='How do rewards help managers?';document.getElementById('aiForm').requestSubmit();">Ask why it helps</button></div>
+        <div class="hero-actions"><button id="claimBonusBtn" class="btn" type="button">⭐ +1 bonus</button><button class="btn alt" onclick="window.McPitch.toast('Manager reward note saved')">Save reward note</button><button class="btn dark" onclick="document.getElementById('aiInput').value='Show this week shifts';document.getElementById('aiForm').requestSubmit();">Ask shifts</button></div>
       </section>
 
       <section class="grid four">
@@ -50,13 +50,14 @@
     </section>
 
     <aside class="panel ai">
-      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Rewards assistant</p></div></div><span class="online">● Online</span></div>
+      <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Rewards and rota assistant</p></div></div><span class="online">● Online</span></div>
       <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
-      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about break rewards..." /><button class="btn send" type="submit">Send</button></form>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask rewards or shift questions..." /><button class="btn send" type="submit">Send</button></form>
     </aside>
   </main>
   <div id="toast" class="toast"></div>
   <script src="./pitch-app.js?v=pitch-1"></script>
-  <script>window.McPitch.initPage('rewards');</script>
+  <script src="./live-shifts.js?v=live-1"></script>
+  <script>window.McPitch.initPage('rewards'); window.McLive.init('rewards');</script>
 </body>
 </html>
