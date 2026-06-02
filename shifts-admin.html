@@ -16,37 +16,27 @@
   <main class="main">
     <section class="content">
       <section class="hero">
-        <div class="tag">🛠️ Shift Creator</div>
-        <h2 style="margin-top:14px;">Build a better rota in minutes.</h2>
-        <p>Designed for managers and shift creators: pick crew, assign stations, mark shift lead, spot coverage risk, and keep the rota easier to understand.</p>
-        <div class="hero-actions"><button id="saveShiftBtn" class="btn" type="button">💾 Save demo shift</button><a class="btn alt" href="schedule.html">View rota</a><button class="btn dark" onclick="document.getElementById('aiInput').value='What should I fix before dinner rush?';document.getElementById('aiForm').requestSubmit();">Ask McAssist</button></div>
-      </section>
-
-      <section class="grid two">
-        <article class="card">
-          <h3>Create / edit shift</h3>
-          <p class="muted">Demo editor for the corporate presentation.</p>
-          <div class="grid" style="margin-top:14px;">
-            <div class="field"><label>Crew / Manager</label><select id="crewPicker"></select></div>
-            <div class="grid two"><div class="field"><label>Date</label><input type="date"></div><div class="field"><label>Station</label><select><option>Front Counter</option><option>Kitchen</option><option>Drive-thru</option><option>Lobby</option><option>Shift Lead</option></select></div></div>
-            <div class="grid two"><div class="field"><label>Start</label><input type="time" value="14:00"></div><div class="field"><label>End</label><input type="time" value="22:00"></div></div>
-            <label class="mini row"><input type="checkbox" style="width:auto;"> Mark as shift manager for that day</label>
-          </div>
-        </article>
-        <article class="card">
-          <h3>Auto rota suggestions</h3>
-          <p class="muted">This is what makes the idea feel useful to managers.</p>
-          <div class="grid" style="margin-top:14px;">
-            <div class="mini between"><span>Front counter support</span><span class="pill warn">Add 1</span></div>
-            <div class="mini between"><span>New starter pairing</span><span class="pill bad">Needs trainer</span></div>
-            <div class="mini between"><span>Shift lead coverage</span><span class="pill ok">Covered</span></div>
-            <div class="mini between"><span>Overtime risk</span><span class="pill ok">Low</span></div>
-          </div>
-        </article>
+        <div class="tag">🛠️ Working Shift Creator</div>
+        <h2 style="margin-top:14px;">Generate and manage weekly rotas.</h2>
+        <p>This version keeps the new design but restores the useful part: generate weekly shifts, switch weeks, add manual shifts, clear weeks, and ask McAssist to create or show shifts.</p>
+        <div class="hero-actions"><button class="btn" onclick="window.McLive.generateWeek(0);window.McLive.renderAllSchedules();">🤖 Generate this week</button><button class="btn alt" onclick="window.McLive.generateWeek(1);window.McLive.renderAllSchedules();">Generate next week</button><a class="btn dark" href="schedule.html">View rota</a></div>
       </section>
 
       <section class="card">
-        <div class="between wrap"><div><h3>Current rota preview</h3><p class="muted">The same rota appears for crew on the Shifts page.</p></div><span class="pill ok">Live preview</span></div>
+        <div class="between wrap"><div><h3>Week selector</h3><p class="muted">Choose the rota week you want to view or edit.</p></div><span class="pill ok">Live tools</span></div>
+        <div id="weekTabs" class="hero-actions"></div>
+      </section>
+
+      <section id="shiftManageCard" class="card">
+        <p class="muted">Loading working shift tools...</p>
+      </section>
+
+      <section id="scheduleCard" class="card">
+        <p class="muted">Loading weekly rota cards...</p>
+      </section>
+
+      <section class="card">
+        <div class="between wrap"><div><h3>Current rota table</h3><p class="muted">The same shifts appear on the Shifts page.</p></div><span class="pill ok">Shared rota</span></div>
         <div id="shiftTable" style="margin-top:14px;"></div>
       </section>
     </section>
@@ -54,11 +44,12 @@
     <aside class="panel ai">
       <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted">Rota planning assistant</p></div></div><span class="online">● Online</span></div>
       <div id="aiSuggestions" class="suggestions"></div><div id="aiChat" class="chat"></div>
-      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask about staffing risk..." /><button class="btn send" type="submit">Send</button></form>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Try: create shift for Amelia tomorrow 9-5 fries" /><button class="btn send" type="submit">Send</button></form>
     </aside>
   </main>
   <div id="toast" class="toast"></div>
   <script src="./pitch-app.js?v=pitch-1"></script>
-  <script>window.McPitch.initPage('shifts');</script>
+  <script src="./live-shifts.js?v=live-1"></script>
+  <script>window.McPitch.initPage('shifts'); window.McLive.init('shifts');</script>
 </body>
 </html>
