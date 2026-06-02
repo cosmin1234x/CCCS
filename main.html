@@ -35,7 +35,7 @@
           </div>
           <div class="row"><span id="roleBadge" class="pill">Manager</span><div id="avatarCircle" class="logo" style="width:54px;height:54px;font-size:1.4rem;">U</div></div>
         </div>
-        <div class="hero-actions"><a class="btn" href="schedule.html">📅 Check shift risk</a><a class="btn alt" href="training.html">🎓 View training gaps</a><button class="btn dark" onclick="document.getElementById('aiInput').value='Pitch this to corporate';document.getElementById('aiForm').requestSubmit();">🤖 Ask McAssist</button></div>
+        <div class="hero-actions"><a class="btn" href="schedule.html">📅 Check shift risk</a><a class="btn alt" href="training.html">🎓 View training gaps</a><button class="btn dark" onclick="document.getElementById('aiInput').value='Generate next week shifts';document.getElementById('aiForm').requestSubmit();">🤖 Generate shifts</button></div>
       </section>
 
       <section id="topCards" class="grid four"></section>
@@ -46,12 +46,13 @@
       <div class="ai-head"><div class="row"><div class="ai-avatar">A</div><div><h3>McAssist</h3><p class="muted" id="aiSubtitle">Shift, training and rewards assistant</p></div></div><span class="online">● Online</span></div>
       <div id="aiSuggestions" class="suggestions"></div>
       <div id="aiChat" class="chat"></div>
-      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Ask McAssist something..." /><button id="aiSendBtn" class="btn send" type="submit">Send</button></form>
+      <form id="aiForm" class="ai-form"><input id="aiInput" placeholder="Try: show this week shifts" /><button id="aiSendBtn" class="btn send" type="submit">Send</button></form>
     </aside>
   </main>
 
   <div id="toast" class="toast"></div>
   <script src="./pitch-app.js?v=pitch-1"></script>
-  <script>window.McPitch.initPage('dashboard');</script>
+  <script src="./live-shifts.js?v=live-1"></script>
+  <script>window.McPitch.initPage('dashboard'); window.McLive.init('dashboard');</script>
 </body>
 </html>
