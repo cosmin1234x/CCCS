@@ -6,6 +6,7 @@
     { "source": "/schedule", "destination": "/schedule.html" },
     { "source": "/break-rewards", "destination": "/break-rewards.html" },
     { "source": "/shifts-admin", "destination": "/shifts-admin.html" },
-    { "source": "/wrapped", "destination": "/wrapped.html" }
+    { "source": "/wrapped", "destination": "/wrapped.html" },
+    { "source": "/racing", "destination": "/car-racing.html" }
   ]
 }
