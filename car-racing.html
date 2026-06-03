@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neon Street Racer</title>
+  <style>
+    :root {
+      --bg: #090b16;
+      --panel: rgba(15, 18, 34, 0.82);
+      --text: #f8fafc;
+      --muted: #9aa7bd;
+      --accent: #ffcc33;
+      --danger: #ff4d6d;
+      --good: #38f29b;
+      --blue: #4cc9f0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(76, 201, 240, 0.26), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(255, 77, 109, 0.22), transparent 35%),
+        linear-gradient(135deg, #080a12 0%, #111426 48%, #080a12 100%);
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 22px 0 32px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      gap: 13px;
+      align-items: center;
+    }
+
+    .logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      font-size: 26px;
+      background: linear-gradient(145deg, #ffcc33, #ff4d6d);
+      box-shadow: 0 16px 45px rgba(255, 77, 109, 0.28);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.45rem, 4vw, 2.3rem);
+      letter-spacing: -0.05em;
+    }
+
+    .subtitle {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .home-link {
+      color: var(--text);
+      text-decoration: none;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(14px);
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .game-shell,
+    .side-card {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: var(--panel);
+      border-radius: 28px;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+    }
+
+    .game-shell {
+      position: relative;
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .hud div {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 18px;
+      padding: 10px 12px;
+    }
+
+    .hud span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .hud b {
+      display: block;
+      margin-top: 3px;
+      font-size: 1.05rem;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      max-height: 78vh;
+      aspect-ratio: 9 / 13;
+      border-radius: 22px;
+      background: #111;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 86px 14px 14px;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+
+    .modal {
+      width: min(440px, calc(100% - 24px));
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 26px;
+      padding: 24px;
+      text-align: center;
+      background: rgba(8, 10, 18, 0.82);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(18px);
+      pointer-events: auto;
+    }
+
+    .modal h2 {
+      margin: 0 0 8px;
+      font-size: clamp(1.65rem, 5vw, 2.8rem);
+      letter-spacing: -0.06em;
+    }
+
+    .modal p {
+      margin: 0 auto 18px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      color: #11131a;
+      font-weight: 900;
+      border-radius: 999px;
+      padding: 13px 20px;
+      background: linear-gradient(145deg, var(--accent), #ff8c3a);
+      box-shadow: 0 14px 34px rgba(255, 204, 51, 0.26);
+      transition: transform 0.16s ease, filter 0.16s ease;
+    }
+
+    button:hover { transform: translateY(-2px); filter: brightness(1.04); }
+    button:active { transform: translateY(0); }
+
+    .side-card {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .side-card h3 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    .tips {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .tips li,
+    .mini-card {
+      padding: 12px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .tips b,
+    .mini-card b { color: var(--text); }
+
+    .controls {
+      display: none;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .controls button {
+      min-height: 54px;
+      font-size: 1.1rem;
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: none;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 920px) {
+      .layout { grid-template-columns: 1fr; }
+      .side-card { order: -1; }
+      .controls { display: grid; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+      header { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div class="brand">
+        <div class="logo">🏁</div>
+        <div>
+          <h1>Neon Street Racer</h1>
+          <p class="subtitle">Dodge traffic, grab coins, hit nitro, survive as long as you can.</p>
+        </div>
+      </div>
+      <a class="home-link" href="/">← Back to site</a>
+    </header>
+
+    <section class="layout">
+      <div class="game-shell">
+        <div class="hud">
+          <div><span>Score</span><b id="score">0</b></div>
+          <div><span>Best</span><b id="best">0</b></div>
+          <div><span>Speed</span><b id="speed">0</b></div>
+          <div><span>Nitro</span><b id="nitro">100%</b></div>
+        </div>
+
+        <canvas id="game" width="540" height="780" aria-label="Car racing game"></canvas>
+
+        <div class="overlay" id="overlay">
+          <div class="modal">
+            <h2 id="modalTitle">Ready?</h2>
+            <p id="modalText">Use A/D or arrow keys to steer. Press W/Up to accelerate, S/Down to brake, and Space for nitro.</p>
+            <button id="startBtn">Start Racing</button>
+          </div>
+        </div>
+
+        <div class="controls" aria-label="Touch controls">
+          <button data-key="left">◀</button>
+          <button data-key="nitro">⚡</button>
+          <button data-key="right">▶</button>
+          <button data-key="brake">Brake</button>
+          <button data-key="start">Start</button>
+          <button data-key="gas">Gas</button>
+        </div>
+      </div>
+
+      <aside class="side-card">
+        <h3>How to play</h3>
+        <ul class="tips">
+          <li><b>Move:</b> A/D or ←/→</li>
+          <li><b>Speed:</b> W/↑ to accelerate, S/↓ to brake</li>
+          <li><b>Nitro:</b> Space or ⚡ button</li>
+          <li><b>Goal:</b> avoid red cars, collect coins, beat your best score</li>
+        </ul>
+        <div class="mini-card"><b>Pro tip:</b> Do not spam nitro. Save it for tight gaps when traffic gets evil. Tiny goblin road behaviour, basically.</div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const ui = {
+      score: document.getElementById("score"),
+      best: document.getElementById("best"),
+      speed: document.getElementById("speed"),
+      nitro: document.getElementById("nitro"),
+      overlay: document.getElementById("overlay"),
+      title: document.getElementById("modalTitle"),
+      text: document.getElementById("modalText"),
+      start: document.getElementById("startBtn")
+    };
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const road = { x: 86, w: W - 172 };
+    const keys = new Set();
+
+    let bestScore = Number(localStorage.getItem("neonRacerBest") || 0);
+    let lastTime = 0;
+    let state = "menu";
+    let score = 0;
+    let distance = 0;
+    let speed = 260;
+    let nitro = 100;
+    let spawnTimer = 0;
+    let coinTimer = 0;
+    let shake = 0;
+    let particles = [];
+    let enemies = [];
+    let coins = [];
+
+    const player = {
+      x: W / 2 - 24,
+      y: H - 128,
+      w: 48,
+      h: 86,
+      vx: 0
+    };
+
+    ui.best.textContent = bestScore;
+
+    function rnd(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function rectsHit(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function resetGame() {
+      state = "playing";
+      score = 0;
+      distance = 0;
+      speed = 280;
+      nitro = 100;
+      spawnTimer = 0;
+      coinTimer = 0;
+      shake = 0;
+      enemies = [];
+      coins = [];
+      particles = [];
+      player.x = W / 2 - player.w / 2;
+      player.vx = 0;
+      ui.overlay.classList.add("hidden");
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+
+    function endGame() {
+      state = "gameover";
+      shake = 22;
+      bestScore = Math.max(bestScore, Math.floor(score));
+      localStorage.setItem("neonRacerBest", String(bestScore));
+      ui.best.textContent = bestScore;
+      ui.title.textContent = "Crashed!";
+      ui.text.textContent = `You scored ${Math.floor(score)}. Hit restart and run it back.`;
+      ui.start.textContent = "Restart Race";
+      setTimeout(() => ui.overlay.classList.remove("hidden"), 420);
+    }
+
+    function spawnEnemy() {
+      const laneW = road.w / 3;
+      const lane = Math.floor(rnd(0, 3));
+      const w = rnd(42, 56);
+      const h = rnd(76, 98);
+      enemies.push({
+        x: road.x + lane * laneW + laneW / 2 - w / 2 + rnd(-15, 15),
+        y: -h - 10,
+        w,
+        h,
+        speed: rnd(0.82, 1.28),
+        hue: Math.random() > 0.5 ? "#ff4d6d" : "#ff7a59"
+      });
+    }
+
+    function spawnCoin() {
+      const size = 26;
+      coins.push({
+        x: rnd(road.x + 26, road.x + road.w - 26),
+        y: -40,
+        w: size,
+        h: size,
+        spin: rnd(0, Math.PI * 2)
+      });
+    }
+
+    function addSparks(x, y, amount, color) {
+      for (let i = 0; i < amount; i++) {
+        particles.push({
+          x,
+          y,
+          vx: rnd(-130, 130),
+          vy: rnd(-190, 60),
+          life: rnd(0.28, 0.7),
+          maxLife: 0.7,
+          color
+        });
+      }
+    }
+
+    function update(dt) {
+      const accel = keys.has("gas") || keys.has("arrowup") || keys.has("w");
+      const brake = keys.has("brake") || keys.has("arrowdown") || keys.has("s");
+      const left = keys.has("left") || keys.has("arrowleft") || keys.has("a");
+      const right = keys.has("right") || keys.has("arrowright") || keys.has("d");
+      const boosting = (keys.has("nitro") || keys.has(" ")) && nitro > 0;
+
+      if (accel) speed += 170 * dt;
+      else speed -= 40 * dt;
+      if (brake) speed -= 240 * dt;
+      if (boosting) {
+        speed += 360 * dt;
+        nitro -= 35 * dt;
+        addSparks(player.x + player.w / 2, player.y + player.h, 1, "#4cc9f0");
+      } else {
+        nitro += 13 * dt;
+      }
+
+      speed = clamp(speed, 220, 720);
+      nitro = clamp(nitro, 0, 100);
+
+      const steerPower = 760;
+      if (left) player.vx -= steerPower * dt;
+      if (right) player.vx += steerPower * dt;
+      player.vx *= Math.pow(0.0007, dt);
+      player.x += player.vx * dt;
+      player.x = clamp(player.x, road.x + 8, road.x + road.w - player.w - 8);
+
+      distance += speed * dt;
+      score += (speed * 0.026) * dt;
+
+      const difficulty = 1 + score / 900;
+      spawnTimer -= dt;
+      coinTimer -= dt;
+
+      if (spawnTimer <= 0) {
+        spawnEnemy();
+        spawnTimer = clamp(1.05 - difficulty * 0.12, 0.42, 1.05);
+      }
+
+      if (coinTimer <= 0) {
+        spawnCoin();
+        coinTimer = rnd(0.75, 1.4);
+      }
+
+      enemies.forEach(enemy => enemy.y += speed * enemy.speed * dt);
+      coins.forEach(coin => {
+        coin.y += speed * 0.9 * dt;
+        coin.spin += 8 * dt;
+      });
+
+      enemies = enemies.filter(enemy => enemy.y < H + 120);
+      coins = coins.filter(coin => coin.y < H + 80);
+
+      for (const enemy of enemies) {
+        const hitbox = { x: enemy.x + 7, y: enemy.y + 10, w: enemy.w - 14, h: enemy.h - 18 };
+        const playerBox = { x: player.x + 8, y: player.y + 9, w: player.w - 16, h: player.h - 16 };
+        if (rectsHit(playerBox, hitbox)) {
+          addSparks(player.x + player.w / 2, player.y + 35, 40, "#ff4d6d");
+          endGame();
+          return;
+        }
+      }
+
+      coins = coins.filter(coin => {
+        if (rectsHit(player, coin)) {
+          score += 65;
+          nitro = clamp(nitro + 15, 0, 100);
+          addSparks(coin.x + 13, coin.y + 13, 12, "#ffcc33");
+          return false;
+        }
+        return true;
+      });
+
+      particles.forEach(p => {
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 300 * dt;
+      });
+      particles = particles.filter(p => p.life > 0);
+      shake = Math.max(0, shake - 55 * dt);
+
+      ui.score.textContent = Math.floor(score);
+      ui.speed.textContent = Math.floor(speed / 10);
+      ui.nitro.textContent = `${Math.floor(nitro)}%`;
+    }
+
+    function drawRoad() {
+      ctx.fillStyle = "#111827";
+      ctx.fillRect(0, 0, W, H);
+
+      const grd = ctx.createLinearGradient(0, 0, 0, H);
+      grd.addColorStop(0, "#182033");
+      grd.addColorStop(1, "#0c111d");
+      ctx.fillStyle = grd;
+      ctx.fillRect(road.x, 0, road.w, H);
+
+      ctx.fillStyle = "rgba(255,255,255,0.16)";
+      ctx.fillRect(road.x - 8, 0, 6, H);
+      ctx.fillRect(road.x + road.w + 2, 0, 6, H);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.33)";
+      ctx.lineWidth = 7;
+      ctx.setLineDash([34, 36]);
+      const offset = distance % 70;
+      for (let i = 1; i <= 2; i++) {
+        const x = road.x + (road.w / 3) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, -70 + offset);
+        ctx.lineTo(x, H + 70 + offset);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      for (let y = -120 + (distance % 120); y < H + 120; y += 120) {
+        ctx.fillStyle = "rgba(76,201,240,0.18)";
+        ctx.fillRect(34, y, 22, 56);
+        ctx.fillStyle = "rgba(255,77,109,0.18)";
+        ctx.fillRect(W - 56, y + 50, 22, 56);
+      }
+    }
+
+    function drawCar(car, color, isPlayer = false) {
+      ctx.save();
+      ctx.translate(car.x + car.w / 2, car.y + car.h / 2);
+      if (isPlayer) ctx.rotate(player.vx * 0.00028);
+
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.ellipse(0, car.h / 2 - 2, car.w * 0.52, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = color;
+      roundRect(-car.w / 2, -car.h / 2, car.w, car.h, 14);
+      ctx.fill();
+
+      ctx.fillStyle = isPlayer ? "#4cc9f0" : "#111827";
+      roundRect(-car.w / 2 + 8, -car.h / 2 + 13, car.w - 16, 22, 8);
+      ctx.fill();
+      roundRect(-car.w / 2 + 9, car.h / 2 - 35, car.w - 18, 18, 7);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,0.88)";
+      ctx.fillRect(-car.w / 2 + 7, -car.h / 2 + 6, 10, 6);
+      ctx.fillRect(car.w / 2 - 17, -car.h / 2 + 6, 10, 6);
+
+      ctx.fillStyle = isPlayer ? "#ffcc33" : "#ff4d6d";
+      ctx.fillRect(-car.w / 2 + 7, car.h / 2 - 10, 11, 6);
+      ctx.fillRect(car.w / 2 - 18, car.h / 2 - 10, 11, 6);
+
+      ctx.restore();
+    }
+
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function drawCoin(coin) {
+      ctx.save();
+      ctx.translate(coin.x + coin.w / 2, coin.y + coin.h / 2);
+      ctx.scale(Math.cos(coin.spin) * 0.45 + 0.6, 1);
+      ctx.fillStyle = "#ffcc33";
+      ctx.beginPath();
+      ctx.arc(0, 0, coin.w / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,0.24)";
+      ctx.font = "bold 17px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("$", 0, 1);
+      ctx.restore();
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function render() {
+      ctx.save();
+      if (shake > 0) ctx.translate(rnd(-shake, shake), rnd(-shake, shake));
+      drawRoad();
+      coins.forEach(drawCoin);
+      enemies.forEach(enemy => drawCar(enemy, enemy.hue));
+      drawCar(player, "#ffcc33", true);
+      drawParticles();
+      ctx.restore();
+    }
+
+    function loop(time) {
+      if (state !== "playing") return;
+      const dt = Math.min((time - lastTime) / 1000, 0.033);
+      lastTime = time;
+      update(dt);
+      render();
+      if (state === "playing") requestAnimationFrame(loop);
+    }
+
+    function showMenuFrame() {
+      drawRoad();
+      drawCar(player, "#ffcc33", true);
+      enemies = [
+        { x: road.x + 42, y: 120, w: 48, h: 88, hue: "#ff4d6d" },
+        { x: road.x + road.w - 92, y: 260, w: 50, h: 92, hue: "#ff7a59" }
+      ];
+      enemies.forEach(enemy => drawCar(enemy, enemy.hue));
+      enemies = [];
+    }
+
+    window.addEventListener("keydown", e => {
+      const key = e.key.toLowerCase();
+      if (["arrowleft", "arrowright", "arrowup", "arrowdown", " "].includes(key)) e.preventDefault();
+      keys.add(key);
+      if ((key === "enter" || key === " ") && state !== "playing") resetGame();
+    });
+
+    window.addEventListener("keyup", e => keys.delete(e.key.toLowerCase()));
+    ui.start.addEventListener("click", resetGame);
+
+    document.querySelectorAll("[data-key]").forEach(btn => {
+      const key = btn.dataset.key;
+      const press = e => {
+        e.preventDefault();
+        if (key === "start") return resetGame();
+        keys.add(key);
+      };
+      const release = e => {
+        e.preventDefault();
+        keys.delete(key);
+      };
+      btn.addEventListener("pointerdown", press);
+      btn.addEventListener("pointerup", release);
+      btn.addEventListener("pointercancel", release);
+      btn.addEventListener("pointerleave", release);
+    });
+
+    showMenuFrame();
+  </script>
+</body>
+</html>
