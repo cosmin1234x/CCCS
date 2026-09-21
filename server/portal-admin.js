@@ -101,9 +101,11 @@ export async function findStoreMember(storeId, nameOrId) {
   const db = adminDb();
   const exact = cleanText(nameOrId, 120);
   if (!exact) return null;
-  const direct = await db.doc("users/" + exact).get();
-  if (direct.exists && direct.data().storeId === storeId)
-    return { id: direct.id, ...direct.data(), role: normalizeRole(direct.data().role) };
+  if (/^[A-Za-z0-9_-]{6,160}$/.test(exact)) {
+    const direct = await db.doc("users/" + exact).get();
+    if (direct.exists && direct.data().storeId === storeId)
+      return { id: direct.id, ...direct.data(), role: normalizeRole(direct.data().role) };
+  }
 
   const snap = await db.collection("users").where("storeId", "==", storeId).limit(100).get();
   const wanted = exact.toLowerCase();
