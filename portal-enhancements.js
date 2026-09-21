@@ -286,6 +286,7 @@ function showProfile(profile, data) {
   const modal = $("modal");
   if (!modal) return;
   modal.classList.add("v2-profile-dialog");
+  modal.addEventListener("close", () => modal.classList.remove("v2-profile-dialog"), { once: true });
   const stations = (profile.verifiedStations || []).length
     ? profile.verifiedStations.join(", ")
     : "No stations yet";
