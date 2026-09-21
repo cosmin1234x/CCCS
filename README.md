@@ -40,3 +40,28 @@ Firestore Security Rules remain a separately managed Firebase setting. Verify th
 The repository previously contained `mc-seeder/serviceAccountKey.json`. That file is removed from the current source and excluded from deployment. Treat its historical value as exposed and revoke it in Google Cloud IAM if it remains active. Removing a file does not erase Git history. Firebase public web configuration is intentionally public and is not a service-account secret.
 
 The old committed `node_modules` files are removed from version control; dependencies are reproduced from the lockfile. Legacy source files remain in Git for reference but are not published by the public-asset build.
+
+
+## V2 roles, verification and McAssist actions
+
+The crew hub now has three approved roles:
+
+- `crew`: own shifts, learning, availability, recognition and McAssist guidance/actions for their own account.
+- `crewTrainer`: Crew access plus the station verification workflow. Crew Trainers can start verifications but cannot plan team shifts.
+- `manager`: team/rota access, shift planning and McStars actions. Managers can view verification status but cannot sign a Crew Trainer verification.
+
+Signup lets a user choose Crew Member, Crew Trainer or Manager. Crew access starts immediately. Crew Trainer and Manager choices are stored as pending role requests so a user cannot self-promote; a current Manager can approve them from the team page. The approved role in `users/{uid}.role` is always the source of truth.
+
+Station verification lives under `stores/{storeId}/verifications`. A Crew Trainer starts a check, then the assigned Crew Trainer and Crew Member each sign their own side. Only the server endpoint can write verification records. When both signatures are present, the station is added to the Crew Member's `verifiedStations` list.
+
+McAssist is shown only on the McAssist page. It reads role-scoped Firestore data and can perform actions that match the approved role. Examples include updating the signed-in user's availability, starting a verification as a Crew Trainer, and creating/updating/removing shifts or adding McStars as a Manager. McAssist never creates a signature for either person.
+
+### Firebase Admin on Vercel
+
+Server-side Firestore actions require Firebase Admin credentials. Add a Vercel environment variable named `FIREBASE_SERVICE_ACCOUNT_JSON` containing the JSON for a dedicated Firebase service account. Keep it only in Vercel environment settings; never commit the JSON file or paste the secret into client code. Keep `FIREBASE_PROJECT_ID=mc-training-portal` if the project ID is not already configured.
+
+The repository includes `firestore.rules` as the intended security policy. Deploy those rules separately with the Firebase CLI or Firebase Console after review. Vercel deployment does not automatically publish Firestore rules.
+
+### Learning content
+
+The learning hub is searchable and grouped by Essentials, Safety, Kitchen, Service, Cleanliness, Operations, Crew Trainer and Manager. It includes key station topics such as Fries, Grill & Beef, Chicken & Fryer, Kitchen Assembly, Breakfast, Front Counter, Drive-thru, Drinks & McCafé and Dining Area. The modules intentionally avoid inventing proprietary cook cycles, exact temperatures or allergen guarantees; current official restaurant guidance and trainer/manager instructions take priority.
