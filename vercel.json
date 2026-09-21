@@ -1,12 +1,53 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/main", "destination": "/main.html" },
-    { "source": "/training", "destination": "/training.html" },
-    { "source": "/schedule", "destination": "/schedule.html" },
-    { "source": "/break-rewards", "destination": "/break-rewards.html" },
-    { "source": "/shifts-admin", "destination": "/shifts-admin.html" },
-    { "source": "/wrapped", "destination": "/wrapped.html" },
-    { "source": "/racing", "destination": "/car-racing.html" }
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/main",
+      "destination": "/main.html"
+    },
+    {
+      "source": "/training",
+      "destination": "/training.html"
+    },
+    {
+      "source": "/schedule",
+      "destination": "/schedule.html"
+    },
+    {
+      "source": "/break-rewards",
+      "destination": "/break-rewards.html"
+    },
+    {
+      "source": "/shifts-admin",
+      "destination": "/shifts-admin.html"
+    },
+    {
+      "source": "/wrapped",
+      "destination": "/wrapped.html"
+    }
+  ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    }
   ]
 }

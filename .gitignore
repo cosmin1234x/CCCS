@@ -1,1 +1,10 @@
 node_modules
+.vercel
+.env*.local
+.vercel
+.env*
+!.env.example
+public/
+node_modules/
+mc-seeder/*Key*.json
+*serviceAccount*.json

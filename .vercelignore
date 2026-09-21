@@ -1,0 +1,6 @@
+mc-seeder
+seed-*
+.env*
+tests
+.git
+work
