@@ -149,3 +149,5 @@
 @media(max-width:480px){
   .v2-station-strip{grid-template-columns:1fr}
 }
+
+@media(max-width:760px){.mobile-nav:has(.v2-mobile-verify){grid-template-columns:repeat(6,1fr)}.mobile-nav:has(.v2-mobile-verify) a{font-size:9px}.mobile-nav:has(.v2-mobile-verify) .icon{width:20px;height:20px}}
