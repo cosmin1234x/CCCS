@@ -1,3 +1,4 @@
+import "./portal-enhancements.js";
 import {
   managerRole,
   isoDate,
