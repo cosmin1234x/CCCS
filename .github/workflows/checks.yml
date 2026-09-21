@@ -11,4 +11,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: node --check portal-enhancements.js
+      - run: node --check portal.js
       - run: npm run build

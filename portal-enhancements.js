@@ -475,7 +475,7 @@ function renderTraining(data) {
   content.innerHTML =
     '<section class="v2-training-head">' +
       '<div><div class="eyebrow">LEARN BY STATION</div><h1>Find what you need. Fast.</h1><p>Short, station-based learning without endless scrolling. Use search or pick a category, then open one focused module at a time.</p></div>' +
-      '<div class="v2-training-progress"><strong>' + complete + "/" + allModules.length + '</strong><small>Modules completed · ' + percent + "%</small><div class="progress"><span style="width:" + percent + '%"></span></div></div>' +
+      '<div class="v2-training-progress"><strong>' + complete + "/" + allModules.length + '</strong><small>Modules completed · ' + percent + '%</small><div class="progress"><span style="width:' + percent + '%"></span></div></div>' +
     "</section>" +
     '<div class="v2-station-strip">' +
       [
@@ -729,7 +729,7 @@ async function renderVerificationQueue(data) {
   content.innerHTML =
     '<section class="v2-verify-hero"><div><div class="eyebrow">STATION VERIFICATION</div><h1>' +
       (role === "crewTrainer" ? "Train. Check. Sign off." : role === "manager" ? "Station verification overview." : "Your sign-offs.") +
-      "</h1><p>Verification is separate from completing a learning module. It confirms a real station check with two signatures: the Crew Trainer and the Crew Member.</p></div><span class="pill">" + esc(roleLabel(role)) + "</span></section>" +
+      '</h1><p>Verification is separate from completing a learning module. It confirms a real station check with two signatures: the Crew Trainer and the Crew Member.</p></div><span class="pill">' + esc(roleLabel(role)) + "</span></section>" +
     '<div class="v2-verify-grid">' +
       trainerForm +
       '<section class="v2-verify-card"><h3>Waiting for signatures</h3><p>' + pending.length + " pending verification" + (pending.length === 1 ? "" : "s") + '.</p><div class="v2-verify-list" id="v2PendingList"></div></section>' +
