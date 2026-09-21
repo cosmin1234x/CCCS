@@ -27,6 +27,10 @@
     {
       "source": "/wrapped",
       "destination": "/wrapped.html"
+    },
+    {
+      "source": "/verification",
+      "destination": "/verification.html"
     }
   ],
   "buildCommand": "npm run build",
