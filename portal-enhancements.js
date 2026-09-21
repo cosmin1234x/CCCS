@@ -224,13 +224,18 @@ function applyRoleUI(data) {
   }
 
   const sideNav = document.querySelector(".side-nav");
-  if (sideNav && role === "crewTrainer" && !sideNav.querySelector(".v2-nav-link")) {
+  if (sideNav && !sideNav.querySelector(".v2-nav-link")) {
     const assistant = [...sideNav.querySelectorAll("a")].find((a) => a.textContent.includes("McAssist"));
     const link = document.createElement("a");
     link.className = "v2-nav-link";
     link.href = pageFor("verification");
+    const verifyLabel = role === "crewTrainer"
+      ? "Verify crew"
+      : role === "manager"
+        ? "Verifications"
+        : "My verifications";
     link.innerHTML =
-      '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8 3v7c0 5-8 9-8 9s-8-4-8-9V6l8-3Zm-4 9 3 3 5-5"/></svg><span>Verify crew</span>';
+      '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8 3v7c0 5-8 9-8 9s-8-4-8-9V6l8-3Zm-4 9 3 3 5-5"/></svg><span>' + esc(verifyLabel) + '</span>';
     sideNav.insertBefore(link, assistant || null);
   }
 
