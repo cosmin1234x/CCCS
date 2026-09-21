@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function myRole() {
+      return signedIn() ? me().data.role : null;
+    }
+
+    function normalManagerRole() {
+      return myRole() in ['manager', 'shiftCreator', 'admin'];
+    }
+
+    function crewTrainerRole() {
+      return myRole() in ['crewTrainer', 'trainer'];
+    }
+
+    function sameStore(storeId) {
+      return signedIn() && me().data.storeId == storeId;
+    }
+
+    match /users/{userId} {
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.role == 'crew'
+        && request.resource.data.stars == 0;
+
+      allow read: if signedIn()
+        && (
+          request.auth.uid == userId
+          || ((normalManagerRole() || crewTrainerRole()) && sameStore(resource.data.storeId))
+        );
+
+      allow update: if signedIn()
+        && (
+          (
+            request.auth.uid == userId
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.storeId == resource.data.storeId
+            && request.resource.data.stars == resource.data.stars
+            && request.resource.data.verifiedStations == resource.data.verifiedStations
+          )
+          || (normalManagerRole() && sameStore(resource.data.storeId))
+        );
+
+      allow delete: if false;
+
+      match /portalTraining/{moduleId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
+    match /roleRequests/{userId} {
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.requestedRole in ['crewTrainer', 'manager']
+        && request.resource.data.status == 'pending';
+
+      allow read: if signedIn()
+        && (
+          request.auth.uid == userId
+          || (normalManagerRole() && sameStore(resource.data.storeId))
+        );
+
+      allow delete: if false;
+    }
+
+    match /stores/{storeId}/Shifts/{shiftId} {
+      allow read: if signedIn()
+        && sameStore(storeId)
+        && (
+          normalManagerRole()
+          || resource.data.userId == request.auth.uid
+        );
+
+      allow create, update, delete: if signedIn()
+        && sameStore(storeId)
+        && normalManagerRole();
+    }
+
+    match /stores/{storeId}/verifications/{verificationId} {
+      allow read: if signedIn()
+        && sameStore(storeId)
+        && (
+          normalManagerRole()
+          || resource.data.crewId == request.auth.uid
+          || resource.data.trainerId == request.auth.uid
+        );
+
+      // Verification writes go through the authenticated server endpoint so one
+      // user can never forge the other person's signature in a browser request.
+      allow create, update, delete: if false;
+    }
+
+    match /stores/{storeId}/recognition/{recognitionId} {
+      allow read: if signedIn()
+        && sameStore(storeId)
+        && (
+          normalManagerRole()
+          || resource.data.userId == request.auth.uid
+        );
+
+      allow create, update, delete: if false;
+    }
+  }
+}
