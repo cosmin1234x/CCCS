@@ -239,9 +239,20 @@ function applyRoleUI(data) {
     sideNav.insertBefore(link, assistant || null);
   }
 
+  const mobileNav = document.querySelector(".mobile-nav");
+  if (mobileNav && !mobileNav.querySelector(".v2-mobile-verify")) {
+    const link = document.createElement("a");
+    link.className = "v2-mobile-verify";
+    link.href = pageFor("verification");
+    link.innerHTML =
+      '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8 3v7c0 5-8 9-8 9s-8-4-8-9V6l8-3Zm-4 9 3 3 5-5"/></svg><span>Verify</span>';
+    mobileNav.appendChild(link);
+  }
+
   if (isVerificationRoute()) {
     const href = pageFor("verification");
     setActiveNav(href);
+    document.querySelector(".v2-mobile-verify")?.classList.add("active");
   }
 
   if (isAssistantRoute()) setActiveNav(pageFor("assistant"));
@@ -952,6 +963,9 @@ function appendManagerRoleRequests(data) {
 async function enhanceLoggedIn() {
   const profileButton = $("profileButton");
   if (!profileButton) return;
+  if (!isAssistantRoute()) {
+    document.getElementById("assistant")?.remove();
+  }
   const data = await loadData();
   applyRoleUI(data);
   renderTraining(data);
