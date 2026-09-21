@@ -475,7 +475,7 @@ function renderTraining(data) {
   content.innerHTML =
     '<section class="v2-training-head">' +
       '<div><div class="eyebrow">LEARN BY STATION</div><h1>Find what you need. Fast.</h1><p>Short, station-based learning without endless scrolling. Use search or pick a category, then open one focused module at a time.</p></div>' +
-      '<div class="v2-training-progress"><strong>' + complete + "/" + allModules.length + '</strong><small>Modules completed · ' + percent + "%</small><div class="progress"><span style="width:" + percent + '%"></span></div></div>' +
+      '<div class="v2-training-progress"><strong>' + complete + "/" + allModules.length + '</strong><small>Modules completed · ' + percent + '%</small><div class="progress"><span style="width:' + percent + '%"></span></div></div>' +
     "</section>" +
     '<div class="v2-station-strip">' +
       [
