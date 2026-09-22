@@ -153,6 +153,11 @@ test("manager context exposes shift tools", async () => {
   assert.equal(names.includes("create_shift"), true);
   assert.equal(names.includes("delete_shift"), true);
   assert.equal(names.includes("add_mcstars"), true);
+  assert.equal(names.includes("manager_set_hourly_rate"), true);
+  assert.equal(names.includes("manager_set_role"), true);
+  assert.equal(names.includes("manager_update_profile"), true);
+  assert.equal(names.includes("manager_lookup_member"), true);
+  assert.equal(names.includes("manager_revoke_station"), true);
   assert.equal(names.includes("start_verification"), false);
 });
 
@@ -173,4 +178,121 @@ test("upstream errors do not expose provider secrets", async () => {
   await h({ method: "POST", headers: {}, body: { message: "Hello" } }, r);
   assert.equal(r.code, 502);
   assert.equal(JSON.stringify(r.data).includes("secret credentials"), false);
+});
+
+
+test("manager hourly-rate shortcut writes directly without provider", async () => {
+  let called;
+  const h = createHandler({
+    verifyUser: async () => ({ uid: "manager-1" }),
+    contextLoader: async () => ({
+      ...crewContext,
+      profile: { id: "manager-1", name: "Morgan", role: "manager", roleLabel: "Manager", storeId: "1170" },
+      permissions: { canPlanShifts: true, canVerify: false, canSeeTeam: true },
+      team: [{ id: "alex", name: "Alex Johnson", role: "crew" }],
+    }),
+    toolExecutor: async (user, context, name, args) => {
+      called = { name, args };
+      return { reply: "Rate updated.", dataChanged: true };
+    },
+    fetchAPI: async () => {
+      throw new Error("provider should not be called");
+    },
+  });
+  const r = response();
+  await h(
+    {
+      method: "POST",
+      headers: {},
+      body: { message: "set Alex Johnson hourly rate to £13.55" },
+    },
+    r,
+  );
+  assert.equal(r.code, 200);
+  assert.equal(called.name, "manager_set_hourly_rate");
+  assert.equal(called.args.memberName, "Alex Johnson");
+  assert.equal(called.args.hourlyRate, 13.55);
+});
+
+test("McAssist can chain multiple manager actions before replying", async () => {
+  process.env.OPENAI_API_KEY = "unit-test-key";
+  const calls = [];
+  let providerRound = 0;
+  const h = createHandler({
+    verifyUser: async () => ({ uid: "manager-1" }),
+    contextLoader: async () => ({
+      ...crewContext,
+      profile: { id: "manager-1", name: "Morgan", role: "manager", roleLabel: "Manager", storeId: "1170" },
+      permissions: { canPlanShifts: true, canVerify: false, canSeeTeam: true },
+      team: [{ id: "alex", name: "Alex Johnson", role: "crew" }],
+      roleRequests: [],
+      recentAudit: [],
+      recentRecognition: [],
+    }),
+    toolExecutor: async (user, context, name, args) => {
+      calls.push({ name, args });
+      return {
+        reply: name === "manager_set_role" ? "Alex is now Crew Trainer." : "Alex's rate is now £13.55.",
+        dataChanged: true,
+      };
+    },
+    fetchAPI: async () => {
+      providerRound++;
+      if (providerRound === 1) {
+        return {
+          ok: true,
+          json: async () => ({
+            choices: [{
+              message: {
+                content: "",
+                tool_calls: [
+                  {
+                    id: "call-role",
+                    type: "function",
+                    function: {
+                      name: "manager_set_role",
+                      arguments: JSON.stringify({ memberName: "Alex Johnson", role: "crewTrainer" }),
+                    },
+                  },
+                  {
+                    id: "call-rate",
+                    type: "function",
+                    function: {
+                      name: "manager_set_hourly_rate",
+                      arguments: JSON.stringify({ memberName: "Alex Johnson", hourlyRate: 13.55 }),
+                    },
+                  },
+                ],
+              },
+            }],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: "Done — Alex is a Crew Trainer and their rate is £13.55." } }],
+        }),
+      };
+    },
+  });
+
+  const r = response();
+  await h(
+    {
+      method: "POST",
+      headers: {},
+      body: { message: "Promote Alex and update the rate in one go." },
+    },
+    r,
+  );
+
+  assert.equal(r.code, 200);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls.map((x) => x.name), [
+    "manager_set_role",
+    "manager_set_hourly_rate",
+  ]);
+  assert.equal(r.data.dataChanged, true);
+  assert.match(r.data.reply, /Crew Trainer/);
 });
