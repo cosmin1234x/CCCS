@@ -638,6 +638,9 @@ function renderAssistant(data) {
   if (role === "crewTrainer") commands.push(["Start verification", "Verify " + firstCrew + " on fries"]);
   if (role === "manager") {
     commands.push(["Plan a shift", "Plan a shift for " + firstCrew + " tomorrow from 16:00 to 23:00 on Fries with a 30 minute break"]);
+    commands.push(["Set hourly rate", "Set " + firstCrew + " hourly rate to £13.55"]);
+    commands.push(["Promote member", "Promote " + firstCrew + " to Crew Trainer"]);
+    commands.push(["Multi-action", "Set " + firstCrew + " hourly rate to £13.55, add a note saying strong progress, and give them 3 McStars"]);
     commands.push(["Team check", "Who is working tomorrow and what stations are they on?"]);
   }
 
@@ -650,7 +653,7 @@ function renderAssistant(data) {
         '<div class="v2-assistant-capabilities">' +
           '<span>✓ Live shifts</span><span>✓ Learning</span><span>✓ Availability</span>' +
           (data.permissions?.canVerify ? "<span>✓ Crew verification</span>" : "") +
-          (data.permissions?.canPlanShifts ? "<span>✓ Shift planning</span><span>✓ McStars</span>" : "") +
+          (data.permissions?.canPlanShifts ? "<span>✓ Shift planning</span><span>✓ Pay rates</span><span>✓ Roles</span><span>✓ Profiles</span><span>✓ McStars</span>" : "") +
         "</div>" +
       "</section>" +
       '<div class="v2-assistant-shell"><div id="v2AssistantMount"></div>' +
@@ -663,7 +666,9 @@ function renderAssistant(data) {
   $("v2AssistantMount").appendChild(assistant);
   assistant.querySelector(".assistant-head small").textContent = roleLabel(role) + " access";
   const aiNote = assistant.querySelector(".ai-note");
-  if (aiNote) aiNote.textContent = "McAssist can only perform actions allowed by your approved role. Exact store procedures still come from official restaurant guidance.";
+  if (aiNote) aiNote.textContent = role === "manager"
+    ? "Manager actions write directly to Firestore through validated server tools and are recorded in the McAssist audit log."
+    : "McAssist can only perform actions allowed by your approved role. Exact store procedures still come from official restaurant guidance.";
 
   const form = $("chatForm");
   const input = $("chatInput");
