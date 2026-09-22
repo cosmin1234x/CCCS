@@ -14,6 +14,10 @@ import {
   shiftDurationMinutes,
   timeOk,
 } from "../server/portal-admin.js";
+import {
+  executeManagerTool,
+  managerToolSchemas,
+} from "../server/mcassist-manager.js";
 
 async function authenticate(req) {
   const { decoded } = await authenticateRequest(req);
@@ -110,15 +114,35 @@ async function loadAssistantContext(user) {
   const verificationsPromise = normalizeRole(profile.role) === "crew"
     ? verificationRef.where("crewId", "==", user.uid).limit(100).get()
     : verificationRef.limit(150).get();
+  const roleRequestsPromise = canPlanShifts(profile.role)
+    ? db.collection("roleRequests").where("storeId", "==", storeId).limit(100).get()
+    : Promise.resolve(null);
+  const auditPromise = canPlanShifts(profile.role)
+    ? db.collection("stores").doc(storeId).collection("assistantAudit").orderBy("createdAt", "desc").limit(30).get()
+    : Promise.resolve(null);
+  const recognitionPromise = canPlanShifts(profile.role)
+    ? db.collection("stores").doc(storeId).collection("recognition").orderBy("createdAt", "desc").limit(30).get()
+    : Promise.resolve(null);
 
-  const [ownShiftsSnap, progressSnap, teamSnap, managerShiftsSnap, verificationsSnap] =
-    await Promise.all([
-      ownShiftsPromise,
-      progressPromise,
-      teamPromise,
-      managerShiftsPromise,
-      verificationsPromise,
-    ]);
+  const [
+    ownShiftsSnap,
+    progressSnap,
+    teamSnap,
+    managerShiftsSnap,
+    verificationsSnap,
+    roleRequestsSnap,
+    auditSnap,
+    recognitionSnap,
+  ] = await Promise.all([
+    ownShiftsPromise,
+    progressPromise,
+    teamPromise,
+    managerShiftsPromise,
+    verificationsPromise,
+    roleRequestsPromise,
+    auditPromise,
+    recognitionPromise,
+  ]);
 
   const mapDocs = (snap) =>
     snap ? snap.docs.map((d) => ({ id: d.id, ...serialise(d.data()) })) : [];
@@ -146,6 +170,9 @@ async function loadAssistantContext(user) {
       progressSnap.docs.map((d) => [d.id, serialise(d.data())]),
     ),
     verifications: mapDocs(verificationsSnap).slice(0, 100),
+    roleRequests: mapDocs(roleRequestsSnap).slice(0, 100),
+    recentAudit: mapDocs(auditSnap).slice(0, 30),
+    recentRecognition: mapDocs(recognitionSnap).slice(0, 30),
   };
 }
 
