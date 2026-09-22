@@ -389,6 +389,8 @@ async function executeAssistantTool(user, context, name, args) {
   if (name === "delete_shift") return deleteShift(user, context, args);
   if (name === "update_my_availability") return updateAvailability(user, context, args);
   if (name === "add_mcstars") return addStars(user, context, args);
+  const managerResult = await executeManagerTool(user, context, name, args);
+  if (managerResult) return managerResult;
   if (name === "open_page") {
     return {
       reply: "Opening " + cleanText(args.page, 40) + ".",
@@ -520,6 +522,7 @@ function toolsFor(context) {
         },
       },
     );
+    tools.push(...managerToolSchemas());
   }
 
   return tools;
@@ -535,7 +538,9 @@ function systemPrompt(context) {
     "Never claim an action happened unless you actually call an available tool and it succeeds.",
     "Crew Members may manage only their own availability and learning/navigation. They cannot verify people or plan other people's shifts.",
     "Crew Trainers may start station verifications for Crew Members but cannot plan team shifts. A verification is not complete until both people sign on the verification page; never forge or auto-create a signature.",
-    "Managers may plan, edit and remove team shifts and add recognition. Managers do not sign Crew Trainer verifications.",
+    "Managers may manage team shifts, pay rates, roles, profile notes, badges, availability, McStars, learning progress and role requests through the available tools.",
+    "Managers may look up a team member's current Firestore-backed details and may revoke an existing station verification for retraining, but they cannot grant or forge a station verification.",
+    "Manager tools are scoped to the Manager's current store. Never invent a person, user ID, pay rate, role, shift ID or database value.",
     "Do not invent official recipes, cook cycles, exact food temperatures, allergen guarantees or internal policy. For exact station procedures, tell the user to follow the current official station card, restaurant system and trainer/manager guidance.",
     "If a request is ambiguous before a database write, ask for the missing detail instead of guessing.",
     "Today is " + isoDate() + ".",
@@ -611,6 +616,9 @@ export function createHandler({
         team: context.permissions?.canSeeTeam ? context.team : [],
         training: context.training,
         verifications: context.verifications,
+        roleRequests: context.permissions?.canPlanShifts ? context.roleRequests : [],
+        recentAudit: context.permissions?.canPlanShifts ? context.recentAudit : [],
+        recentRecognition: context.permissions?.canPlanShifts ? context.recentRecognition : [],
         currentPage: cleanText(body.appContext?.page, 40),
         selectedModule: body.appContext?.selectedModule || null,
       };
