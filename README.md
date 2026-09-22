@@ -65,3 +65,23 @@ The repository includes `firestore.rules` as the intended security policy. Deplo
 ### Learning content
 
 The learning hub is searchable and grouped by Essentials, Safety, Kitchen, Service, Cleanliness, Operations, Crew Trainer and Manager. It includes key station topics such as Fries, Grill & Beef, Chicken & Fryer, Kitchen Assembly, Breakfast, Front Counter, Drive-thru, Drinks & McCafé and Dining Area. The modules intentionally avoid inventing proprietary cook cycles, exact temperatures or allergen guarantees; current official restaurant guidance and trainer/manager instructions take priority.
+
+
+## McAssist Manager Control V3
+
+Managers now get an audited, server-side control layer over the operational Firestore data for their own store. McAssist can read current team details and can execute explicit Manager requests for:
+
+- hourly rates
+- Crew Member / Crew Trainer / Manager roles
+- profile name, badge, manager notes and store display name
+- McStars adjustments
+- team availability
+- learning-module completion/reset
+- pending role-request approval/rejection
+- shift creation, editing and deletion
+- member detail lookups across profile, learning, shifts and verification summaries
+- revoking an existing station verification when retraining is required
+
+Manager writes are validated on the server and logged under `stores/{storeId}/assistantAudit` with the acting Manager, target member, action and before/after values. McAssist can chain several explicit actions from one message, with a maximum of six database actions per request.
+
+McAssist deliberately does not receive unrestricted raw Firestore write access. It cannot forge or grant station verification, write arbitrary documents/fields, move a user across store security boundaries, or silently demote the signed-in Manager account. Those boundaries prevent a model mistake from bypassing the role and verification system.
