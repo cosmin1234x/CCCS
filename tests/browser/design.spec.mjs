@@ -524,11 +524,43 @@ test("sign-up role picker is a set of selectable cards", async ({ page }) => {
   await picker.locator(".v2-role-option").nth(1).click();
   await expect(trainer).toBeChecked();
   await expect(picker.locator(".v2-role-note")).toContainText("approves");
-  const card = picker.locator(".v2-role-option").nth(1).locator(".role-card");
-  const border = await card.evaluate((el) => getComputedStyle(el).borderTopColor);
-  expect(border).not.toBe("rgb(216, 218, 206)");
+  // The selected card eases to the gold border (a 240ms transition), so wait
+  // for it to settle instead of sampling mid-transition: a read in the first
+  // frame after the click still returns the default --line-strong colour.
+  const cards = picker.locator(".v2-role-option .role-card");
+  await expect(cards.nth(1)).toHaveCSS("border-top-color", "rgb(231, 166, 0)");
+  await expect(cards.nth(1).locator(".role-check")).toHaveCSS(
+    "background-color",
+    "rgb(37, 40, 37)",
+  );
+  // The others go back to the default border (hover aside).
+  await page.mouse.move(0, 0);
+  await expect(cards.nth(0)).toHaveCSS("border-top-color", "rgb(216, 218, 206)");
+  await expect(cards.nth(2)).toHaveCSS("border-top-color", "rgb(216, 218, 206)");
   for (const id of ["name", "email", "password", "storeId"])
     await expect(page.locator("#" + id)).toBeVisible();
+});
+
+test("sign-up store ID pattern is valid with the v flag and checks the ID", async ({
+  page,
+}) => {
+  await hermetic(page);
+  await page.goto("/signup.html");
+  const storeId = page.locator("#storeId");
+  await expect(storeId).toBeVisible();
+  // Browsers compile pattern="" with the v flag, where an unescaped "-" at
+  // the end of a class is a syntax error that silently disables validation.
+  const pattern = await storeId.getAttribute("pattern");
+  expect(() => new RegExp(`^(?:${pattern})$`, "v")).not.toThrow();
+  for (const [value, valid] of [
+    ["1170", true],
+    ["hayle_1170-b", true],
+    ["11 70", false],
+    ["1170/Hayle", false],
+  ]) {
+    await storeId.fill(value);
+    expect(await storeId.evaluate((el) => el.checkValidity()), value).toBe(valid);
+  }
 });
 
 // ------------------------------------------------------ reduced motion --
@@ -606,6 +638,130 @@ for (const [label, url, signedIn] of [
     expect(mutations).toEqual([]);
   });
 }
+
+// ------------------------------------------------------- shell details --
+test("the shell has no legacy McAssist card; tips only sit beside Home", async ({
+  page,
+}) => {
+  await hermetic(page);
+  await openShell(page, "/main.html?preview=crew");
+  for (const selector of [
+    "#assistant",
+    ".assistant-card",
+    "#chatForm",
+    "[data-prompt]",
+    "[data-ask]",
+  ])
+    await expect(page.locator(selector), selector).toHaveCount(0);
+  // The rail (tips) is only rendered on Home and only shown when it fits.
+  const rail = page.locator(".rail");
+  await expect(rail).toHaveCount(1);
+  const wide = page.viewportSize().width >= 1360;
+  if (wide) await expect(rail).toBeVisible();
+  else await expect(rail).toBeHidden();
+  await openShell(page, "/schedule.html?preview=crew");
+  await expect(page.locator(".rail")).toHaveCount(0);
+  // McAssist's own page owns the chat IDs: exactly one of each.
+  await openShell(page, "/main.html?view=assistant&preview=crew");
+  await expect(page.getByRole("textbox", { name: "Message McAssist" })).toBeVisible();
+  await expect(page.locator("#chat")).toHaveCount(1);
+  await expect(page.locator("#chatInput")).toHaveCount(1);
+});
+
+test("the bell opens only the notifications panel", async ({ page }) => {
+  await hermetic(page);
+  await openShell(page, "/main.html?preview=crew");
+  await page.locator("#notifications").click();
+  const panel = page.locator("#pgSheet");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "Notifications" })).toBeVisible();
+  await expect(page.locator("#modal")).not.toHaveAttribute("open", "");
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+});
+
+test("top bar and phone tab bar are opaque", async ({ page }) => {
+  await hermetic(page);
+  await openShell(page, "/schedule.html?preview=manager");
+  const alphaOf = (locator) =>
+    locator.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const match = style.backgroundColor.match(/rgba?\(([^)]+)\)/);
+      const parts = match ? match[1].split(",").map(Number) : [];
+      return {
+        alpha: parts.length === 4 ? parts[3] : 1,
+        backdrop: style.backdropFilter || style.webkitBackdropFilter || "none",
+      };
+    });
+  const topbar = await alphaOf(page.locator(".topbar"));
+  expect(topbar.alpha).toBe(1);
+  expect(topbar.backdrop).toBe("none");
+  if (page.viewportSize().width <= 760) {
+    const bar = await alphaOf(page.getByRole("navigation", { name: "Mobile navigation" }));
+    expect(bar.alpha).toBe(1);
+    expect(bar.backdrop).toBe("none");
+  }
+});
+
+// Decorative loops drain iPad batteries: app pages may only loop loading
+// spinners and skeletons. Feature modules (McAssist, learning, waste) are
+// checked in their own suites.
+const LOADING_ANIMATIONS = /spin|shimmer|boot|skel/i;
+for (const [role, url] of [
+  ["crew", "/main.html"],
+  ["manager", "/main.html"],
+  ["manager", "/schedule.html"],
+  ["manager", "/shifts-admin.html"],
+  ["manager", "/admin.html"],
+  ["manager", "/break-rewards.html"],
+  ["crew", "/verification.html"],
+]) {
+  test(`no endless decorative animation on ${role} ${url}`, async ({ page }) => {
+    await hermetic(page);
+    await openShell(page, withPreview(url, role));
+    await page.waitForTimeout(400);
+    const endless = await page.evaluate((loading) => {
+      const pattern = new RegExp(loading, "i");
+      const feature = '[class*="mca-"], [class*="tr-"], [class*="waste"], #mcaLauncher';
+      return document
+        .getAnimations()
+        .filter((a) => a.effect?.getTiming().iterations === Infinity)
+        .filter((a) => {
+          const target = a.effect?.target;
+          return target && document.getElementById("app")?.contains(target) && !target.closest(feature);
+        })
+        .map((a) => `${a.animationName || "?"} on ${a.effect.target.className}`)
+        .filter((text) => !pattern.test(text));
+    }, LOADING_ANIMATIONS.source);
+    expect(endless).toEqual([]);
+  });
+}
+
+test("sign-in ambient motion pauses while the tab is hidden", async ({ page }) => {
+  await hermetic(page);
+  await page.goto("/");
+  const width = page.viewportSize().width;
+  await expect(page.locator(".auth-layout")).toHaveAttribute("data-settled", "");
+  const states = () =>
+    page.evaluate(() =>
+      document
+        .getAnimations()
+        .filter((a) => /drift|float/.test(a.animationName || ""))
+        .map((a) => a.playState),
+    );
+  const running = await states();
+  expect(running.length).toBeGreaterThanOrEqual(width > 760 ? 5 : 3);
+  expect(new Set(running)).toEqual(new Set(["running"]));
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect.poll(async () => [...new Set(await states())]).toEqual(["paused"]);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect.poll(async () => [...new Set(await states())]).toEqual(["running"]);
+});
 
 test("sidebar indicator follows the current page (tablet and desktop)", async ({
   page,

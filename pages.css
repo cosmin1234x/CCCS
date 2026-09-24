@@ -279,6 +279,10 @@ sup {
   background: var(--warning-bg, #fff4d6);
   color: var(--warning, #7a5600);
 }
+.pg-role.r-inactive {
+  background: var(--danger-bg, #fdeeea);
+  color: var(--danger, #b0301f);
+}
 
 /* Station tags + shift chips */
 .pg-station-tag {
@@ -780,7 +784,8 @@ button.pg-shift:active {
 .pg-live-dot.on {
   background: #34a853;
   box-shadow: 0 0 0 0 rgba(52, 168, 83, 0.5);
-  animation: pg-pulse 1.8s ease-out infinite;
+  /* A few pulses to draw the eye, then still (battery on iPads left open). */
+  animation: pg-pulse 1.8s ease-out 3;
 }
 .pg-live-dot.soon {
   background: #e7a600;
@@ -1836,6 +1841,40 @@ button.pg-shift:active {
   gap: 6px;
   margin-top: 8px;
 }
+/* Deactivated people: only shown while they still have shifts to clear up. */
+.pg-pl-member .pg-role.r-inactive {
+  margin-top: 3px;
+  padding: 1px 7px;
+  font-size: 10.5px;
+}
+.pg-pl-row.is-inactive .pg-pl-member b,
+.pg-pl-dayrow.is-inactive b {
+  color: var(--muted, #626a5c);
+}
+.pg-pl-row.is-inactive .pg-avatar,
+.pg-pl-dayrow.is-inactive .pg-avatar {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+.pg-pl-dayrow.is-inactive .pg-role {
+  margin-top: 3px;
+}
+
+/* Crew Trainer home: who else is on the rota */
+.pg-trainer-rota .pg-list-row small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.pg-trainer-rota .pg-glance-time {
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .pg-trainer-rota .pg-glance-time {
+    display: none;
+  }
+}
 
 /* -------------------------------------------------------------- team -- */
 .pg-filterbar {
@@ -2740,7 +2779,8 @@ dialog.pg-sheet:not([open]) {
   color: #fff;
   text-shadow: 0 8px 22px rgba(160, 110, 0, 0.35);
   line-height: 1;
-  animation: pg-float 4s ease-in-out infinite;
+  /* Floats twice on arrival, then rests. */
+  animation: pg-float 4s ease-in-out 2;
 }
 .pg-reward-art span:nth-child(1) {
   font-size: 96px;

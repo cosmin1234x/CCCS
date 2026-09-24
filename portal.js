@@ -6,11 +6,6 @@ import {
   managerRole,
   isoDate,
   weekDates,
-  shiftMinutes,
-  shiftEnd,
-  overlap,
-  availabilityAllows,
-  durationLabel,
   escapeHTML as esc,
   weekOffsetOf,
 } from "./portal-core.js";
@@ -66,6 +61,8 @@ const icons = {
   mail: "M3 5h18v14H3V5Zm0 0 9 7 9-7",
   clipboard:
     "M9 4h6v3H9V4Zm6 1h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3m0 8 2 2 4-4",
+  offline:
+    "M12 20h.01M8.5 16.43a5 5 0 0 1 7 0M5 12.86a10 10 0 0 1 5.17-2.69M19 12.86a10 10 0 0 0-2-1.52M2 8.82a15 15 0 0 1 4.18-2.64M22 8.82a15 15 0 0 0-11.29-3.76M2 2l20 20",
 };
 const icon = (name) =>
   `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="${icons[name] || icons.star}"/></svg>`;
@@ -109,8 +106,6 @@ const state = {
   progress: {},
   offset: 0,
   selected: isoDate(),
-  chat: [],
-  busy: false,
   dataError: "",
   loaded: false,
   // Server-assembled extras: verifications, role requests, recognition and
@@ -183,9 +178,9 @@ const empty = (text) => `<div class="empty">${text}</div>`;
 // ---- Navigation model (design area) --------------------------------------
 // One list drives the sidebar (full + tablet rail), the phone tab bar and the
 // phone "More" sheet, so every device reaches every destination.
-const roleKey = () => {
-  if (managerRole(state.user?.role)) return "manager";
-  const r = String(state.user?.role || "")
+const roleKey = (role = state.user?.role) => {
+  if (managerRole(role)) return "manager";
+  const r = String(role || "")
     .toLowerCase()
     .replace(/[\s_-]/g, "");
   return r === "crewtrainer" || r === "trainer" ? "crewTrainer" : "crew";
@@ -273,10 +268,16 @@ function shellMarkup() {
       verification: verifyLabel(),
     }[current] || "Home";
   const other = preview === "crew" ? "manager" : "crew";
+  // The tips rail only has room next to Home on wide screens (portal.css
+  // shows it from 1360px). McAssist lives in its own drawer and page.
+  const rail =
+    current === "home"
+      ? `<aside class="rail" aria-label="Tips"><section class="card notice-card">${icon("shield")}<h3>Small things. Big difference.</h3><p>Before your shift, check your station, find your shift lead and take a moment to get ready.</p><a class="text-btn" href="${url("training")}">Your first-shift essentials ${icon("arrow")}</a></section><section class="card rail-tip"><div class="row">${icon("star")}<div><h4>Better, together.</h4><p class="muted">Every great shift is a team effort.</p></div></div></section></aside>`
+      : "";
   const banner = preview
     ? `<div class="preview-banner" role="region" aria-label="Sample preview"><span class="preview-dot" aria-hidden="true"></span><span class="preview-text"><b>Sample ${preview} preview</b><span class="preview-extra"> · Changes stay in this tab</span></span><button id="switchPreview" type="button">Try ${other} view</button><a href="/">Sign in<span class="preview-extra"> to your account</span></a></div>`
     : "";
-  return `<div class="app-shell" data-page="${current}"><aside class="sidebar" aria-label="Workspace sidebar">${brand()}<nav class="side-nav" aria-label="Main navigation"><p class="nav-label">YOUR WORKSPACE</p>${items.map((i) => navLink(i, "side")).join("")}</nav><div class="side-help">${icon("coffee")}<h4 style="margin-top:10px">Good shifts start here.</h4><p>A little preparation. A great team. You've got this.</p><a class="text-btn" href="${url("training")}">Learn something new ${icon("arrow")}</a></div><div class="side-profile between"><div class="row"><span class="avatar">${esc(initialsOf(u.name))}</span><div class="grow"><b>${esc(u.name)}</b><small class="js-role-line">${roleLine}</small></div></div><button class="icon-btn ghost" id="logout" type="button" aria-label="Sign out">${icon("logout")}</button></div></aside><main class="workspace">${banner}<header class="topbar"><div class="mobile-brand">${brand()}</div><div class="breadcrumb"><span>My workspace</span><span class="crumb-sep" aria-hidden="true">/</span><b>${esc(title)}</b></div><div class="topbar-actions"><span class="top-date">${new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span><span class="pill store-pill">${esc(store)}</span><button class="icon-btn" id="notifications" type="button" aria-label="View updates">${icon("bell")}</button><button class="avatar" id="profileButton" type="button" aria-label="My profile">${esc(initialsOf(u.name).slice(0, 1))}</button></div></header>${state.dataError ? `<div class="data-warning" role="alert">${esc(state.dataError)} <button class="text-btn" id="retryData">Try again</button></div>` : ""}<div class="layout"><section class="content" id="content"></section><aside class="rail" aria-label="Assistant and tips"><section class="assistant-card" id="assistant"><div class="assistant-head between"><div class="row"><div class="assistant-icon">${icon("spark")}</div><div><h3>McAssist</h3><small>A helping hand, always.</small></div></div>${pill(preview ? "Preview" : "AI assistant", preview ? "" : "green")}</div><div id="chat" class="chat" role="log" aria-live="polite"></div><div class="suggestions"><button data-prompt="Help me prepare for my next shift">Shift prep +</button><button data-prompt="Give me a quick customer service practice scenario">Practise with me</button></div><form id="chatForm" class="chat-form"><input id="chatInput" aria-label="Message McAssist" placeholder="Ask McAssist anything…" maxlength="2000" required autocomplete="off"><button class="btn" aria-label="Send message" type="submit">${icon("send")}</button></form><p class="ai-note">For store procedures, always check your official guidance.</p></section><section class="card notice-card">${icon("shield")}<h3>Small things. Big difference.</h3><p>Before your shift, check your station, find your shift lead and take a moment to get ready.</p><a class="text-btn" href="${url("training")}">Your first-shift essentials ${icon("arrow")}</a></section><section class="card rail-tip"><div class="row">${icon("star")}<div><h4>Better, together.</h4><p class="muted">Every great shift is a team effort.</p></div></div></section></aside></div><footer class="footer"><span>Made for your everyday. McTraining crew hub.</span><span>Independent team tool · Not an official McDonald's product</span></footer></main><nav class="mobile-nav" aria-label="Mobile navigation">${items
+  return `<div class="app-shell" data-page="${current}"><aside class="sidebar" aria-label="Workspace sidebar">${brand()}<nav class="side-nav" aria-label="Main navigation"><p class="nav-label">YOUR WORKSPACE</p>${items.map((i) => navLink(i, "side")).join("")}</nav><div class="side-help">${icon("coffee")}<h4 style="margin-top:10px">Good shifts start here.</h4><p>A little preparation. A great team. You've got this.</p><a class="text-btn" href="${url("training")}">Learn something new ${icon("arrow")}</a></div><div class="side-profile between"><div class="row"><span class="avatar">${esc(initialsOf(u.name))}</span><div class="grow"><b>${esc(u.name)}</b><small class="js-role-line">${roleLine}</small></div></div><button class="icon-btn ghost" id="logout" type="button" aria-label="Sign out">${icon("logout")}</button></div></aside><main class="workspace">${banner}<header class="topbar"><div class="mobile-brand">${brand()}</div><div class="breadcrumb"><span>My workspace</span><span class="crumb-sep" aria-hidden="true">/</span><b>${esc(title)}</b></div><div class="topbar-actions"><span class="top-date">${new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span><span class="pill store-pill">${esc(store)}</span><button class="icon-btn" id="notifications" type="button" aria-label="Notifications" aria-haspopup="dialog">${icon("bell")}</button><button class="avatar" id="profileButton" type="button" aria-label="My profile">${esc(initialsOf(u.name).slice(0, 1))}</button></div></header>${state.dataError ? `<div class="data-warning" role="alert">${esc(state.dataError)} <button class="text-btn" id="retryData">Try again</button></div>` : ""}<div class="layout"><section class="content" id="content"></section>${rail}</div><footer class="footer"><span>Made for your everyday. McTraining crew hub.</span><span>Independent team tool · Not an official McDonald's product</span></footer></main><nav class="mobile-nav" aria-label="Mobile navigation">${items
     .filter((i) => i.tab)
     .map((i) => navLink(i, "tab"))
     .join(
@@ -307,13 +308,6 @@ const myShifts = () =>
     .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 function shell() {
   const u = state.user;
-  if (!preview && !state.chat.length) {
-    try {
-      state.chat = JSON.parse(
-        sessionStorage.getItem("mc_chat_" + u.id) || "[]",
-      );
-    } catch {}
-  }
   $("app").innerHTML = shellMarkup();
   bindShellChrome();
   $("switchPreview")?.addEventListener("click", () => {
@@ -343,21 +337,9 @@ function shell() {
     );
     $("profileLogout").onclick = () => $("logout").click();
   };
-  $("notifications").onclick = () =>
-    showModal(
-      "Your updates",
-      `<p>You have ${myShifts().filter((s) => s.date >= isoDate()).length} upcoming shifts.</p><p class="form-note">Check the schedule for the latest published rota.</p><a class="btn" href="${url("schedule")}">View shifts</a>`,
-    );
+  // The bell (#notifications) opens the notifications panel from pages-ui.js
+  // (updateBell), which renderContent() wires up.
   $("retryData")?.addEventListener("click", () => location.reload());
-  $("chatForm").onsubmit = sendChat;
-  document.querySelectorAll("[data-prompt]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        $("chatInput").value = b.dataset.prompt;
-        $("chatForm").requestSubmit();
-      }),
-  );
-  renderChat();
   renderContent();
 }
 function pageContext() {
@@ -445,7 +427,6 @@ function renderContent() {
   const view = captureView(content);
   const ctx = pageContext();
   content.innerHTML = renderPage(page, ctx);
-  bindContent();
   bindPage(page, ctx);
   restoreView(content, view);
   updateBell(ctx);
@@ -465,132 +446,6 @@ function showModal(title, html) {
   $("closeModal").onclick = () => closeDialog(modal);
   openDialog(modal);
 }
-function bindContent() {
-  // Page interactions live in pages-ui.js (bindPage). This keeps the legacy
-  // McAssist prompt buttons working. Learning lives in training-ui.js.
-  document.querySelectorAll("[data-ask]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        if (!$("chatInput") || !$("chatForm")) return;
-        $("chatInput").value = b.dataset.ask;
-        $("chatForm").requestSubmit();
-        $("assistant")?.scrollIntoView({ behavior: "smooth" });
-      }),
-  );
-}
-async function formAction(form, resultId, action, success) {
-  const button = form.querySelector("[type=submit]");
-  if (button?.disabled) return false;
-  if (button) button.disabled = true;
-  if ($(resultId)) $(resultId).innerHTML = "";
-  try {
-    await action();
-    if ($(resultId))
-      $(resultId).innerHTML = `<div class="success">${esc(success)}</div>`;
-    toast(success);
-    persistPreview();
-    return true;
-  } catch (e) {
-    if ($(resultId))
-      $(resultId).innerHTML =
-        `<div class="error">${esc(e.code === "permission-denied" ? "Your account could not save this change. Ask your manager to check access." : e.message || "Could not save. Try again.")}</div>`;
-    return false;
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-function renderChat() {
-  const messages = state.chat.length
-    ? state.chat
-    : [
-        {
-          role: "assistant",
-          content: `Hey ${state.user.name.split(" ")[0]} 👋\nA little help for your working day. Ask me about your shifts, a training topic, or getting ready for the rush.`,
-        },
-      ];
-  $("chat").innerHTML =
-    messages
-      .map(
-        (m) =>
-          `<div><div class="chat-label" style="${m.role === "user" ? "text-align:right" : ""}">${m.role === "user" ? "YOU" : "MCASSIST"}</div><div class="message ${m.role === "user" ? "user" : ""}">${esc(m.content)}</div></div>`,
-      )
-      .join("") + (state.busy ? '<div class="message">Thinking…</div>' : "");
-  $("chat").scrollTop = $("chat").scrollHeight;
-  $("chatForm").querySelector("button").disabled = state.busy;
-}
-async function sendChat(e) {
-  e.preventDefault();
-  if (state.busy) return;
-  const message = $("chatInput").value.trim();
-  if (!message) return;
-  const history = state.chat.slice(-8);
-  state.chat.push({ role: "user", content: message });
-  $("chatInput").value = "";
-  state.busy = true;
-  renderChat();
-  try {
-    let reply;
-    if (preview) {
-      reply =
-        "You’re exploring the sample preview. Sign in to use the live AI assistant with your account.\n\nFor shift prep: check your start time and station, find your shift lead, and ask what the team needs before the rush.";
-    } else {
-      const token = await auth.currentUser.getIdToken();
-      const next = myShifts()
-        .filter((s) => s.date >= isoDate())
-        .slice(0, 5)
-        .map(({ date, start, end, station }) => ({
-          date,
-          start,
-          end,
-          station,
-        }));
-      const m =
-        page === "module"
-          ? modules.find((m) => m.id === params.get("id"))
-          : null;
-      const response = await fetch("/api/ai-chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          message,
-          history,
-          appContext: {
-            page,
-            upcomingShifts: next,
-            selectedModule: m ? { title: m.title, sections: m.sections } : null,
-          },
-        }),
-        signal: AbortSignal.timeout(30000),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw Error(
-          data.reply || "McAssist is unavailable right now. Please try again.",
-        );
-      reply = data.reply;
-    }
-    state.chat.push({ role: "assistant", content: reply });
-  } catch (e) {
-    state.chat.push({
-      role: "assistant",
-      content:
-        e.name === "TimeoutError"
-          ? "That took longer than expected. Please try again."
-          : e.message,
-    });
-  } finally {
-    state.busy = false;
-    if (!preview)
-      sessionStorage.setItem(
-        "mc_chat_" + state.user.id,
-        JSON.stringify(state.chat.slice(-20)),
-      );
-    renderChat();
-  }
-}
 async function firebase() {
   const [base, a, f] = await Promise.all([
     import("./firebase-init.js"),
@@ -606,7 +461,7 @@ async function firebase() {
 function authPage(signup = false) {
   const tomorrow = new Date(Date.now() + 86400000);
   const day = (options) => tomorrow.toLocaleDateString("en-GB", options);
-  $("app").innerHTML = `<main class="auth-layout"><section class="auth-art" aria-label="About McTraining"><div class="auth-shapes" aria-hidden="true"><span></span><span></span><span></span></div><div style="--d:0">${brand()}</div><div class="auth-hero" style="--d:1"><div class="eyebrow">Your team. Your day. Your way.</div><h1>A good shift<br>starts here.</h1><p class="auth-lead">Your schedule, your learning, and a helping hand. Everything you need to feel ready for your day.</p></div><div class="auth-stage" style="--d:3" aria-hidden="true"><div class="auth-shift"><div class="auth-shift-top"><span>Your next shift</span><span class="pill green">Scheduled</span></div><div class="auth-shift-main"><div class="date-tile"><span>${day({ weekday: "short" })}</span><b>${day({ day: "numeric" })}</b><span>${day({ month: "short" })}</span></div><div><h3>16:30 – 23:00</h3><p>Front Counter · 6h 00m paid time</p></div></div></div><div class="auth-chip"><span class="chip-icon">${icon("check")}</span><span>Food Safety<small>Module completed</small></span></div></div><div class="auth-bottom" style="--d:4">Made for managers. Made for crew. Made for you.</div></section><section class="auth-form-wrap"><div class="auth-form"><span class="pill yellow" style="--d:0">${icon("home")} Your everyday crew hub</span><h2 style="--d:1">${signup ? "Join your crew hub." : "Hey, welcome back."}</h2><p style="--d:2">${signup ? "A fresh start to better working days." : "Ready for your next good shift? Let’s get you in."}</p><form id="authForm">${signup ? '<div class="field" style="--d:3"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="80" placeholder="First and last name"></div>' : ""}<div class="field" style="--d:${signup ? 4 : 3}"><label for="email">Email address</label><input type="email" id="email" name="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" required></div><div class="field" style="--d:${signup ? 5 : 4}"><label for="password">Password</label><div class="input-affix"><input type="password" id="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" placeholder="${signup ? "At least 8 characters" : "Enter your password"}" minlength="${signup ? 8 : 1}" required aria-describedby="capsHint"><button class="affix-btn" type="button" id="togglePassword" aria-label="Show password" aria-pressed="false" aria-controls="password">${icon("eye")}</button></div><p class="caps-hint" id="capsHint" hidden>${icon("info")} Caps Lock is on</p></div>${signup ? '<div class="field" style="--d:6"><label for="storeId">Store ID</label><input id="storeId" name="storeId" placeholder="Ask your manager for your store ID" required pattern="[A-Za-z0-9_-]+" maxlength="80" autocapitalize="off" spellcheck="false"></div><p class="form-note" style="--d:7">New accounts join as crew members. Manager access is assigned by your administrator.</p>' : '<div class="forgot-row" style="--d:5"><button class="text-btn" type="button" id="resetPassword">Forgot password?</button></div>'}<div id="authResult" role="status" aria-live="polite"></div><button class="btn dark full" type="submit" style="--d:${signup ? 8 : 6}">${signup ? "Create my account" : "Sign in"} ${icon("arrow")}</button></form><div class="auth-divider" style="--d:7">${signup ? "ALREADY PART OF THE TEAM?" : "NEW AROUND HERE?"}</div><div class="auth-alt" style="--d:8">${signup ? '<a class="btn light" href="/">Sign in to your account</a>' : '<a class="btn light" href="/signup.html">Create your crew account</a>'}<a class="btn soft preview-link" href="/main.html?preview=crew">${icon("spark")}Take a look around</a></div><p class="auth-foot" style="--d:9">No account needed · <a href="/main.html?preview=manager">Preview the manager view</a></p><p class="auth-legal" style="--d:10">Independent team tool. Not an official McDonald’s product.</p></div></section></main>`;
+  $("app").innerHTML = `<main class="auth-layout"><section class="auth-art" aria-label="About McTraining"><div class="auth-shapes" aria-hidden="true"><span></span><span></span><span></span></div><div style="--d:0">${brand()}</div><div class="auth-hero" style="--d:1"><div class="eyebrow">Your team. Your day. Your way.</div><h1>A good shift<br>starts here.</h1><p class="auth-lead">Your schedule, your learning, and a helping hand. Everything you need to feel ready for your day.</p></div><div class="auth-stage" style="--d:3" aria-hidden="true"><div class="auth-shift"><div class="auth-shift-top"><span>Your next shift</span><span class="pill green">Scheduled</span></div><div class="auth-shift-main"><div class="date-tile"><span>${day({ weekday: "short" })}</span><b>${day({ day: "numeric" })}</b><span>${day({ month: "short" })}</span></div><div><h3>16:30 – 23:00</h3><p>Front Counter · 6h 00m paid time</p></div></div></div><div class="auth-chip"><span class="chip-icon">${icon("check")}</span><span>Food Safety<small>Module completed</small></span></div></div><div class="auth-bottom" style="--d:4">Made for managers. Made for crew. Made for you.</div></section><section class="auth-form-wrap"><div class="auth-form"><span class="pill yellow" style="--d:0">${icon("home")} Your everyday crew hub</span><h2 style="--d:1">${signup ? "Join your crew hub." : "Hey, welcome back."}</h2><p style="--d:2">${signup ? "A fresh start to better working days." : "Ready for your next good shift? Let’s get you in."}</p><form id="authForm">${signup ? '<div class="field" style="--d:3"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="80" placeholder="First and last name"></div>' : ""}<div class="field" style="--d:${signup ? 4 : 3}"><label for="email">Email address</label><input type="email" id="email" name="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" required></div><div class="field" style="--d:${signup ? 5 : 4}"><label for="password">Password</label><div class="input-affix"><input type="password" id="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" placeholder="${signup ? "At least 8 characters" : "Enter your password"}" minlength="${signup ? 8 : 1}" required aria-describedby="capsHint"><button class="affix-btn" type="button" id="togglePassword" aria-label="Show password" aria-pressed="false" aria-controls="password">${icon("eye")}</button></div><p class="caps-hint" id="capsHint" hidden>${icon("info")} Caps Lock is on</p></div>${signup ? '<div class="field" style="--d:6"><label for="storeId">Store ID</label><input id="storeId" name="storeId" placeholder="Ask your manager for your store ID" required pattern="[A-Za-z0-9_\\-]+" maxlength="80" autocapitalize="off" spellcheck="false"></div><p class="form-note" style="--d:7">New accounts join as crew members. Manager access is assigned by your administrator.</p>' : '<div class="forgot-row" style="--d:5"><button class="text-btn" type="button" id="resetPassword">Forgot password?</button></div>'}<div id="authResult" role="status" aria-live="polite"></div><button class="btn dark full" type="submit" style="--d:${signup ? 8 : 6}">${signup ? "Create my account" : "Sign in"} ${icon("arrow")}</button></form><div class="auth-divider" style="--d:7">${signup ? "ALREADY PART OF THE TEAM?" : "NEW AROUND HERE?"}</div><div class="auth-alt" style="--d:8">${signup ? '<a class="btn light" href="/">Sign in to your account</a>' : '<a class="btn light" href="/signup.html">Create your crew account</a>'}<a class="btn soft preview-link" href="/main.html?preview=crew">${icon("spark")}Take a look around</a></div><p class="auth-foot" style="--d:9">No account needed · <a href="/main.html?preview=manager">Preview the manager view</a></p><p class="auth-legal" style="--d:10">Independent team tool. Not an official McDonald’s product.</p></div></section></main>`;
   const layout = document.querySelector(".auth-layout");
   setTimeout(() => layout.setAttribute("data-settled", ""), 2200);
   const password = $("password"),
@@ -700,24 +555,70 @@ function authPage(signup = false) {
   });
   window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
 }
-function setupPreview() {
-  // A rich sample restaurant that lives only in this tab (sessionStorage).
-  const sample = loadPreviewState(preview) || buildPreviewData(preview);
+// Puts a saved or freshly built sample restaurant into portal state. The
+// state object itself is kept (feature modules hold on to it).
+function adoptPreview(sample) {
   state.user = sample.user;
-  state.team = sample.team || [];
+  state.team = Array.isArray(sample.team) ? sample.team : [];
   // Keep the team entry and the signed-in profile as the same object so edits
   // (availability, McStars) show up everywhere at once.
   const selfIndex = state.team.findIndex((m) => m.id === state.user.id);
   if (selfIndex >= 0) state.team[selfIndex] = state.user;
-  state.shifts = sample.shifts || [];
+  state.shifts = Array.isArray(sample.shifts) ? sample.shifts : [];
   state.progress = sample.progress || {};
   state.extras = { ...state.extras, ...(sample.extras || {}), loaded: true };
   state.loaded = true;
   state.progressLoaded = true;
   state.teamLoaded = true;
+}
+function setupPreview() {
+  // A rich sample restaurant that lives only in this tab (sessionStorage).
+  adoptPreview(loadPreviewState(preview) || buildPreviewData(preview));
   persistPreview();
   shell();
 }
+// McAssist (preview demo) saves its changes to this tab's sample restaurant.
+// Reload them and repaint so the change shows behind the McAssist drawer.
+function reloadPreview() {
+  const saved = loadPreviewState(preview);
+  if (!saved?.user) return requestRender();
+  const before = navSignature();
+  adoptPreview(saved);
+  if (navSignature() !== before) shell();
+  else requestRender();
+}
+// Name, role and store feed the navigation, so a change rebuilds the shell.
+const navSignature = () =>
+  [state.user?.name, roleKey(), state.user?.storeName, state.user?.storeId].join("|");
+// Live accounts: McAssist wrote to Firestore. The live listeners bring in
+// shifts, team and profile changes; a fresh server load brings everything
+// else (verifications, recognition, team learning) and feature pages repaint
+// from it on the next render. McAssist may already have done that fresh load
+// just before telling us; then the page only needs to repaint.
+let assistantRefresh = null;
+function refreshAfterAssistant() {
+  if (assistantRefresh) return assistantRefresh;
+  if (performance.now() - portalDataAt < 1500) {
+    requestRender();
+    return Promise.resolve();
+  }
+  assistantRefresh = (async () => {
+    try {
+      applyExtras(await loadPortalData(true));
+    } catch (error) {
+      console.warn("Could not refresh after McAssist", error);
+    } finally {
+      assistantRefresh = null;
+    }
+    requestRender();
+  })();
+  return assistantRefresh;
+}
+window.addEventListener("mcassist:data-changed", () => {
+  if (!state.user) return;
+  if (preview) reloadPreview();
+  else refreshAfterAssistant();
+});
 function showDataWarning(message) {
   state.dataError = message;
   let warning = document.querySelector(".data-warning");
@@ -794,11 +695,17 @@ function subscribe() {
     fb.onSnapshot(
       fb.doc(db, "users", uid),
       (snap) => {
+        // Our own writes (e.g. availability) echo back first as a local
+        // snapshot with pending writes. The confirmed snapshot follows; never
+        // reload or repaint on the echo.
+        if (snap?.metadata?.hasPendingWrites) return;
         if (typeof snap?.exists !== "function" || !snap.exists()) return;
         const next = { ...snap.data(), id: uid };
         next.name = next.name || state.user.name;
+        // Roles are compared normalised: a profile read through the server
+        // fallback is normalised ("shiftCreator" → "manager") already.
         if (
-          String(next.role || "") !== String(state.user.role || "") ||
+          roleKey(next.role) !== roleKey(state.user.role) ||
           next.storeId !== store ||
           String(next.status || "").toLowerCase() === "inactive"
         ) {
@@ -839,6 +746,8 @@ function applyExtras(data) {
     roleRequests: data.roleRequests || [],
     recognition: data.recognition || [],
     teamProgress: data.teamProgress || {},
+    // Crew Trainers: upcoming store rota (names, times and stations only).
+    ...(Array.isArray(data.storeShifts) ? { storeShifts: data.storeShifts } : {}),
   };
   const key = JSON.stringify(next);
   if (key === extrasKey) return;
@@ -856,7 +765,12 @@ async function refreshExtras(force = false) {
 }
 // Any fresh load (for example after McAssist changed something) updates the
 // pages too; cached reads do not fire this event, so there is no render loop.
-window.addEventListener("portal:data", (event) => applyExtras(event.detail));
+// Monotonic clock: only the gap between two moments matters here.
+let portalDataAt = -Infinity;
+window.addEventListener("portal:data", (event) => {
+  portalDataAt = performance.now();
+  applyExtras(event.detail);
+});
 document.addEventListener("visibilitychange", () => {
   if (
     document.visibilityState === "visible" &&
@@ -866,6 +780,143 @@ document.addEventListener("visibilitychange", () => {
   )
     refreshExtras(true);
 });
+// ---- Start-up -------------------------------------------------------------
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// A dropped or not-yet-open Firestore connection reports "unavailable" /
+// "client is offline"; failed fetches surface as TypeError. These are worth
+// retrying and never mean the account itself is wrong.
+function isTransient(error) {
+  const code = String(error?.code || "").replace(/^firestore\//, "");
+  if (
+    [
+      "unavailable",
+      "deadline-exceeded",
+      "cancelled",
+      "aborted",
+      "internal",
+      "resource-exhausted",
+      "unknown",
+    ].includes(code)
+  )
+    return true;
+  if (error?.name === "TypeError" || error?.name === "AbortError") return true;
+  return /offline|network|timed? ?out|took too long|failed to fetch|load failed|unavailable/i.test(
+    String(error?.message || ""),
+  );
+}
+// The signed-in person's profile: Firestore first (three tries with
+// backoff), then the server (/api/portal-data) as a second route.
+async function readProfile(user) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await wait(600 * 2 ** (attempt - 1));
+    try {
+      const snap = await fb.getDoc(fb.doc(db, "users", user.uid));
+      if (!snap.exists()) return { missing: "profile" };
+      return { profile: snap.data() };
+    } catch (error) {
+      lastError = error;
+      if (!isTransient(error)) break;
+    }
+  }
+  try {
+    const data = await portalApi("/api/portal-data");
+    if (data?.profile) return { profile: data.profile };
+  } catch (error) {
+    if (error?.code === "profile-missing") return { missing: "profile" };
+    if (error?.code === "store-missing") return { missing: "store" };
+    if (error?.code === "deactivated") return { deactivated: true };
+    lastError = error;
+  }
+  throw Object.assign(new Error("Could not load your profile."), {
+    cause: lastError,
+  });
+}
+function bootCard({ icon: name, title, text, action, id }) {
+  $("app").innerHTML = `<main class="boot"><section class="card boot-card" role="alert" aria-labelledby="bootTitle"><span class="boot-card-icon" aria-hidden="true">${icon(name)}</span><h2 id="bootTitle">${title}</h2><p class="form-note">${text}</p><button class="btn" id="${id}" type="button">${action}</button></section></main>`;
+  return $(id);
+}
+// Only a missing profile or store lands here: this is an account problem.
+function accountCard(message) {
+  const button = bootCard({
+    icon: "user",
+    title: "Let’s get your account ready.",
+    text: esc(message),
+    action: "Back to sign in",
+    id: "accountLogout",
+  });
+  button.onclick = async () => {
+    setButtonState(button, "loading");
+    try {
+      await fb.signOut(auth);
+    } finally {
+      location.href = "/";
+    }
+  };
+}
+function deactivatedCard() {
+  const button = bootCard({
+    icon: "shield",
+    title: "This account is switched off.",
+    text: "Your manager has deactivated this account. Speak to them if you think this is a mistake.",
+    action: "Back to sign in",
+    id: "accountLogout",
+  });
+  button.onclick = async () => {
+    setButtonState(button, "loading");
+    try {
+      await fb.signOut(auth);
+    } finally {
+      location.href = "/";
+    }
+  };
+}
+// A connection problem: nothing is wrong with the account, so offer a retry
+// (and retry by itself when the device comes back online). Never sign out.
+function connectionCard(retry) {
+  const button = bootCard({
+    icon: "offline",
+    title: "We can’t reach your crew hub right now.",
+    text: "Your account is fine. Check your Wi-Fi or mobile data, then try again.",
+    action: `Try again ${icon("arrow")}`,
+    id: "bootRetry",
+  });
+  const run = () => {
+    window.removeEventListener("online", run);
+    if (!button.isConnected || button.disabled) return;
+    setButtonState(button, "loading");
+    retry();
+  };
+  button.onclick = run;
+  window.addEventListener("online", run);
+}
+async function startSession(user) {
+  let result;
+  try {
+    result = await readProfile(user);
+  } catch (error) {
+    console.warn("Could not load the profile", error?.cause || error);
+    connectionCard(() => startSession(user));
+    return;
+  }
+  if (result.missing === "profile")
+    return accountCard(
+      "Your account profile is missing. Contact your manager to restore your store access.",
+    );
+  if (result.deactivated) return deactivatedCard();
+  const profile = { ...result.profile, id: user.uid };
+  profile.name = profile.name || user.displayName || "Crew member";
+  if (result.missing === "store" || !profile.storeId)
+    return accountCard(
+      "Your profile needs a store ID. Please ask your manager to update it.",
+    );
+  if (String(profile.status || "").toLowerCase() === "inactive")
+    return deactivatedCard();
+  state.user = profile;
+  shell();
+  subscribe();
+  refreshExtras();
+}
 async function boot() {
   if (preview) {
     setupPreview();
@@ -877,46 +928,20 @@ async function boot() {
   }
   try {
     await firebase();
-    let started = false;
-    fb.onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        location.replace("/");
-        return;
-      }
-      if (started && state.user?.id === user.uid) return;
-      started = true;
-      try {
-        const snap = await fb.getDoc(fb.doc(db, "users", user.uid));
-        if (!snap.exists())
-          throw Error(
-            "Your account profile is missing. Contact your manager to restore your store access.",
-          );
-        state.user = { ...snap.data(), id: user.uid };
-        state.user.name = state.user.name || user.displayName || "Crew member";
-        if (!state.user.storeId)
-          throw Error(
-            "Your profile needs a store ID. Please ask your manager to update it.",
-          );
-        if (String(state.user.status || "").toLowerCase() === "inactive")
-          throw Error(
-            "Your account has been deactivated. Speak to your manager if you think this is a mistake.",
-          );
-        shell();
-        subscribe();
-        refreshExtras();
-      } catch (e) {
-        started = false;
-        $("app").innerHTML =
-          `<main class="boot"><section class="card" style="max-width:500px;margin:20px"><h2>Let’s get your account ready.</h2><p class="form-note">${esc(e.message)}</p><button class="btn" id="accountLogout">Back to sign in</button></section></main>`;
-        $("accountLogout").onclick = async () => {
-          await fb.signOut(auth);
-          location.href = "/";
-        };
-      }
-    });
-  } catch {
-    $("app").innerHTML =
-      '<main class="boot"><h2>Could not connect.</h2><p>Please check your connection, then reload the page.</p><a class="btn" href="/">Back to sign in</a></main>';
+  } catch (error) {
+    console.warn("Could not load Firebase", error);
+    connectionCard(() => location.reload());
+    return;
   }
+  let started = "";
+  fb.onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      location.replace("/");
+      return;
+    }
+    if (started === user.uid) return;
+    started = user.uid;
+    startSession(user);
+  });
 }
 boot();

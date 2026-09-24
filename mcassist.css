@@ -92,7 +92,8 @@
   height: 210px;
   color: #fff;
   opacity: 0.28;
-  animation: mca-orb 9s ease-in-out infinite;
+  /* Decorative: a slow drift on arrival, then still. */
+  animation: mca-orb 9s ease-in-out 2;
 }
 .mca-hero-orb .mca-i {
   width: 100%;
@@ -342,7 +343,7 @@ dialog .mca-panel-head h2 {
   border-radius: 50%;
   background: #3aa35a;
   box-shadow: 0 0 0 3px rgba(58, 163, 90, 0.16);
-  animation: mca-pulse 2.4s ease-in-out infinite;
+  animation: mca-pulse 2.4s ease-in-out 3;
 }
 .mca-head-actions {
   display: flex;
@@ -644,12 +645,15 @@ dialog .mca-panel-head h2 {
   height: 7px;
   border-radius: 50%;
   background: var(--mca-gold);
+}
+/* The typing row only exists while McAssist is busy. */
+.mca-typing .mca-dots i {
   animation: mca-bounce 1.2s infinite ease-in-out;
 }
-.mca-dots i:nth-child(2) {
+.mca-typing .mca-dots i:nth-child(2) {
   animation-delay: 0.15s;
 }
-.mca-dots i:nth-child(3) {
+.mca-typing .mca-dots i:nth-child(3) {
   animation-delay: 0.3s;
 }
 .mca-typing-text {
@@ -1168,17 +1172,33 @@ dialog .mca-plan h3 {
 }
 .mca-plan.is-cancelled,
 .mca-plan.is-expired,
-.mca-plan.is-gone {
+.mca-plan.is-gone,
+.mca-plan.is-superseded,
+.mca-plan.is-handled {
   box-shadow: none;
 }
 .mca-plan.is-cancelled .mca-plan-items,
 .mca-plan.is-expired .mca-plan-items,
 .mca-plan.is-gone .mca-plan-items,
+.mca-plan.is-superseded .mca-plan-items,
+.mca-plan.is-handled .mca-plan-items,
 .mca-plan.is-cancelled .mca-plan-summary,
 .mca-plan.is-expired .mca-plan-summary,
-.mca-plan.is-gone .mca-plan-summary {
+.mca-plan.is-gone .mca-plan-summary,
+.mca-plan.is-superseded .mca-plan-summary,
+.mca-plan.is-handled .mca-plan-summary {
   opacity: 0.55;
   filter: grayscale(0.7);
+}
+/* A replaced plan keeps its (disabled) buttons so it reads as "was a plan". */
+.mca-plan-foot.is-locked {
+  justify-content: flex-end;
+  opacity: 0.6;
+}
+.mca-plan-foot.is-locked + .mca-plan-status {
+  border-top: 0;
+  padding-top: 0;
+  background: var(--mca-surface-2);
 }
 .mca-plan.is-approved {
   border-color: #cfe5cb;
@@ -1295,13 +1315,13 @@ dialog .mca-plan h3 {
   border-radius: 50%;
   border: 2.5px solid rgba(37, 40, 37, 0.18);
   border-top-color: var(--mca-ink);
-  animation: mca-spin 0.8s linear infinite;
 }
 .mca-send.is-busy .mca-i {
   opacity: 0;
 }
 .mca-send.is-busy .mca-send-spin {
   display: block;
+  animation: mca-spin 0.8s linear infinite;
 }
 .mca-mic {
   color: var(--mca-muted);
@@ -1632,11 +1652,24 @@ dialog .mca-plan h3 {
 }
 
 /* -------------------------------------------------------------- Launcher */
+/* Floating "Ask McAssist" button on every signed-in page except McAssist.
+   It sits above the phone tab bar through --dock-offset, which already
+   includes the safe area (so no extra env() inset here). mcassist-ui.js
+   keeps it off page content with these states:
+     .is-peek     something is under its spot: a compact circle hugging the
+                  screen edge, inside the page gutter and fully on screen
+     .is-covered  content under both spots: it steps aside until clear
+     .is-away     phones: hidden while scrolling down, back on scroll up
+     .is-tucked   phones: hidden while typing into a page field
+   The peek shift/scale below must match PEEK in mcassist-ui.js. */
 .mca-launcher {
+  --mca-right: max(20px, calc(env(safe-area-inset-right, 0px) + 14px));
+  --mca-peek-shift: 16px;
+  --mca-peek-scale: 0.85;
   position: fixed;
   z-index: 45;
-  right: max(20px, calc(env(safe-area-inset-right, 0px) + 14px));
-  bottom: var(--mca-bottom, calc(22px + var(--dock-offset, 0px) + env(safe-area-inset-bottom, 0px)));
+  right: var(--mca-right);
+  bottom: calc(22px + var(--dock-offset, 0px));
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -1653,6 +1686,8 @@ dialog .mca-plan h3 {
   box-shadow:
     0 16px 34px -14px rgba(30, 32, 28, 0.6),
     0 2px 6px rgba(30, 32, 28, 0.18);
+  transform-origin: right center;
+  -webkit-tap-highlight-color: transparent;
   transition:
     transform 0.3s var(--mca-ease),
     opacity 0.25s,
@@ -1668,11 +1703,13 @@ dialog .mca-plan h3 {
   animation: mca-ring 1.8s ease-out 0.9s 2;
   pointer-events: none;
 }
-.mca-launcher:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 20px 38px -14px rgba(30, 32, 28, 0.65),
-    0 2px 6px rgba(30, 32, 28, 0.2);
+@media (hover: hover) {
+  .mca-launcher:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 20px 38px -14px rgba(30, 32, 28, 0.65),
+      0 2px 6px rgba(30, 32, 28, 0.2);
+  }
 }
 .mca-launcher:active {
   transform: scale(0.95);
@@ -1682,6 +1719,7 @@ dialog .mca-plan h3 {
   outline-offset: 3px;
 }
 .mca-launcher-icon {
+  flex: none;
   display: grid;
   place-items: center;
   width: 38px;
@@ -1695,7 +1733,19 @@ dialog .mca-plan h3 {
   height: 19px;
   fill: currentColor;
   stroke: none;
-  animation: mca-twinkle 4s ease-in-out infinite;
+  /* A couple of twinkles on arrival, then only on hover / keyboard focus. */
+  animation: mca-twinkle 1.6s ease-in-out 1.2s 2;
+}
+@media (hover: hover) {
+  .mca-launcher:hover .mca-launcher-icon .mca-i {
+    animation: mca-twirl 0.6s var(--mca-ease-out);
+  }
+}
+.mca-launcher:focus-visible .mca-launcher-icon .mca-i {
+  animation: mca-twirl 0.6s var(--mca-ease-out);
+}
+.mca-launcher-label {
+  white-space: nowrap;
 }
 .mca-launcher-badge {
   position: absolute;
@@ -1717,49 +1767,76 @@ dialog .mca-plan h3 {
 .mca-launcher-badge[hidden] {
   display: none;
 }
-.mca-launcher.is-peek:not(:hover):not(:focus-visible) {
-  transform: translateX(calc(100% - 10px));
-  box-shadow: 0 10px 24px -12px rgba(30, 32, 28, 0.55);
+/* Peek: the pill folds into its icon circle and slides into the gutter. */
+.mca-launcher.is-peek:not(:focus-visible) {
+  gap: 0;
+  padding: 0 8px;
+  transform: translateX(var(--mca-peek-shift)) scale(var(--mca-peek-scale));
+  box-shadow: 0 10px 22px -12px rgba(30, 32, 28, 0.55);
+}
+.mca-launcher.is-peek:not(:focus-visible) .mca-launcher-label {
+  /* Still the accessible name, just not drawn. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+}
+@media (hover: hover) {
+  .mca-launcher.is-peek:not(:focus-visible):hover {
+    transform: translateX(var(--mca-peek-shift)) scale(calc(var(--mca-peek-scale) + 0.06));
+  }
 }
 .mca-launcher.is-peek::after {
   animation: none;
 }
+.mca-launcher.is-covered:not(:focus-visible),
+.mca-launcher.is-away:not(:focus-visible),
 .mca-launcher.is-tucked {
   opacity: 0;
   pointer-events: none;
-  transform: translateY(calc(100% + 30px));
+  transform: translateY(18px) scale(0.86);
 }
 body[data-hide-assistant-launcher="true"] .mca-launcher,
 html:has(#mcaDrawer[open]) .mca-launcher {
   display: none;
 }
-/* Leave room so the launcher never permanently covers the last controls. */
+/* Extra bottom padding while the launcher is shown, so the end of every page
+   can always scroll clear of it. */
 body.mca-launcher-on:not([data-hide-assistant-launcher="true"]) .workspace::after {
   content: "";
   display: block;
-  height: 64px;
+  height: 76px;
 }
 @media (max-width: 760px) {
+  /* Phones: a compact circle. */
   .mca-launcher {
-    right: max(16px, calc(env(safe-area-inset-right, 0px) + 12px));
-    width: 56px;
-    height: 56px;
+    --mca-right: max(16px, calc(env(safe-area-inset-right, 0px) + 12px));
+    --mca-peek-shift: 12px;
+    --mca-peek-scale: 0.846;
+    width: 52px;
+    height: 52px;
+    gap: 0;
     padding: 0;
     justify-content: center;
     background: var(--mca-yellow);
     color: var(--mca-ink);
     box-shadow:
-      0 14px 28px -12px rgba(154, 109, 0, 0.75),
+      0 12px 24px -12px rgba(154, 109, 0, 0.75),
       0 2px 6px rgba(30, 32, 28, 0.18);
   }
+  .mca-launcher.is-peek:not(:focus-visible) {
+    padding: 0;
+  }
   .mca-launcher-icon {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
     background: transparent;
   }
   .mca-launcher-icon .mca-i {
-    width: 24px;
-    height: 24px;
+    width: 23px;
+    height: 23px;
   }
   .mca-launcher-label {
     position: absolute;
@@ -1768,7 +1845,6 @@ body.mca-launcher-on:not([data-hide-assistant-launcher="true"]) .workspace::afte
     overflow: hidden;
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
-    white-space: nowrap;
   }
 }
 
@@ -1946,12 +2022,17 @@ html.mca-lock {
 }
 @keyframes mca-twinkle {
   0%,
-  80%,
+  55%,
   100% {
     transform: none;
   }
-  88% {
-    transform: rotate(18deg) scale(1.12);
+  75% {
+    transform: rotate(18deg) scale(1.14);
+  }
+}
+@keyframes mca-twirl {
+  50% {
+    transform: rotate(-16deg) scale(1.12);
   }
 }
 @keyframes mca-launch {

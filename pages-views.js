@@ -17,6 +17,7 @@ import {
   validateShift,
   addDays,
   validTime,
+  weekOffsetOf,
 } from "./portal-core.js";
 
 // ---------------------------------------------------------------- helpers --
@@ -70,6 +71,16 @@ const ROLE_ORDER = { manager: 0, crewTrainer: 1, crew: 2 };
 export const isInactive = (m) =>
   String(m?.status || "").toLowerCase() === "inactive" || m?.deactivated === true;
 const activeTeam = (team) => (team || []).filter((m) => !isInactive(m));
+const inactiveIds = (team) =>
+  new Set((team || []).filter(isInactive).map((m) => m.id));
+/** Shifts of people who can still work (a deactivated person's shifts can stay
+ * on the rota until a manager reassigns or removes them). */
+const workingShifts = (c) => {
+  const gone = inactiveIds(c.state.team);
+  return gone.size ? c.state.shifts.filter((s) => !gone.has(s.userId)) : c.state.shifts;
+};
+const inactiveBadge = '<span class="pg-role r-inactive">Deactivated</span>';
+const teamReady = (state) => Boolean(state.teamLoaded || state.team?.length);
 export const initials = (name) =>
   String(name || "?")
     .split(/\s+/)
@@ -228,7 +239,13 @@ export const sortTeam = (team) =>
 /** Team members plus anyone who has a shift but is no longer in the team list. */
 export function rotaMembers(team, shifts) {
   const withShifts = new Set(shifts.map((s) => s.userId));
-  const list = sortTeam(team).filter((m) => !isInactive(m) || withShifts.has(m.id));
+  // Deactivated people only appear while they still have shifts in view, and
+  // after everyone who can work.
+  const sorted = sortTeam(team);
+  const list = [
+    ...sorted.filter((m) => !isInactive(m)),
+    ...sorted.filter((m) => isInactive(m) && withShifts.has(m.id)),
+  ];
   const known = new Set(list.map((m) => m.id));
   for (const s of shifts) {
     if (s.userId && !known.has(s.userId)) {
@@ -277,6 +294,8 @@ function shiftFlags(c, shifts) {
     const member = c.state.team.find((m) => m.id === s.userId);
     const check = validateShift(s, { shifts: c.state.shifts, member, today });
     const issues = [...check.errors, ...check.warnings.filter((w) => w !== "This date has already passed.")];
+    if (isInactive(member))
+      issues.unshift(`${firstName(member.name)}’s account is deactivated. Reassign or remove this shift.`);
     if (issues.length) flags.set(s.id, issues);
   }
   return flags;
@@ -300,6 +319,29 @@ function nextShiftCard(c, next) {
   const paid = shiftMinutes(next);
   const rate = rateOf(u);
   return `<article class="pg-next ${when.live ? "is-live" : ""}"><div class="pg-date-tile"><span>${esc(dayShort(next.date))}</span><b>${esc(dayNum(next.date))}</b><span>${esc(fmt(next.date, { month: "short" }))}</span></div><div class="pg-next-body"><p class="pg-kicker"><span class="pg-live-dot ${when.live ? "on" : when.soon ? "soon" : ""}" aria-hidden="true"></span>${esc(when.text)}</p><h2>${timeRange(next)}</h2><p><span class="pg-station-tag" style="${stationStyle(next.station)}">${esc(next.station || "Station to be confirmed")}</span> ${durationLabel(paid)} paid${Number(next.breakMinutes) ? ` · ${Number(next.breakMinutes)} min break` : ""}</p></div>${rate ? `<div class="pg-next-pay"><b>${money((paid / 60) * rate)}</b><small>est. gross</small></div>` : ""}</article>`;
+}
+
+// Crew Trainers: who else is working today (from the server's store rota:
+// names, times and stations only), so they can plan training and sign-offs.
+function trainerRota(c, now) {
+  const { state } = c;
+  const list = state.extras?.storeShifts;
+  if (!Array.isArray(list)) return "";
+  const today = isoDate(now);
+  const others = sortShifts(
+    list.filter((s) => s.userId !== state.user.id && s.date && s.start && s.end && shiftEnd(s) > now),
+  );
+  const todays = others.filter((s) => s.date === today || shiftStart(s) <= now);
+  const nextDate = todays.length ? "" : others[0]?.date || "";
+  const shown = todays.length ? todays : others.filter((s) => s.date === nextDate);
+  const verifyHref = `/verification.html${c.preview ? "?preview=" + c.preview : ""}`;
+  const row = (s) => {
+    const live = shiftStart(s) <= now && now < shiftEnd(s);
+    return `<li class="pg-list-row">${avatar(s.userName)}<div class="grow"><b>${esc(s.userName || "Team member")}</b><small><span class="pg-station-tag" style="${stationStyle(s.station)}">${esc(s.station || "Station TBC")}</span> ${timeRange(s)}</small></div><span class="pg-glance-time ${live ? "is-live" : ""}">${live ? `On now · until ${esc(s.end)}` : `From ${esc(s.start)}`}</span></li>`;
+  };
+  return `<section class="pg-card pg-trainer-rota" aria-labelledby="pgTrainerRotaTitle"><div class="pg-card-head"><div><h2 id="pgTrainerRotaTitle">${todays.length || !nextDate ? "On the rota today" : `Next on the rota · ${esc(dateMed(nextDate))}`}</h2><p class="pg-muted">${shown.length ? `${new Set(shown.map((s) => s.userId)).size} ${shown.length === 1 ? "person" : "people"} to train alongside or sign off` : "No one else is on the rota in the next few days."}</p></div><a class="pg-link" href="${verifyHref}">Verify crew ${ic("arrow")}</a></div>${
+    shown.length ? `<ul class="pg-list">${shown.slice(0, 8).map(row).join("")}</ul>${shown.length > 8 ? `<p class="pg-more">+${shown.length - 8} more</p>` : ""}` : ""
+  }</section>`;
 }
 
 function crewHome(c) {
@@ -332,6 +374,7 @@ function crewHome(c) {
 <section class="pg-hero"><div class="pg-hero-top"><div><p class="pg-eyebrow">${esc(dateLong(isoDate(now)))}</p><h1>${greeting(now)}, ${esc(firstName(u.name))}.</h1><p class="pg-hero-sub">${next ? "Here’s your day at a glance." : "Your week at a glance."}</p></div><span class="pg-role-badge">${esc(roleLabel(role))}</span></div>${nextShiftCard(c, next)}</section>
 ${alert}
 <div class="pg-kpis">${kpi("clock", durationLabel(minutes), "This week", `${week.length} shift${week.length === 1 ? "" : "s"} · ${esc(weekRangeLabel(dates))}`)}${kpi("wallet", rate ? money((minutes / 60) * rate) : "—", "Est. gross pay", rate ? `Before tax · ${money(rate)}/h` : "Hourly rate not set")}${kpi("star", `${Number(u.stars) || 0}<span class="pg-star">★</span>`, "McStars", esc(u.badge || "Every contribution counts"))}${kpi("book", `${learn.pct}%`, "Learning", `${learn.completed} of ${learn.total} modules`)}</div>
+${role === "crewTrainer" ? trainerRota(c, now) : ""}
 <div class="pg-grid-2">
 <section class="pg-card"><div class="pg-card-head"><h2>Coming up</h2><a class="pg-link" href="${url("schedule")}">Full schedule ${ic("arrow")}</a></div>${
     upcoming.length
@@ -411,15 +454,18 @@ function managerHome(c) {
   const now = new Date();
   const today = isoDate(now);
   const dates = weekDates(0);
+  // Deactivated people are never "on shift"; their leftover shifts show up
+  // under "Needs your attention" instead.
+  const working = workingShifts(c);
   const onNow = sortShifts(
-    state.shifts.filter((s) => shiftStart(s) <= now && now < shiftEnd(s)),
+    working.filter((s) => shiftStart(s) <= now && now < shiftEnd(s)),
   );
-  const todayShifts = state.shifts.filter((s) => s.date === today);
+  const todayShifts = working.filter((s) => s.date === today);
   const later = sortShifts(
-    state.shifts.filter((s) => shiftStart(s) > now),
+    working.filter((s) => shiftStart(s) > now),
   ).slice(0, 4);
   const headcount = new Set(todayShifts.map((s) => s.userId)).size;
-  const weekShifts = state.shifts.filter((s) => dates.includes(s.date));
+  const weekShifts = working.filter((s) => dates.includes(s.date));
   const weekMinutes = weekShifts.reduce((n, s) => n + shiftMinutes(s), 0);
   let labour = 0,
     unpriced = 0;
@@ -436,6 +482,12 @@ function managerHome(c) {
     c,
     weekShifts.filter((s) => shiftEnd(s) > now),
   );
+  // Upcoming shifts that still belong to deactivated accounts.
+  const gone = inactiveIds(state.team);
+  const leftovers = sortShifts(
+    state.shifts.filter((s) => gone.has(s.userId) && shiftEnd(s) > now),
+  );
+  const leftoverNames = [...new Set(leftovers.map((s) => firstName(s.userName)))];
   const waiting = requests.length + pendingVer.length;
   const myNext = c.myShifts().find((s) => shiftEnd(s) > now);
   const learners = sortTeam(activeTeam(state.team))
@@ -450,10 +502,10 @@ function managerHome(c) {
 <section class="pg-hero pg-hero-manager"><div class="pg-hero-top"><div><p class="pg-eyebrow">${esc(dateLong(today))} · ${esc(u.storeName || u.storeId || "")}</p><h1>${greeting(now)}, ${esc(firstName(u.name))}.</h1><p class="pg-hero-sub">${myNext ? (shiftStart(myNext) <= now ? `You’re on shift now until ${esc(myNext.end)} · ${esc(myNext.station || "Station TBC")}` : `Your next shift: ${esc(dateMed(myNext.date))} · ${timeRange(myNext)} · ${esc(myNext.station || "Station TBC")}`) : "Here’s your restaurant today."}</p></div><span class="pg-role-badge">Manager</span></div>
 <div class="pg-glance"><div class="pg-glance-col"><h3><span class="pg-live-dot ${onNow.length ? "on" : ""}" aria-hidden="true"></span>On shift now <span class="pg-count">${onNow.length}</span></h3>${onNow.length ? `<ul>${onNow.slice(0, 5).map((s) => person(s, true)).join("")}</ul>${onNow.length > 5 ? `<p class="pg-more">+${onNow.length - 5} more</p>` : ""}` : `<p class="pg-glance-empty">Nobody is on shift right now.</p>`}</div><div class="pg-glance-col"><h3>Coming up next</h3>${later.length ? `<ul>${later.map((s) => person(s, false)).join("")}</ul>` : `<p class="pg-glance-empty">No more shifts planned yet.</p>`}</div></div></section>
 <div class="pg-kpis">${kpi("team", String(onNow.length), "On shift now", onNow.length ? esc(onNow.map((s) => firstName(s.userName)).slice(0, 3).join(", ")) : "Quiet right now")}${kpi("calendar", String(todayShifts.length), "Shifts today", `${headcount} ${headcount === 1 ? "person" : "people"} working`)}${kpi("clock", durationLabel(weekMinutes), "Team hours this week", labour ? `≈ ${money(labour)} labour${unpriced ? ` (+${unpriced} unpriced)` : ""}` : "Set pay rates to estimate labour")}${kpi("alert", String(waiting), "Waiting on you", waiting ? `${requests.length} role request${requests.length === 1 ? "" : "s"} · ${pendingVer.length} sign-off${pendingVer.length === 1 ? "" : "s"}` : "All clear", waiting ? "is-attention" : "")}</div>
-<section class="pg-card pg-today"><div class="pg-card-head"><div><h2>Today’s rota</h2><p class="pg-muted">${todayShifts.length} shift${todayShifts.length === 1 ? "" : "s"} · ${esc(dateMed(today))}</p></div><a class="pg-link" href="${url("schedule")}">Team rota ${ic("arrow")}</a></div>${timeline(c, state.shifts.filter((s) => s.date === today || (s.date === addDays(today, -1) && shiftEnd(s) > new Date(`${today}T05:00`))), today)}</section>
+<section class="pg-card pg-today"><div class="pg-card-head"><div><h2>Today’s rota</h2><p class="pg-muted">${todayShifts.length} shift${todayShifts.length === 1 ? "" : "s"} · ${esc(dateMed(today))}</p></div><a class="pg-link" href="${url("schedule")}">Team rota ${ic("arrow")}</a></div>${timeline(c, working.filter((s) => s.date === today || (s.date === addDays(today, -1) && shiftEnd(s) > new Date(`${today}T05:00`))), today)}</section>
 <div class="pg-grid-2">
 <section class="pg-card"><div class="pg-card-head"><h2>Needs your attention</h2>${waiting ? `<span class="pg-pill warn">${waiting} waiting</span>` : ""}</div>${
-    requests.length || pendingVer.length || flags.size
+    requests.length || pendingVer.length || flags.size || leftovers.length
       ? `<ul class="pg-list">${requests
           .map(
             (r) =>
@@ -468,6 +520,10 @@ function managerHome(c) {
           .join("")}${
           flags.size
             ? `<li class="pg-list-row"><span class="pg-list-icon warn">${ic("alert")}</span><div class="grow"><b>${flags.size} shift${flags.size === 1 ? "" : "s"} this week need a look</b><small>${esc([...flags.values()][0][0])}</small></div><a class="pg-link" href="${url("manage")}">Review</a></li>`
+            : ""
+        }${
+          leftovers.length
+            ? `<li class="pg-list-row"><span class="pg-list-icon warn">${ic("user")}</span><div class="grow"><b>${leftovers.length} upcoming shift${leftovers.length === 1 ? "" : "s"} for deactivated accounts</b><small>${esc(leftoverNames.slice(0, 3).join(", "))} can’t work ${leftovers.length === 1 ? "it" : "them"}. Reassign or remove ${leftovers.length === 1 ? "it" : "them"} in the planner.</small></div><a class="pg-link" href="${url("manage", weekOffsetOf(leftovers[0].date) > 0 ? { week: clampOffset(weekOffsetOf(leftovers[0].date)) } : {})}">Review</a></li>`
             : ""
         }</ul>`
       : `<div class="pg-allclear">${ic("check")}<div><b>All clear</b><p class="pg-muted">No approvals, sign-offs or rota issues waiting.</p></div></div>`
@@ -555,8 +611,10 @@ function crewAgenda(c, dates) {
 function teamRota(c, dates) {
   const { state } = c;
   const today = isoDate();
-  const shifts = state.shifts.filter((s) => dates.includes(s.date));
-  const members = rotaMembers(state.team, shifts);
+  // The printable rota lists people who can work; a deactivated person's
+  // leftover shifts are dealt with in the planner.
+  const shifts = workingShifts(c).filter((s) => dates.includes(s.date));
+  const members = teamReady(state) ? rotaMembers(state.team, shifts) : [];
   const selected = dates.includes(state.selected) ? state.selected : dates.includes(today) ? today : dates[0];
   const byCell = (id, d) => sortShifts(shifts.filter((s) => s.userId === id && s.date === d));
   const rows = members
@@ -585,7 +643,9 @@ function teamRota(c, dates) {
             `<th scope="col" class="${d === today ? "is-today" : ""} ${d === selected ? "is-selected" : ""}"><button type="button" data-select-day="${d}" aria-pressed="${d === selected}" aria-label="Show ${esc(dateLong(d))}"><span>${esc(dayShort(d))}</span><b>${esc(dayNum(d))}</b></button></th>`,
         )
         .join("")}<th scope="col">Hours</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><th scope="row">Cover</th>${foot}<td class="pg-rota-total"><b>${durationLabel(total)}</b></td></tr></tfoot></table></div>`
-    : emptyState("No team members yet", "Team members appear here once they join your store.");
+    : teamReady(state)
+      ? emptyState("No team members yet", "Team members appear here once they join your store.")
+      : '<div class="pg-loading" role="status"><span class="pg-spinner" aria-hidden="true"></span>Loading your team…</div>';
   const strip = `<div class="pg-daystrip pg-only-mobile" role="group" aria-label="Choose a day">${dates
     .map((d) => {
       const n = new Set(shifts.filter((s) => s.date === d).map((s) => s.userId)).size;
@@ -614,8 +674,15 @@ export function plannerView(c) {
   const dates = weekDates(state.offset || 0);
   const today = isoDate();
   const shifts = state.shifts.filter((s) => dates.includes(s.date));
-  const members = rotaMembers(state.team, shifts);
+  // Until the team arrives, people with shifts would look like former team
+  // members, so the grid waits for it.
+  const members = teamReady(state) ? rotaMembers(state.team, shifts) : [];
   const flags = shiftFlags(c, shifts.filter((s) => s.date >= today));
+  // Counts cover people who can work; deactivated rows are for clean-up.
+  const gone = inactiveIds(state.team);
+  const working = shifts.filter((s) => !gone.has(s.userId));
+  const activeCount = members.filter((m) => !isInactive(m)).length;
+  const locked = (m) => m.missing || isInactive(m);
   const selected = dates.includes(state.selected) ? state.selected : dates.includes(today) ? today : dates[0];
   const lastWeek = weekDates((state.offset || 0) - 1);
   const lastWeekCount = state.shifts.filter((s) => lastWeek.includes(s.date)).length;
@@ -629,11 +696,11 @@ export function plannerView(c) {
     const a = availabilityFor(m.availability, d);
     const list = sortShifts(shifts.filter((s) => s.userId === m.id && s.date === d));
     const past = d < today;
-    return `<div class="pg-pl-cell av-${a.status} ${past ? "is-past" : ""} ${d === today ? "is-today" : ""}" role="cell"><span class="pg-pl-av">${esc(avText(a)).replace(/–/g, "–<wbr>")}</span>${list.map((s) => shiftChip(s, { editable: true, flag: flags.has(s.id) })).join("")}${past || m.missing ? "" : `<button type="button" class="pg-pl-add" data-add-shift data-member="${esc(m.id)}" data-date="${d}" aria-label="Add shift for ${esc(m.name)} on ${esc(dateMed(d))}">${ic("plus")}</button>`}</div>`;
+    return `<div class="pg-pl-cell av-${a.status} ${past ? "is-past" : ""} ${d === today ? "is-today" : ""}" role="cell"><span class="pg-pl-av">${esc(avText(a)).replace(/–/g, "–<wbr>")}</span>${list.map((s) => shiftChip(s, { editable: true, flag: flags.has(s.id) })).join("")}${past || locked(m) ? "" : `<button type="button" class="pg-pl-add" data-add-shift data-member="${esc(m.id)}" data-date="${d}" aria-label="Add shift for ${esc(m.name)} on ${esc(dateMed(d))}">${ic("plus")}</button>`}</div>`;
   };
   const grid = `<div class="pg-planner-scroll" data-keep-scroll="planner"><div class="pg-planner" role="table" aria-label="Shift planner for ${esc(weekRangeLabel(dates))}"><div class="pg-pl-row pg-pl-headrow" role="row"><div class="pg-pl-corner" role="columnheader">Team member</div>${dates
     .map((d) => {
-      const n = new Set(shifts.filter((s) => s.date === d).map((s) => s.userId)).size;
+      const n = new Set(working.filter((s) => s.date === d).map((s) => s.userId)).size;
       return `<div class="pg-pl-day ${d === today ? "is-today" : ""}" role="columnheader"><span>${esc(dayShort(d))}</span><b>${esc(dayNum(d))}</b><small>${n} on</small></div>`;
     })
     .join("")}<div class="pg-pl-total" role="columnheader">Week</div></div>${members
@@ -641,12 +708,12 @@ export function plannerView(c) {
       const own = shifts.filter((s) => s.userId === m.id);
       const mins = own.reduce((n, s) => n + shiftMinutes(s), 0);
       const rate = rateOf(m);
-      return `<div class="pg-pl-row" role="row"><div class="pg-pl-member" role="rowheader">${avatar(m.name, "sm")}<span><b>${esc(m.name)}</b><small>${esc(roleLabel(m.role))}${m.missing ? " · left team" : ""}</small></span></div>${dates.map((d) => cell(m, d)).join("")}<div class="pg-pl-total" role="cell"><b>${mins ? durationLabel(mins) : "—"}</b>${rate && mins ? `<small>${money((mins / 60) * rate)}</small>` : ""}</div></div>`;
+      return `<div class="pg-pl-row${isInactive(m) ? " is-inactive" : ""}" role="row"><div class="pg-pl-member" role="rowheader">${avatar(m.name, "sm")}<span><b>${esc(m.name)}</b><small>${esc(roleLabel(m.role))}${m.missing ? " · left team" : ""}</small>${isInactive(m) ? inactiveBadge : ""}</span></div>${dates.map((d) => cell(m, d)).join("")}<div class="pg-pl-total" role="cell"><b>${mins ? durationLabel(mins) : "—"}</b>${rate && mins ? `<small>${money((mins / 60) * rate)}</small>` : ""}</div></div>`;
     })
     .join("")}</div></div>`;
   const strip = `<div class="pg-daystrip" role="group" aria-label="Choose a day">${dates
     .map((d) => {
-      const n = new Set(shifts.filter((s) => s.date === d).map((s) => s.userId)).size;
+      const n = new Set(working.filter((s) => s.date === d).map((s) => s.userId)).size;
       return `<button type="button" data-select-day="${d}" aria-pressed="${d === selected}" class="${d === today ? "is-today" : ""}"><span>${esc(dayShort(d))}</span><b>${esc(dayNum(d))}</b><i>${n || ""}</i></button>`;
     })
     .join("")}</div>`;
@@ -654,10 +721,10 @@ export function plannerView(c) {
     .map((m) => {
       const a = availabilityFor(m.availability, selected);
       const list = sortShifts(shifts.filter((s) => s.userId === m.id && s.date === selected));
-      return `<li class="pg-pl-dayrow av-${a.status}">${avatar(m.name, "sm")}<div class="grow"><b>${esc(m.name)}</b><small class="pg-pl-av">${esc(avText(a))}</small>${list.length ? `<div class="pg-pl-dayshifts">${list.map((s) => shiftChip(s, { editable: true, flag: flags.has(s.id) })).join("")}</div>` : ""}</div>${selected < today || m.missing ? "" : `<button type="button" class="pg-iconbtn" data-add-shift data-member="${esc(m.id)}" data-date="${selected}" aria-label="Add shift for ${esc(m.name)} on ${esc(dateMed(selected))}">${ic("plus")}</button>`}</li>`;
+      return `<li class="pg-pl-dayrow av-${a.status}${isInactive(m) ? " is-inactive" : ""}">${avatar(m.name, "sm")}<div class="grow"><b>${esc(m.name)}</b>${isInactive(m) ? inactiveBadge : `<small class="pg-pl-av">${esc(avText(a))}</small>`}${list.length ? `<div class="pg-pl-dayshifts">${list.map((s) => shiftChip(s, { editable: true, flag: flags.has(s.id) })).join("")}</div>` : ""}</div>${selected < today || locked(m) ? "" : `<button type="button" class="pg-iconbtn" data-add-shift data-member="${esc(m.id)}" data-date="${selected}" aria-label="Add shift for ${esc(m.name)} on ${esc(dateMed(selected))}">${ic("plus")}</button>`}</li>`;
     })
     .join("");
-  const weekMins = shifts.reduce((n, s) => n + shiftMinutes(s), 0);
+  const weekMins = working.reduce((n, s) => n + shiftMinutes(s), 0);
   const health = flags.size
     ? `<ul class="pg-list">${[...flags.entries()]
         .map(([id, issues]) => {
@@ -671,7 +738,7 @@ export function plannerView(c) {
     "Shift planner",
     "Tap an open slot to add a shift. Availability is shaded so you can plan with confidence.",
     `<button type="button" class="btn light pg-btn-sm" data-copy-week ${lastWeekCount ? "" : "disabled"} title="${lastWeekCount ? "" : "No shifts last week"}">${ic("copy")}Copy last week</button><button type="button" class="btn pg-btn-sm" data-add-shift>${ic("plus")}Add shift</button>`,
-  )}<div class="pg-toolbar">${weekNav(c, dates)}<div class="pg-legend" aria-label="Legend"><span><i class="lg-on"></i>Available</span><span><i class="lg-off"></i>Unavailable</span><span><i class="lg-unset"></i>Not set</span><span><i class="lg-flag">!</i>Needs a look</span></div></div><div class="pg-planner-stats"><span><b>${shifts.length}</b> shifts</span><span><b>${durationLabel(weekMins)}</b> scheduled</span><span><b>${new Set(shifts.map((s) => s.userId)).size}</b> of ${members.length} people</span></div><section class="pg-card pg-planner-card pg-only-desktop">${members.length ? grid : state.teamLoaded ? emptyState("No team yet", "Team members appear here once they join your store.") : `<div class="pg-loading" role="status"><span class="pg-spinner" aria-hidden="true"></span>Loading your team…</div>`}</section><div class="pg-only-mobile">${strip}<section class="pg-card pg-pl-day-card"><div class="pg-card-head"><h2>${esc(dateLong(selected))}</h2><span class="pg-pill">${sortShifts(shifts.filter((s) => s.date === selected)).length} shifts</span></div><ul class="pg-pl-daylist">${dayRows}</ul></section></div><section class="pg-card" aria-labelledby="pgHealthTitle"><div class="pg-card-head"><h2 id="pgHealthTitle">Week check</h2>${flags.size ? `<span class="pg-pill warn">${flags.size} to review</span>` : '<span class="pg-pill ok">All clear</span>'}</div>${health}</section></div>`;
+  )}<div class="pg-toolbar">${weekNav(c, dates)}<div class="pg-legend" aria-label="Legend"><span><i class="lg-on"></i>Available</span><span><i class="lg-off"></i>Unavailable</span><span><i class="lg-unset"></i>Not set</span><span><i class="lg-flag">!</i>Needs a look</span></div></div><div class="pg-planner-stats"><span><b>${working.length}</b> shifts</span><span><b>${durationLabel(weekMins)}</b> scheduled</span><span><b>${new Set(working.map((s) => s.userId)).size}</b> of ${activeCount} people</span></div><section class="pg-card pg-planner-card pg-only-desktop">${members.length ? grid : state.teamLoaded ? emptyState("No team yet", "Team members appear here once they join your store.") : `<div class="pg-loading" role="status"><span class="pg-spinner" aria-hidden="true"></span>Loading your team…</div>`}</section><div class="pg-only-mobile">${strip}<section class="pg-card pg-pl-day-card"><div class="pg-card-head"><h2>${esc(dateLong(selected))}</h2><span class="pg-pill">${working.filter((s) => s.date === selected).length} shifts</span></div>${members.length || state.teamLoaded ? `<ul class="pg-pl-daylist">${dayRows}</ul>` : '<div class="pg-loading" role="status"><span class="pg-spinner" aria-hidden="true"></span>Loading your team…</div>'}</section></div><section class="pg-card" aria-labelledby="pgHealthTitle"><div class="pg-card-head"><h2 id="pgHealthTitle">Week check</h2>${flags.size ? `<span class="pg-pill warn">${flags.size} to review</span>` : '<span class="pg-pill ok">All clear</span>'}</div>${health}</section></div>`;
 }
 
 // ------------------------------------------------------------------- team --
@@ -737,7 +804,7 @@ export function teamView(c) {
       ? `<details class="pg-card pg-inactive"><summary><b>Deactivated accounts</b><span class="pg-pill">${inactive.length}</span></summary><ul class="pg-list">${inactive
           .map(
             (m) =>
-              `<li class="pg-list-row">${avatar(m.name)}<div class="grow"><b>${esc(m.name || "Team member")}</b><small>${esc(roleLabel(m.role))} · deactivated · no access until reactivated</small></div><button type="button" class="btn light pg-btn-sm" data-member="${esc(m.id)}">View</button></li>`,
+              `<li class="pg-list-row">${avatar(m.name)}<div class="grow"><b>${esc(m.name || "Team member")} ${inactiveBadge}</b><small>${esc(roleLabel(m.role))} · no access until reactivated</small></div><button type="button" class="btn light pg-btn-sm" data-member="${esc(m.id)}" aria-label="View ${esc(m.name || "team member")}">View</button></li>`,
           )
           .join("")}</ul><p class="pg-muted">Ask McAssist to reactivate someone, for example “Reactivate ${esc(firstName(inactive[0].name))}’s account”.</p></details>`
       : ""
@@ -767,7 +834,7 @@ export function memberDrawer(c, m) {
   const rate = rateOf(m);
   const dayNames = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
   return `<div class="pg-drawer">
-<div class="pg-drawer-top">${avatar(m.name, "xl")}<div><span class="pg-role r-${role}">${esc(roleLabel(role))}</span>${isInactive(m) ? ' <span class="pg-role r-pending">Deactivated</span>' : ""}${m.roleRequestStatus === "pending" && m.requestedRole ? ` <span class="pg-role r-pending">Requested ${esc(roleLabel(m.requestedRole))}</span>` : ""}<p class="pg-muted">${esc(m.email || "")}${m.badge ? `${m.email ? " · " : ""}${esc(m.badge)}` : ""}</p></div></div>
+<div class="pg-drawer-top">${avatar(m.name, "xl")}<div><span class="pg-role r-${role}">${esc(roleLabel(role))}</span>${isInactive(m) ? ` ${inactiveBadge}` : ""}${m.roleRequestStatus === "pending" && m.requestedRole ? ` <span class="pg-role r-pending">Requested ${esc(roleLabel(m.requestedRole))}</span>` : ""}<p class="pg-muted">${esc(m.email || "")}${m.badge ? `${m.email ? " · " : ""}${esc(m.badge)}` : ""}</p></div></div>
 <div class="pg-drawer-stats"><div><b>${Number(m.stars) || 0}<span class="pg-star">★</span></b><small>McStars</small></div><div><b>${l ? l.pct + "%" : "—"}</b><small>Learning</small></div><div><b>${stations.length}</b><small>Stations</small></div><div><b>${durationLabel(weekMins)}</b><small>This week</small></div></div>
 <section class="pg-drawer-sec"><h3>Upcoming shifts</h3>${
     upcoming.length

@@ -26,6 +26,7 @@ import {
   stationStyle,
   timeAgo,
   learningStats,
+  isInactive,
 } from "./pages-views.js";
 import { shiftEnd, VERIFY_STATIONS } from "./portal-core.js";
 import {
@@ -145,7 +146,12 @@ async function api(pathname, options = {}) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok)
-      throw new Error(data.error || data.reply || "Request failed.");
+      // status/code let callers tell an account problem (e.g. code
+      // "profile-missing") from a connection problem.
+      throw Object.assign(
+        new Error(data.error || data.reply || "Request failed."),
+        { status: response.status, code: data.code || "" },
+      );
     return data;
   } catch (error) {
     if (error.name === "AbortError")
@@ -279,11 +285,17 @@ function previewData() {
   };
 }
 
-// One request at a time: concurrent callers share the in-flight load.
+// One request at a time: concurrent callers share the in-flight load. A
+// forced load (e.g. after McAssist changed something) never reuses a request
+// that started before the change.
 async function loadData(force = false) {
   if (preview) return previewData();
   if (!force && V2.data && Date.now() - V2.dataAt < 12000) return V2.data;
-  if (V2.loading) return V2.loading;
+  if (V2.loading && force) {
+    const stale = V2.loading;
+    await stale.catch(() => {});
+    if (V2.loading && V2.loading !== stale) return V2.loading;
+  } else if (V2.loading) return V2.loading;
   V2.loading = (async () => {
     try {
       V2.data = await api("/api/portal-data");
@@ -349,6 +361,10 @@ function applyRoleUI(data) {
   const roleLine = roleLabel(role) + (store ? " · " + store : "");
   document.querySelectorAll(".js-role-line").forEach((el) => {
     if (el.textContent !== roleLine) el.textContent = roleLine;
+  });
+  // New accounts get their store name from the server on first load.
+  document.querySelectorAll(".topbar .store-pill").forEach((el) => {
+    if (store && el.textContent !== store) el.textContent = store;
   });
 
   // portal.js renders every destination (sidebar, tablet rail, phone tabs and
@@ -669,6 +685,11 @@ function createKit() {
       const target = state?.user ? state : V2.portalState;
       if (preview && target?.user) savePreviewState(preview, target);
     },
+    // This tab's saved sample restaurant (same shape savePreview writes), or
+    // null. Use it instead of reading sessionStorage keys directly.
+    loadPreview() {
+      return preview ? loadPreviewState(preview) : null;
+    },
     saveProgress,
     toast(text, type) {
       // Stacked, animated toasts from motion.js (design system).
@@ -804,7 +825,10 @@ async function renderVerificationQueue(data) {
         ? "Station sign-offs"
         : "Your sign-offs";
   const crewOptions = (data.team || [])
-    .filter((p) => normaliseRole(p.role) === "crew" && p.id !== me)
+    .filter(
+      (p) =>
+        normaliseRole(p.role) === "crew" && p.id !== me && !isInactive(p),
+    )
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const startForm = data.permissions?.canVerify
     ? '<section class="pg-card vf-start"><div class="pg-card-head"><div><h2>Start a verification</h2><p class="pg-muted">Choose a Crew Member and station. It stays open until you both sign.</p></div></div>' +
@@ -1357,7 +1381,13 @@ async function renderVerificationDetail(data, id) {
 async function renderVerification(data) {
   if (!isVerificationRoute()) return;
   const content = $("content");
-  if (!content || content.dataset.enhancedPage === "verification") return;
+  if (!content) return;
+  if (content.dataset.enhancedPage === "verification") {
+    // The queue repaints once after McAssist changed data (e.g. started a
+    // verification). An open sign-off (?id=) keeps its signature pad.
+    if (!V2.refreshVerification || params.get("id")) return;
+  }
+  V2.refreshVerification = false;
   content.dataset.enhancedPage = "verification";
   const id = params.get("id");
   if (id) await renderVerificationDetail(data, id);
@@ -1367,9 +1397,6 @@ async function renderVerification(data) {
 async function enhanceLoggedIn() {
   const profileButton = $("profileButton");
   if (!profileButton) return;
-  if (!isAssistantRoute()) {
-    document.getElementById("assistant")?.remove();
-  }
   const data = await loadData();
   if (V2.portalState?.progressLoaded) data.progress = V2.portalState.progress;
   applyRoleUI(data);
@@ -1406,6 +1433,11 @@ async function enhance() {
 window.addEventListener("portal:render", (event) => {
   V2.portalState = event.detail;
   enhance();
+});
+// portal.js reloads the data and re-renders; mark the verification queue so
+// that render repaints it.
+window.addEventListener("mcassist:data-changed", () => {
+  V2.refreshVerification = true;
 });
 window.addEventListener("DOMContentLoaded", enhance);
 setTimeout(enhance, 0);

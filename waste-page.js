@@ -303,14 +303,17 @@ function countPanel() {
       </div>
     </div>
 
-    <div class="waste-dock" id="wasteDock">
-      <div class="waste-dock-totals">
-        <span class="is-raw">RAW <b id="wasteDockRaw">0</b></span>
-        <span class="is-full">FULL <b id="wasteDockFull">0</b></span>
-        <span class="is-grand">TOTAL <b id="wasteDockTotal">0</b></span>
+    <div class="waste-dock" id="wasteDock" data-state="new" data-tucked="start">
+      <div class="waste-dock-bar">
+        <div class="waste-dock-totals">
+          <span class="is-raw">RAW <b id="wasteDockRaw">0</b></span>
+          <span class="is-full">FULL <b id="wasteDockFull">0</b></span>
+          <span class="is-grand">TOTAL <b id="wasteDockTotal">0</b></span>
+        </div>
+        <p class="waste-dock-state" id="wasteDockState" aria-live="polite"></p>
+        <p class="waste-dock-short" aria-hidden="true"><span class="waste-dock-dot"></span><span id="wasteDockShort"></span></p>
+        <button type="button" class="waste-btn is-dark waste-save" id="wasteSaveBtn">${ico("check")}<span>Save sheet</span></button>
       </div>
-      <p class="waste-dock-state" id="wasteDockState" aria-live="polite"></p>
-      <button type="button" class="waste-btn is-dark waste-save" id="wasteSaveBtn">${ico("check")}<span>Save sheet</span></button>
     </div>
   </section>`;
 }
@@ -556,6 +559,7 @@ function measureChrome() {
   const html = document.documentElement.style;
   html.scrollPaddingTop = `${Math.round(stickyTopOffset() + 12)}px`;
   html.scrollPaddingBottom = `${Math.round((bottom ? bottom + 10 : 16) + dockSpace + 12)}px`;
+  scheduleDockPosition();
 }
 function stickyTopOffset() {
   const bar = document.querySelector(".topbar");
@@ -567,9 +571,12 @@ function trackChrome() {
   measureChrome();
   requestAnimationFrame(measureChrome);
   setTimeout(measureChrome, 600);
-  if (chromeObserver || typeof ResizeObserver !== "function") return;
+  if (typeof ResizeObserver !== "function") return;
+  // The shell can be re-rendered (new nav, top bar and #content), so observe
+  // the current elements every time the page mounts.
+  chromeObserver?.disconnect();
   chromeObserver = new ResizeObserver(() => measureChrome());
-  [document.querySelector(".mobile-nav"), document.querySelector(".topbar")].forEach((el) => el && chromeObserver.observe(el));
+  [document.querySelector(".mobile-nav"), document.querySelector(".topbar"), root].forEach((el) => el && chromeObserver.observe(el));
 }
 
 function installGlobals() {
@@ -586,6 +593,8 @@ function installGlobals() {
   });
   window.addEventListener("blur", clearHold);
   window.addEventListener("resize", measureChrome);
+  window.addEventListener("scroll", scheduleDockPosition, { passive: true });
+  window.visualViewport?.addEventListener("resize", scheduleDockPosition);
   document.fonts?.ready?.then(measureChrome).catch(() => {});
 }
 
@@ -599,6 +608,8 @@ function tabFromHash(strict = false) {
 function bind() {
   root.addEventListener("click", onRootClick);
   root.querySelector(".waste-tabs").addEventListener("keydown", onTabKeydown);
+  const dock = byId("wasteDock");
+  ["focusin", "focusout"].forEach((type) => dock?.addEventListener(type, scheduleDockPosition));
 
   ui.wasteSearch.addEventListener("input", (e) => {
     view.search = e.target.value;
@@ -1161,6 +1172,9 @@ function renderDock() {
   const saved = draft.sheetId ? store.findSheet(draft.sheetId) : null;
   let state = "new";
   let text = t.lines ? "New sheet · not saved yet" : "Tap + to start counting";
+  // Phones show a one-line dock, so they get a shorter visible label; the
+  // full sentence stays available to screen readers.
+  let short = t.lines ? "Not saved yet" : "Nothing counted";
   if (saved) {
     const same =
       sheetSignature(saved.entries, saved.label, saved.notes) ===
@@ -1171,10 +1185,77 @@ function renderDock() {
       : "";
     state = same ? "saved" : "changed";
     text = same ? `Saved${at ? " at " + at : ""} · in History` : "Unsaved changes · Save to update";
+    short = same ? `Saved${at ? " " + at : ""}` : "Unsaved edits";
   }
-  el.textContent = text;
+  if (el.textContent !== text) el.textContent = text;
   el.dataset.state = state;
-  root.querySelector(".waste-dock")?.setAttribute("data-state", state);
+  const shortEl = byId("wasteDockShort");
+  if (shortEl && shortEl.textContent !== short) shortEl.textContent = short;
+  byId("wasteDock")?.setAttribute("data-state", state);
+  scheduleDockPosition();
+}
+
+// ------------------------------------------------------------ dock position
+// The Save dock floats at the bottom of the screen while the list scrolls,
+// then rests in place at the end of the Count panel. It steps aside (slides
+// down out of the way) whenever floating would hide the controls above the
+// item rows (RAW/FULL, menu period, search, filters, categories), while the
+// hero's totals are still on screen (it shows up once you scroll into the
+// list) and while nothing is counted yet (there is nothing to save).
+// Keyboard focus always brings it back (see :focus-within in waste.css).
+let dockFrame = 0;
+function scheduleDockPosition() {
+  if (dockFrame || typeof requestAnimationFrame !== "function") return;
+  dockFrame = requestAnimationFrame(() => {
+    dockFrame = 0;
+    positionDock();
+  });
+}
+function positionDock() {
+  const dock = byId("wasteDock");
+  const rect = dock && root && root.contains(dock) && view.tab === "count" ? dock.getBoundingClientRect() : null;
+  if (!rect || !rect.height) return liftToasts(null);
+  // A sticky element that is floating sits above its place in the flow,
+  // i.e. over the end of whatever comes before it.
+  const before = dock.previousElementSibling;
+  const panel = dock.parentElement;
+  const gap = panel ? parseFloat(getComputedStyle(panel).rowGap) || 0 : 0;
+  const floating = before ? rect.top < before.getBoundingClientRect().bottom + gap - 1 : false;
+  let tucked = "";
+  if (floating) {
+    // Everything above the item rows (RAW/FULL, menu period, search, filters,
+    // categories) must stay tappable, so the dock only floats over the rows.
+    const controls = root.querySelector(".waste-list-head") || root.querySelector(".waste-setup");
+    const controlsBottom = controls ? controls.getBoundingClientRect().bottom : -Infinity;
+    // While the hero's own totals are on screen the dock would only repeat
+    // them (and sit on the first rows), so it appears once they scroll away.
+    const totals = root.querySelector(".waste-hero .waste-totals")?.getBoundingClientRect();
+    const totalsOnScreen = totals && totals.height > 0 && totals.bottom > stickyTopOffset() + totals.height / 2;
+    if (controlsBottom > rect.top + 1) tucked = "controls";
+    else if (totalsOnScreen) tucked = "totals";
+    else if (!store.totals().lines) tucked = "empty";
+  }
+  if (dock.dataset.floating !== String(floating)) dock.dataset.floating = String(floating);
+  if (tucked) {
+    if (dock.dataset.tucked !== tucked) dock.dataset.tucked = tucked;
+  } else if (dock.hasAttribute("data-tucked")) dock.removeAttribute("data-tucked");
+  // Keyboard focus shows a tucked dock (see :focus-within in waste.css).
+  liftToasts(!tucked || dock.contains(document.activeElement) ? rect : null);
+}
+// Toasts normally sit just above the bottom navigation, exactly where the
+// dock floats: lift them above a visible dock so Save is never covered.
+function liftToasts(dockRect) {
+  const body = document.body;
+  const lift = dockRect && dockRect.top > window.innerHeight * 0.45 ? Math.round(window.innerHeight - dockRect.top + 10) : 0;
+  if (lift) {
+    // Runs on scroll frames: write only what changed.
+    if (body.dataset.wasteDock !== "up") body.dataset.wasteDock = "up";
+    if (body.style.getPropertyValue("--waste-toast-bottom") !== `${lift}px`)
+      body.style.setProperty("--waste-toast-bottom", `${lift}px`);
+  } else if (body.dataset.wasteDock) {
+    delete body.dataset.wasteDock;
+    body.style.removeProperty("--waste-toast-bottom");
+  }
 }
 
 // ----------------------------------------------------------- sheet actions

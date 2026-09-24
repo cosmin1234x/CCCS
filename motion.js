@@ -222,7 +222,7 @@ export function openDialog(dialog) {
 // to the dialog itself instead; keyboard users keep the default behaviour.
 let lastPointerAt = 0;
 const CLOSE_LIKE =
-  '.dialog-close, [data-close-dialog], [data-sheet-close], .v2-profile-close, [aria-label^="Close"]';
+  '.dialog-close, [data-close-dialog], [data-sheet-close], [aria-label^="Close"]';
 function watchDialogFocus() {
   document.addEventListener(
     "pointerdown",
@@ -450,8 +450,7 @@ function rememberMoreTab(event) {
 /* ------------------------------------------------------------------ */
 
 const lastValues = new Map();
-const COUNT_SELECTOR =
-  ".metric strong, .pg-kpi strong, .reward-number, [data-count-up]";
+const COUNT_SELECTOR = ".pg-kpi strong, [data-count-up]";
 
 function parseCount(text) {
   const match = /^(\D*?)(\d[\d,]*(?:\.\d+)?)([\s\S]*)$/.exec(text);
@@ -574,8 +573,16 @@ function onRender() {
   runCountUps(entering);
 }
 
+// Ambient decoration (the sign-in drift) pauses while the tab is hidden.
+function trackVisibility() {
+  const sync = () => root.toggleAttribute("data-page-hidden", document.hidden);
+  document.addEventListener("visibilitychange", sync);
+  sync();
+}
+
 function init() {
   root.classList.add("js");
+  trackVisibility();
   installRipple();
   installDialogBehaviour();
   document.addEventListener("click", rememberMoreTab, true);

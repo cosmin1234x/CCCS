@@ -275,6 +275,7 @@ test("composer: Enter sends once, Shift+Enter adds a line, uiAction navigates", 
 });
 
 test("launcher opens the drawer on other pages, shares history and closes with Esc", async ({ page, isMobile }) => {
+  test.setTimeout(60000); // Three page loads; WebKit is slow on a busy machine.
   await signedIn(page, { ai: () => ({ reply: "Hi from the drawer." }) });
   await page.goto("/main.html");
   const launcher = page.getByRole("button", { name: /Ask McAssist/ });
@@ -384,4 +385,293 @@ test("crew preview refuses manager actions and answers from sample data", async 
   await expect(log.locator(".mca-msg-bot").last()).toContainText(/next shift|upcoming shifts/);
   expect(aiCalls).toBe(0);
   expect(await noOverflow(page)).toBeTruthy();
+});
+
+// ---------------------------------------------------------------------------
+// Prompt links, plan lifecycle against the final backend and data refresh.
+// ---------------------------------------------------------------------------
+test("a prompt link pre-fills the composer without sending and drops the parameter", async ({ page, isMobile }) => {
+  const requests = await signedIn(page, { ai: () => ({ reply: "unexpected" }) });
+  const prompt = "Who still needs Food Safety? Remind them on their next shift.";
+  await page.goto("/main.html?view=assistant&prompt=" + encodeURIComponent(prompt));
+  const input = page.getByRole("textbox", { name: "Message McAssist" });
+  await expect(input).toHaveValue(prompt);
+  if (!isMobile) await expect(input).toBeFocused();
+  await expect(page).toHaveURL(/\/main\.html\?view=assistant$/);
+  // The link is not applied again on reload.
+  await input.fill("");
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Message McAssist" })).toHaveValue("");
+  expect(requests).toHaveLength(0);
+
+  // Long prompts are capped at 2,000 characters; preview mode keeps its flag.
+  await page.goto("/main.html?view=assistant&preview=manager&prompt=" + "a".repeat(2500));
+  await expect(page.getByRole("textbox", { name: "Message McAssist" })).toHaveValue("a".repeat(2000));
+  await expect(page).toHaveURL(/\/main\.html\?view=assistant&preview=manager$/);
+});
+
+test("a newer plan replaces older cards, and a 409 for a replaced plan locks it kindly", async ({ page }) => {
+  const second = () => {
+    const p = plan();
+    return { ...p, pending: { ...p.pending, id: "plan-456", title: "Delete Amelia Wilson's account", cancelLabel: "Keep Amelia" } };
+  };
+  const requests = await signedIn(page, {
+    ai: (body, n) =>
+      body.confirm
+        ? { status: 409, json: { error: "superseded", reply: "That plan was replaced by a newer one, so nothing was changed. Use the latest plan card." } }
+        : n === 1
+          ? plan()
+          : second(),
+  });
+  await page.goto("/main.html?view=assistant");
+  await ask(page, "Delete Ryan's account");
+  const first = page.getByRole("article", { name: /Plan: Delete Ryan Davies's account/ });
+  await expect(first.getByRole("button", { name: "Delete account" })).toBeEnabled();
+  await ask(page, "Actually delete Amelia's account");
+  const latest = page.getByRole("article", { name: /Plan: Delete Amelia Wilson's account/ });
+  await expect(latest.getByRole("button", { name: "Keep Amelia" })).toBeEnabled();
+  await expect(first).toContainText("Replaced by a newer plan");
+  await expect(first.getByRole("button", { name: "Delete account" })).toBeDisabled();
+  await expect(first.getByRole("button", { name: "Keep Ryan" })).toBeDisabled();
+  await expect(page.locator(".mca-expiry")).toHaveCount(1);
+
+  // The server can still supersede a card first (another tab, say).
+  await latest.getByRole("button", { name: "Delete account" }).click();
+  await expect(latest).toContainText("Replaced by a newer plan");
+  await expect(page.locator("#chat")).toContainText("Use the latest plan card.");
+  await expect(page.locator("#chat").getByRole("button", { name: "Try again" })).toHaveCount(0);
+  expect(requests.at(-1).confirm).toEqual({ pendingId: "plan-456", decision: "approve" });
+
+  // Replaced cards stay locked after a reload.
+  await page.reload();
+  await expect(page.getByRole("article", { name: /Plan: Delete Ryan Davies's account/ })).toContainText("Replaced by a newer plan");
+  await expect(page.locator(".mca-plan-foot:not(.is-locked) .mca-btn-confirm")).toHaveCount(0);
+});
+
+test("typing yes or cancel straight after a plan updates the card from the server's answer", async ({ page }) => {
+  test.setTimeout(60000); // Eight chat turns; WebKit is slow on a busy machine.
+  let release = () => {};
+  let gate = null;
+  const requests = await signedIn(page, {
+    ai: async (body) => {
+      if (gate) await gate;
+      if (/^Delete/.test(body.message)) return plan();
+      if (body.message === "yes")
+        return {
+          reply: "Done — deleted Ryan Davies's account. 1 item was skipped: Verifications can't be revoked from a plan.",
+          dataChanged: true,
+          actions: ["Deleted Ryan Davies's account", "Removed 1 shift"],
+          results: [
+            { itemId: "a", ok: true, message: "Deleted Ryan Davies's account" },
+            { itemId: "b", ok: true, message: "Removed 1 shift" },
+            { itemId: "c", ok: false, message: "Skipped — Verifications can't be revoked from a plan." },
+          ],
+        };
+      if (body.message === "cancel") return { reply: "Cancelled — nothing was changed.", dataChanged: false, results: [], actions: [] };
+      return { reply: "This one is permanent, so please type confirm or use the button." };
+    },
+  });
+  await page.goto("/main.html?view=assistant");
+  const log = page.locator("#chat");
+
+  // "ok" is too casual for a high-risk plan: the server answers normally and the card stays live.
+  await ask(page, "Delete Ryan's account");
+  const card = page.getByRole("article", { name: /Plan: Delete Ryan Davies's account/ });
+  await ask(page, "ok");
+  await expect(log).toContainText("please type confirm");
+  await expect(card.getByRole("button", { name: "Delete account" })).toBeEnabled();
+
+  // A clear "yes" straight after a fresh plan resolves it server-side.
+  await ask(page, "Delete Ryan's account");
+  const fresh = page.getByRole("article", { name: /Plan: Delete Ryan Davies's account/ }).last();
+  await expect(card.first()).toContainText("Replaced by a newer plan");
+  gate = new Promise((resolve) => (release = resolve));
+  await ask(page, "yes");
+  await expect(fresh).toContainText("Re-checking and applying");
+  release();
+  gate = null;
+  await expect(fresh).toContainText("Approved · 2 of 2 done · 1 skipped");
+  await expect(fresh.getByRole("button", { name: "Delete account" })).toHaveCount(0);
+  await expect(log.locator(".mca-actions").last()).toContainText("Deleted Ryan Davies's account");
+  const yes = requests.find((r) => r.message === "yes");
+  expect(yes.confirm).toBeUndefined();
+  expect(yes.history.at(-1)).toEqual({ role: "assistant", content: plan().reply });
+
+  // And "cancel" resolves the next plan as cancelled.
+  await ask(page, "Delete Ryan's account");
+  const third = page.getByRole("article", { name: /Plan: Delete Ryan Davies's account/ }).last();
+  await expect(third.getByRole("button", { name: "Keep Ryan" })).toBeEnabled();
+  await ask(page, "cancel");
+  await expect(third).toContainText("Cancelled · nothing was changed");
+  await expect(third.getByRole("button", { name: "Keep Ryan" })).toHaveCount(0);
+});
+
+test("changes made by McAssist refresh portal data and notify the page", async ({ page }) => {
+  let portalLoads = 0;
+  page.on("request", (r) => {
+    if (r.url().includes("/api/portal-data")) portalLoads++;
+  });
+  await signedIn(page, {
+    ai: () => ({ reply: "Done — gave Amelia 3 McStars.", dataChanged: true, actions: ["Gave Amelia Wilson 3 McStars"] }),
+  });
+  await page.goto("/main.html?view=assistant");
+  await expect(page.getByRole("textbox", { name: "Message McAssist" })).toBeVisible();
+  await page.evaluate(() => {
+    window.__changes = [];
+    window.addEventListener("mcassist:data-changed", (e) => window.__changes.push(e.detail));
+  });
+  const before = portalLoads;
+  await ask(page, "Give Amelia 3 McStars");
+  await expect.poll(() => page.evaluate(() => window.__changes)).toEqual([{ preview: false }]);
+  // The event follows the fresh load, so listeners read up-to-date data.
+  expect(portalLoads).toBeGreaterThan(before);
+
+  // Preview: the demo changes sample data and says so, without the network.
+  await page.goto("/main.html?view=assistant&preview=manager");
+  await page.evaluate(() => {
+    window.__changes = [];
+    window.addEventListener("mcassist:data-changed", (e) => window.__changes.push(e.detail));
+  });
+  await ask(page, "Give Amelia 3 McStars for great customer service");
+  await expect.poll(() => page.evaluate(() => window.__changes)).toEqual([{ preview: true }]);
+});
+
+test("preview demo: a typed yes confirms the plan and an older plan is replaced", async ({ page }) => {
+  test.setTimeout(60000);
+  await page.goto("/main.html?view=assistant&preview=manager");
+  const log = page.locator("#chat");
+  await ask(page, "Delete Ryan's account");
+  const first = page.getByRole("article", { name: /Plan: Delete Ryan Davies's account/ });
+  await expect(first).toContainText("High risk");
+  await ask(page, "Set Amelia's hourly rate to £12.60");
+  const rate = page.getByRole("article", { name: /Plan: Set Amelia Wilson's hourly rate/ });
+  await expect(rate).toBeVisible();
+  await expect(first).toContainText("Replaced by a newer plan");
+  await expect(first.getByRole("button", { name: "Delete account" })).toBeDisabled();
+  await ask(page, "yes");
+  await expect(rate).toContainText("Approved · 1 of 1 done");
+  await expect(log).toContainText("hourly rate is now £12.60");
+});
+
+// ---------------------------------------------------------------------------
+// Launcher placement: above the dock, never over content, calm on phones.
+// ---------------------------------------------------------------------------
+async function launcherState(page) {
+  return page.evaluate(() => {
+    const l = document.getElementById("mcaLauncher");
+    const r = l.getBoundingClientRect();
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;bottom:calc(22px + var(--dock-offset, 0px));right:0;width:1px;height:1px";
+    document.body.appendChild(probe);
+    const expected = getComputedStyle(probe).bottom;
+    probe.remove();
+    return {
+      classes: l.className,
+      bottom: getComputedStyle(l).bottom,
+      expected,
+      rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
+      vw: document.documentElement.clientWidth,
+      vh: innerHeight,
+      opacity: Number(getComputedStyle(l).opacity),
+    };
+  });
+}
+
+// Text or controls under the visible launcher (sampled like a finger would).
+function coveredContent(page) {
+  return page.evaluate(() => {
+    const l = document.getElementById("mcaLauncher");
+    if (Number(getComputedStyle(l).opacity) < 0.5) return [];
+    const r = l.getBoundingClientRect();
+    const hits = new Set();
+    for (let i = 1; i < 6; i++)
+      for (let j = 1; j < 6; j++) {
+        const x = r.left + (i / 6) * r.width;
+        const y = r.top + (j / 6) * r.height;
+        const el = document.elementsFromPoint(x, y).find((e) => !l.contains(e));
+        if (!el || el === document.body || el === document.documentElement) continue;
+        if (el.closest("a[href], button, input, select, textarea, [role='button']")) hits.add(el.outerHTML.slice(0, 80));
+        for (const node of el.childNodes) {
+          if (node.nodeType !== 3 || !node.nodeValue.trim()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          for (const t of range.getClientRects())
+            if (t.width && t.right > r.left && t.left < r.right && t.bottom > r.top && t.top < r.bottom) hits.add(node.nodeValue.trim());
+        }
+      }
+    return [...hits];
+  });
+}
+
+test("launcher sits above the dock and never covers text or controls", async ({ page }) => {
+  test.setTimeout(60000);
+  for (const url of ["/main.html?preview=manager", "/schedule.html?preview=manager", "/main.html?preview=crew"]) {
+    await page.goto(url);
+    await expect(page.locator("#mcaLauncher")).toHaveCount(1);
+    await page.waitForTimeout(1900); // entrance animation + settle checks
+    const state = await launcherState(page);
+    expect(state.bottom).toBe(state.expected);
+    expect(await coveredContent(page), url).toEqual([]);
+    expect(await noOverflow(page)).toBeTruthy();
+  }
+});
+
+test("launcher peek stays fully inside the viewport", async ({ page }) => {
+  await page.goto("/main.html?preview=manager");
+  await expect(page.locator("#mcaLauncher")).toHaveCount(1);
+  await page.evaluate(() => {
+    const l = document.getElementById("mcaLauncher");
+    // Hold the peek state for the measurement.
+    const hold = () => {
+      l.classList.remove("is-covered", "is-away");
+      l.classList.add("is-peek");
+    };
+    hold();
+    window.__hold = setInterval(hold, 20);
+  });
+  await page.waitForTimeout(800);
+  const state = await launcherState(page);
+  expect(state.rect.left).toBeGreaterThanOrEqual(0);
+  expect(state.rect.top).toBeGreaterThanOrEqual(0);
+  expect(state.rect.right).toBeLessThanOrEqual(state.vw);
+  expect(state.rect.bottom).toBeLessThanOrEqual(state.vh);
+  expect(state.rect.right - state.rect.left).toBeGreaterThanOrEqual(43);
+  await expect(page.getByRole("button", { name: /Ask McAssist/ })).toBeVisible();
+});
+
+test("on phones the launcher hides while scrolling down and returns on scroll up", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 1440) > 760, "Phone behaviour");
+  await page.goto("/main.html?preview=manager");
+  const launcher = page.locator("#mcaLauncher");
+  await expect(launcher).toHaveCount(1);
+  await page.waitForTimeout(900);
+  await page.evaluate(() => scrollTo(0, 320));
+  await expect(launcher).toHaveClass(/is-away/);
+  await expect.poll(async () => (await launcherState(page)).opacity).toBe(0);
+  await page.evaluate(() => scrollTo(0, 200));
+  await expect(launcher).not.toHaveClass(/is-away/);
+  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+  await expect(launcher).not.toHaveClass(/is-away|is-covered/);
+  await page.waitForTimeout(400);
+  // At the very end the page's extra bottom padding keeps its spot clear.
+  expect(await coveredContent(page)).toEqual([]);
+  expect((await launcherState(page)).opacity).toBe(1);
+});
+
+test("McAssist has no endless decorative animations when idle", async ({ page }) => {
+  const endless = () =>
+    page.evaluate(() =>
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming?.().iterations === Infinity && a.playState === "running")
+        .map((a) => a.effect.target)
+        .filter((t) => t?.closest?.(".mca-page, .mca-launcher, .mca-drawer"))
+        .map((t) => String(t.className?.baseVal ?? t.className)),
+    );
+  await page.goto("/main.html?view=assistant&preview=manager");
+  await expect(page.getByRole("textbox", { name: "Message McAssist" })).toBeVisible();
+  expect(await endless()).toEqual([]);
+  await page.goto("/main.html?preview=manager");
+  await expect(page.locator("#mcaLauncher")).toHaveCount(1);
+  expect(await endless()).toEqual([]);
 });

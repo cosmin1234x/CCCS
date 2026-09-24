@@ -34,11 +34,18 @@ export function rotaWindowStart(now = new Date()) {
   return today.toISOString().slice(0, 10);
 }
 
+/** Deactivated accounts (McAssist "deactivate") keep their data but no access. */
+export const isInactive = (profile) =>
+  String(profile?.status || "").toLowerCase() === "inactive" ||
+  profile?.deactivated === true;
+const statusOf = (profile) => (isInactive(profile) ? "inactive" : "active");
+
 // Crew Trainers see the team to start verifications, but never pay rates or
-// manager notes.
-function teamEntry(profile, manager) {
+// manager notes. Everyone sees whether an account is deactivated.
+export function teamEntry(profile, manager) {
   const full = publicProfile(profile);
-  if (manager) return { ...full, email: profile.email || "" };
+  if (manager)
+    return { ...full, email: profile.email || "", status: statusOf(profile) };
   return {
     id: full.id,
     name: full.name,
@@ -49,11 +56,94 @@ function teamEntry(profile, manager) {
     stars: full.stars,
     badge: full.badge,
     verifiedStations: full.verifiedStations,
+    status: statusOf(profile),
   };
 }
 
-function httpError(status, message) {
-  return Object.assign(new Error(message), { status });
+function httpError(status, message, code = "") {
+  return Object.assign(new Error(message), { status, code });
+}
+
+/** YYYY-MM-DD plus a number of days (calendar arithmetic, no time zones). */
+function addDays(iso, days) {
+  const date = new Date(iso + "T12:00:00Z");
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The store's display name for a profile that has none yet (new sign-ups
+ * only enter a store ID). Taken from stores/{storeId}, or else the name most
+ * of the store's members already carry, and saved back to the profile.
+ */
+export async function resolveStoreName(db, profile, members = null) {
+  const current = cleanText(profile.storeName, 80);
+  if (current || !profile.storeId) return current;
+  let name = "";
+  try {
+    const snap = await db.collection("stores").doc(profile.storeId).get();
+    if (snap.exists) {
+      const store = snap.data() || {};
+      name = cleanText(store.storeName || store.name, 80);
+    }
+  } catch (error) {
+    console.warn("Store lookup failed", error.message);
+  }
+  if (!name) {
+    let pool = members;
+    if (!pool) {
+      const snap = await db
+        .collection("users")
+        .where("storeId", "==", profile.storeId)
+        .limit(40)
+        .get()
+        .catch(() => null);
+      pool = snap ? snap.docs.map((d) => ({ id: d.id, ...d.data() })) : [];
+    }
+    const counts = new Map();
+    for (const member of pool) {
+      if (member.id === profile.id || member.storeId !== profile.storeId) continue;
+      const value = cleanText(member.storeName, 80);
+      if (value) counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    name = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+  }
+  if (name)
+    await db
+      .collection("users")
+      .doc(profile.id)
+      .set({ storeName: name }, { merge: true })
+      .catch((error) => console.warn("Could not save the store name", error.message));
+  return name;
+}
+
+/**
+ * Upcoming store rota for Crew Trainers: who works when and where, and
+ * nothing else (no pay, breaks or notes). Deactivated people are left out.
+ */
+export function trainerRota(docs, { inactive = new Set(), from, until } = {}) {
+  return docs
+    .map((d) => (typeof d.data === "function" ? d.data() : d))
+    .filter(
+      (s) =>
+        s &&
+        typeof s.date === "string" &&
+        s.date >= from &&
+        s.date <= until &&
+        s.start &&
+        s.end &&
+        s.userId &&
+        !inactive.has(s.userId),
+    )
+    .map((s) => ({
+      date: s.date,
+      start: s.start,
+      end: s.end,
+      station: s.station || "",
+      userId: s.userId,
+      userName: s.userName || "Team member",
+    }))
+    .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 }
 
 async function handleGet(req, res, { decoded, profile }) {
@@ -104,6 +194,24 @@ async function handleGet(req, res, { decoded, profile }) {
     return null;
   });
 
+  // Crew Trainers plan training and sign-offs around the store rota: the
+  // next two weeks (from yesterday, for overnight shifts still running).
+  const today = isoDate();
+  const rotaFrom = addDays(today, -1);
+  const rotaUntil = addDays(today, 14);
+  const storeShiftsPromise = isTrainer
+    ? shiftsRef
+        .where("date", ">=", rotaFrom)
+        .where("date", "<=", rotaUntil)
+        .orderBy("date")
+        .limit(400)
+        .get()
+        .catch((error) => {
+          console.warn("Store rota query failed", error.message);
+          return null;
+        })
+    : Promise.resolve(null);
+
   const [
     shiftsSnap,
     progressSnap,
@@ -111,6 +219,7 @@ async function handleGet(req, res, { decoded, profile }) {
     verificationSnap,
     roleRequestSnap,
     recognitionSnap,
+    storeShiftsSnap,
   ] = await Promise.all([
     shiftsPromise,
     progressPromise,
@@ -118,14 +227,22 @@ async function handleGet(req, res, { decoded, profile }) {
     verificationPromise,
     roleRequestsPromise,
     recognitionPromise,
+    storeShiftsPromise,
   ]);
 
   const progress = Object.fromEntries(
     progressSnap.docs.map((d) => [d.id, serialise(d.data())]),
   );
   const teamDocs = teamSnap ? teamSnap.docs : [];
-  const team = teamDocs.map((d) =>
-    teamEntry({ id: d.id, ...d.data() }, isManager),
+  const members = teamDocs.map((d) => ({ id: d.id, ...d.data() }));
+  // New sign-ups carry only a store ID: give them the store's name.
+  const storeName = await resolveStoreName(
+    db,
+    profile,
+    teamSnap ? members : null,
+  );
+  const team = members.map((m) =>
+    teamEntry(m.storeName ? m : { ...m, storeName }, isManager),
   );
 
   // Team learning: completed module IDs per member (managers only). One small
@@ -177,8 +294,20 @@ async function handleGet(req, res, { decoded, profile }) {
   });
 
   const pending = verifications.filter((v) => v.status !== "verified");
+  const inactiveIds = new Set(members.filter(isInactive).map((m) => m.id));
   return res.status(200).json({
-    profile: publicProfile(profile),
+    profile: { ...publicProfile(profile), storeName, status: statusOf(profile) },
+    ...(isTrainer
+      ? {
+          storeShifts: storeShiftsSnap
+            ? trainerRota(storeShiftsSnap.docs, {
+                inactive: inactiveIds,
+                from: rotaFrom,
+                until: rotaUntil,
+              })
+            : [],
+        }
+      : {}),
     permissions: {
       canPlanShifts: isManager,
       canVerify: isTrainer,
@@ -202,7 +331,7 @@ async function handleGet(req, res, { decoded, profile }) {
       ).length,
       pendingRoleRequests: roleRequests.length,
     },
-    today: isoDate(),
+    today,
   });
 }
 
@@ -316,6 +445,14 @@ export default async function handler(req, res) {
   }
   try {
     const auth = await getAuthenticatedProfile(req);
+    // A deactivated account keeps a (short-lived) ID token until it expires;
+    // it gets no data.
+    if (isInactive(auth.profile))
+      throw httpError(
+        403,
+        "Your account has been deactivated. Speak to your manager if you think this is a mistake.",
+        "deactivated",
+      );
     if (req.method === "POST") return await handlePost(req, res, auth);
     return await handleGet(req, res, auth);
   } catch (error) {
@@ -323,8 +460,22 @@ export default async function handler(req, res) {
       name: error.name,
       message: error.message,
     });
+    const code = errorCode(error);
     return res.status(error.status || 500).json({
       error: error.status ? error.message : "Could not load portal data.",
+      ...(code ? { code } : {}),
     });
   }
+}
+
+// Machine-readable reasons, so the app can tell an account problem (missing
+// profile or store, deactivated) from a connection problem.
+export function errorCode(error) {
+  if (!error?.status) return "";
+  if (error.code && typeof error.code === "string") return error.code;
+  if (error.status !== 403) return "";
+  const message = String(error.message || "");
+  if (/profile is missing/i.test(message)) return "profile-missing";
+  if (/store ID/i.test(message)) return "store-missing";
+  return "";
 }

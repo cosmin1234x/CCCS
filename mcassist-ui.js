@@ -25,6 +25,23 @@ const MAX_HISTORY = 12;
 const REQUEST_TIMEOUT = 60000;
 const PLAN_TTL = 15 * 60 * 1000;
 const DEMO_NOTE = "Sample data · No changes were made.";
+// Mirrors api/ai-chat.js: a typed "yes" / "cancel" sent straight after a plan
+// resolves that plan on the server, exactly like pressing its button.
+const TYPED_YES =
+  /^(?:yes|yeah|yep|yup|ok|okay|sure|confirm(?:ed)?|approve[d]?|go ahead|do it|go for it|please do|sounds good|send it|publish(?: it| them)?|apply(?: it| them)?)(?:,? (?:please|thanks|thank you|do it|go ahead|confirm))?[.! ]*$/i;
+const TYPED_NO =
+  /^(?:no|nope|nah|cancel(?: it| that)?|stop|don'?t|do not|never ?mind|forget it|scrap (?:it|that))(?:,? thanks| thank you)?[.! ]*$/i;
+const TYPED_CASUAL = /^(?:ok|okay|sure|sounds good)\b/i;
+const DECISION_STATES = [
+  "approved",
+  "partial",
+  "failed",
+  "cancelled",
+  "expired",
+  "gone",
+  "superseded",
+  "handled",
+];
 
 let kit = null;
 const S = {
@@ -294,6 +311,7 @@ function cleanItem(raw) {
         decision: raw.retry.decision === "cancel" ? "cancel" : raw.retry.decision ? "approve" : null,
         excludeId:
           typeof raw.retry.excludeId === "string" ? raw.retry.excludeId : null,
+        typed: raw.retry.typed === true,
       };
   }
   const steps = strings(raw.steps, 20);
@@ -307,13 +325,7 @@ function cleanItem(raw) {
   if (pending) {
     item.pending = pending;
     const d = raw.decision;
-    if (
-      d &&
-      typeof d === "object" &&
-      ["approved", "partial", "failed", "cancelled", "expired", "gone"].includes(
-        d.status,
-      )
-    )
+    if (d && typeof d === "object" && DECISION_STATES.includes(d.status))
       item.decision = {
         status: d.status,
         at: Number(d.at) || 0,
@@ -332,10 +344,30 @@ function items() {
       S.items = Array.isArray(raw)
         ? raw.map(cleanItem).filter(Boolean).slice(-MAX_STORED)
         : [];
+      // Only the newest plan can be live (the server supersedes older ones).
+      const newest = [...S.items].reverse().find((item) => item.pending);
+      supersedeOlderPlans(newest, S.items);
       S.cache.set(S.key, S.items);
     }
   }
   return S.items;
+}
+
+// Marks every unresolved plan card except `keep` as replaced. The server
+// answers 409 for superseded plans, so their buttons must never be live.
+function supersedeOlderPlans(keep, list = items()) {
+  let changed = false;
+  for (const item of list)
+    if (
+      item !== keep &&
+      item.pending &&
+      (!item.decision || item.decision.status === "working")
+    ) {
+      item.decision = { status: "superseded", at: Date.now(), results: [] };
+      bump(item);
+      changed = true;
+    }
+  return changed;
 }
 
 function saveItems() {
@@ -443,6 +475,31 @@ function expiryText(at) {
   return `Expires in ${m}:${String(s).padStart(2, "0")}`;
 }
 
+// What happened to one plan item after approval. The server reports blocked
+// (and no-longer-valid) items as { ok: false, message: "Skipped — …" }.
+function outcomeOf(it, r, finished) {
+  if (r) {
+    if (r.ok) return "done";
+    return it.status === "blocked" || /^skipped\b/i.test(r.message)
+      ? "skipped"
+      : "failed";
+  }
+  return finished && it.status === "blocked" ? "skipped" : "";
+}
+
+function planStatusFor(plan, decision, results) {
+  if (decision === "cancel") return "cancelled";
+  if (!results.length) return "approved";
+  const byId = new Map(plan.pending.items.map((it) => [it.id, it]));
+  let ok = 0;
+  let trouble = 0;
+  for (const r of results) {
+    if (r.ok) ok++;
+    else if (byId.get(r.itemId)?.status !== "blocked") trouble++;
+  }
+  return ok === 0 ? "failed" : trouble ? "partial" : "approved";
+}
+
 function planHTML(item) {
   const p = item.pending;
   const d = item.decision;
@@ -459,17 +516,11 @@ function planHTML(item) {
   const rows = p.items
     .map((it) => {
       const r = results.get(it.id);
-      const outcome = r
-        ? r.ok
-          ? "done"
-          : "failed"
-        : finished && it.status === "blocked"
-          ? "skipped"
-          : "";
+      const outcome = outcomeOf(it, r, finished);
       const icon =
         outcome === "done"
           ? svg("check")
-          : outcome === "failed"
+          : outcome === "failed" || outcome === "skipped"
             ? svg("block")
             : it.status === "ok"
               ? svg("check")
@@ -484,21 +535,24 @@ function planHTML(item) {
       return `<li class="mca-plan-item is-${it.status}${outcome ? " is-" + outcome : ""}"><span class="mca-plan-item-icon">${icon}</span><div class="mca-plan-item-copy"><span class="mca-sr">${statusWord[it.status]}: </span><b>${esc(it.label)}</b>${it.detail ? `<small>${esc(it.detail)}</small>` : ""}${it.note ? `<p class="mca-plan-note">${esc(it.note)}</p>` : ""}${result}</div></li>`;
     })
     .join("");
+  const buttons = (disabled) =>
+    `<div class="mca-plan-buttons"><button type="button" class="mca-btn mca-btn-ghost" data-plan-cancel="${esc(item.id)}"${disabled ? " disabled" : ""}>${esc(p.cancelLabel)}</button><button type="button" class="mca-btn mca-btn-confirm risk-${p.risk}" data-plan-confirm="${esc(item.id)}"${disabled || allBlocked ? " disabled" : ""}>${svg("check")}<span>${esc(p.confirmLabel)}</span></button></div>`;
   let foot = "";
   if (state === "pending") {
     const at = new Date(p.expiresAt).toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
     });
-    foot = `<div class="mca-plan-foot"><span class="mca-expiry${p.expiresAt - Date.now() < 60000 ? " is-urgent" : ""}" data-expires="${p.expiresAt}">${svg("clock")}<span class="mca-expiry-text" aria-hidden="true">${esc(expiryText(p.expiresAt))}</span><span class="mca-sr">Plan expires at ${esc(at)}</span></span><div class="mca-plan-buttons"><button type="button" class="mca-btn mca-btn-ghost" data-plan-cancel="${esc(item.id)}"${S.busy ? " disabled" : ""}>${esc(p.cancelLabel)}</button><button type="button" class="mca-btn mca-btn-confirm risk-${p.risk}" data-plan-confirm="${esc(item.id)}"${S.busy || allBlocked ? " disabled" : ""}>${svg("check")}<span>${esc(p.confirmLabel)}</span></button></div>${allBlocked ? '<p class="mca-plan-blocked">Every item is blocked, so there is nothing to apply. Ask McAssist to adjust the plan.</p>' : ""}</div>`;
+    foot = `<div class="mca-plan-foot"><span class="mca-expiry${p.expiresAt - Date.now() < 60000 ? " is-urgent" : ""}" data-expires="${p.expiresAt}">${svg("clock")}<span class="mca-expiry-text" aria-hidden="true">${esc(expiryText(p.expiresAt))}</span><span class="mca-sr">Plan expires at ${esc(at)}</span></span>${buttons(S.busy)}${allBlocked ? '<p class="mca-plan-blocked">Every item is blocked, so there is nothing to apply. Ask McAssist to adjust the plan.</p>' : ""}</div>`;
   } else if (state === "working") {
     foot = `<div class="mca-plan-status is-working" role="status"><span class="mca-spinner" aria-hidden="true"></span>${d.decision === "cancel" ? "Cancelling…" : "Re-checking and applying…"}</div>`;
   } else if (finished) {
-    const applied = [...results.values()].filter((r) => r.ok).length;
-    const failed = [...results.values()].filter((r) => !r.ok).length;
-    const skipped = p.items.filter(
-      (i) => i.status === "blocked" && !results.has(i.id),
-    ).length;
+    const outcomes = p.items.map((it) =>
+      outcomeOf(it, results.get(it.id), true),
+    );
+    const applied = outcomes.filter((o) => o === "done").length;
+    const failed = outcomes.filter((o) => o === "failed").length;
+    const skipped = outcomes.filter((o) => o === "skipped").length;
     const text =
       state === "failed"
         ? "Nothing was applied"
@@ -506,20 +560,26 @@ function planHTML(item) {
           ? `Approved · ${applied} of ${applied + failed} done`
           : "Approved and applied";
     foot = `<div class="mca-plan-status ${state === "failed" ? "is-bad" : state === "partial" ? "is-warn" : "is-good"}">${svg(state === "failed" ? "block" : state === "partial" ? "warn" : "check")}<span>${esc(text)}${skipped ? ` · ${skipped} skipped` : ""}</span></div>`;
+  } else if (state === "superseded") {
+    // Kept visible but locked: the server answers 409 for replaced plans.
+    foot = `<div class="mca-plan-foot is-locked">${buttons(true)}</div><div class="mca-plan-status is-muted">${svg("refresh")}<span>Replaced by a newer plan · nothing was changed</span></div>`;
   } else {
     const text = {
       cancelled: "Cancelled · nothing was changed",
       expired: "Expired · nothing was changed. Ask again for a fresh plan.",
       gone: "No longer available · nothing was changed",
+      handled: "Already handled · nothing more was changed",
     }[state];
-    foot = `<div class="mca-plan-status is-muted">${svg(state === "cancelled" ? "close" : "clock")}<span>${esc(text)}</span></div>`;
+    foot = `<div class="mca-plan-status is-muted">${svg(state === "cancelled" ? "close" : state === "handled" ? "check" : "clock")}<span>${esc(text)}</span></div>`;
   }
   const kicker =
     state === "pending"
       ? "Needs your OK"
       : state === "working"
         ? "Working on it"
-        : "Plan";
+        : state === "superseded"
+          ? "Replaced"
+          : "Plan";
   return `<article class="mca-plan risk-${p.risk} is-${state}" aria-label="${esc("Plan: " + p.title)}"><header class="mca-plan-head"><span class="mca-plan-icon">${svg("list")}</span><div class="mca-plan-titles"><span class="mca-plan-kicker">${kicker}</span><h3>${esc(p.title)}</h3></div><span class="mca-risk">${riskLabel}</span></header>${p.summary ? `<p class="mca-plan-summary">${esc(p.summary)}</p>` : ""}${rows ? `<ol class="mca-plan-items">${rows}</ol>` : ""}${foot}</article>`;
 }
 
@@ -861,6 +921,11 @@ function friendlyError(status, data) {
       sentence ||
       "That plan is no longer available, so nothing was changed. Ask again and I'll prepare a fresh one."
     );
+  if (status === 409)
+    return (
+      sentence ||
+      "That plan has already been handled, so nothing more was changed. Use the latest plan card."
+    );
   if (status === 429)
     return sentence || "You're going a little fast. Wait a few seconds, then try again.";
   if (status >= 500)
@@ -909,13 +974,45 @@ async function callApi(body) {
   return data;
 }
 
+// The plan a typed "yes" / "cancel" will resolve server-side: only when
+// McAssist's last message is that (still live) plan, and high-risk plans
+// need a clear "yes" / "confirm" rather than "ok" or "sure".
+function typedDecision(message) {
+  const yes = TYPED_YES.test(message);
+  if (!yes && !TYPED_NO.test(message)) return null;
+  const last = [...items()]
+    .reverse()
+    .find(
+      (item) =>
+        item.role === "assistant" && !item.kind && !item.local && item.content,
+    );
+  if (!last || !planIsLive(last)) return null;
+  if (yes && TYPED_CASUAL.test(message) && last.pending.risk === "high")
+    return null;
+  return { planItemId: last.id, decision: yes ? "approve" : "cancel" };
+}
+
 async function sendMessage(text) {
   const message = String(text || "")
     .trim()
     .slice(0, 2000);
   if (!message || S.busy) return false;
+  const typed = typedDecision(message);
+  if (typed) {
+    const plan = findItem(typed.planItemId);
+    plan.decision = {
+      status: "working",
+      decision: typed.decision,
+      at: Date.now(),
+      results: [],
+    };
+    bump(plan);
+  }
   const echo = pushItem({ role: "user", content: message });
-  await runRequest({ message }, { excludeId: echo.id });
+  await runRequest(
+    { message },
+    typed ? { excludeId: echo.id, ...typed, typed: true } : { excludeId: echo.id },
+  );
   return true;
 }
 
@@ -963,8 +1060,11 @@ async function retry(errorId) {
   }
   if (r.planItemId) {
     const plan = findItem(r.planItemId);
-    if (!plan?.pending || plan.decision) {
-      renderViews();
+    if (!planIsLive(plan)) {
+      // The plan was resolved or replaced meanwhile. A typed reply is still
+      // worth sending as an ordinary message; a button press is not.
+      if (r.typed) await runRequest({ message: r.message }, { excludeId: r.excludeId });
+      else renderViews();
       return;
     }
     plan.decision = {
@@ -975,11 +1075,12 @@ async function retry(errorId) {
     };
     bump(plan);
     await runRequest(
-      { message: r.message, confirm: r.confirm },
+      r.confirm ? { message: r.message, confirm: r.confirm } : { message: r.message },
       {
         excludeId: r.excludeId,
         planItemId: plan.id,
         decision: r.decision || "approve",
+        typed: r.typed,
       },
     );
     return;
@@ -1006,7 +1107,7 @@ async function runRequest(payload, context = {}) {
   let data = null;
   let failure = null;
   try {
-    data = kit.preview ? await demoRespond(body) : await callApi(body);
+    data = kit.preview ? await demoRespond(body, context) : await callApi(body);
   } catch (error) {
     failure = error || new Error("McAssist couldn't complete that.");
   }
@@ -1017,20 +1118,50 @@ async function runRequest(payload, context = {}) {
   renderViews();
 }
 
-function applyResponse(data, context) {
-  const results = cleanResults(data.results);
-  if (context.planItemId) {
-    const plan = findItem(context.planItemId);
-    if (plan) {
-      let status = context.decision === "cancel" ? "cancelled" : "approved";
-      if (context.decision !== "cancel" && results.length) {
-        const ok = results.filter((r) => r.ok).length;
-        status =
-          ok === 0 ? "failed" : ok < results.length ? "partial" : "approved";
-      }
-      plan.decision = { status, at: Date.now(), results };
+// Resolves the plan card a response belongs to. A plan answer always carries
+// `results` (an empty array for a cancel), which is also how a typed "yes"
+// that the server resolved is recognised.
+function resolvedPlanFor(data, context) {
+  const hasResults = Array.isArray(data.results);
+  let plan = context.planItemId ? findItem(context.planItemId) : null;
+  if (context.typed && !hasResults) {
+    // The server treated the reply as an ordinary message: unlock the card.
+    if (plan?.decision?.status === "working") {
+      plan.decision = undefined;
       bump(plan);
     }
+    return null;
+  }
+  if (!plan && hasResults)
+    plan =
+      [...items()]
+        .reverse()
+        .find(
+          (item) =>
+            item.pending &&
+            (!item.decision || item.decision.status === "working"),
+        ) || null;
+  if (!plan?.pending) return null;
+  const decision =
+    context.planItemId && !context.typed
+      ? context.decision
+      : hasResults && !data.results.length
+        ? "cancel"
+        : "approve";
+  return { plan, decision };
+}
+
+function applyResponse(data, context) {
+  const results = cleanResults(data.results);
+  const resolved = resolvedPlanFor(data, context);
+  if (resolved) {
+    const { plan, decision } = resolved;
+    plan.decision = {
+      status: planStatusFor(plan, decision, results),
+      at: Date.now(),
+      results,
+    };
+    bump(plan);
   }
   const reply = {
     role: "assistant",
@@ -1047,30 +1178,55 @@ function applyResponse(data, context) {
   const suggestions = strings(data.suggestions, 4, 120);
   if (suggestions.length) reply.suggestions = suggestions;
   const pending = cleanPending(data.pending);
-  if (pending) reply.pending = pending;
+  if (pending) {
+    reply.pending = pending;
+    // One live plan at a time: older unresolved cards are now replaced.
+    supersedeOlderPlans(reply);
+  }
   if (kit.preview && typeof data._note === "string") reply.note = data._note;
   pushItem(reply);
-  if (data.dataChanged) {
-    try {
-      kit.invalidateData();
-    } catch {
-      /* optional */
-    }
-    window.dispatchEvent(
-      new CustomEvent("mcassist:data-changed", {
-        detail: { preview: kit.preview || null },
-      }),
-    );
-  }
+  if (data.dataChanged) announceDataChange();
+  // A plan waiting for approval always wins over navigation.
   if (data.uiAction && !reply.pending) handleUiAction(data.uiAction);
+}
+
+// Something changed in the restaurant data: refresh the shared cache (live)
+// and tell the page so it re-renders in place.
+function announceDataChange() {
+  const preview = Boolean(kit.preview);
+  const fire = () => {
+    window.dispatchEvent(
+      new CustomEvent("mcassist:data-changed", { detail: { preview } }),
+    );
+    // The page re-renders underneath: re-check what the launcher sits on.
+    setTimeout(checkLauncherCollision, 120);
+  };
+  if (preview) {
+    fire();
+    return;
+  }
+  Promise.resolve()
+    .then(() => kit.loadData?.(true))
+    .catch(() => null)
+    .then(fire);
+}
+
+function planFailureState(status, message) {
+  if (status === 410) return "expired";
+  if (status === 404) return "gone";
+  if (/newer|replaced|superseded/i.test(message)) return "superseded";
+  if (/cancel/i.test(message)) return "cancelled";
+  return "handled";
 }
 
 function applyFailure(error, payload, context) {
   const status = Number(error?.status) || 0;
   const plan = context.planItemId ? findItem(context.planItemId) : null;
-  if (plan && (status === 404 || status === 410)) {
+  if (plan && [404, 409, 410].includes(status)) {
+    // The plan can't be resolved any more (expired, replaced, already
+    // applied): lock the card and answer kindly, no retry.
     plan.decision = {
-      status: status === 410 ? "expired" : "gone",
+      status: planFailureState(status, String(error.message || "")),
       at: Date.now(),
       results: [],
     };
@@ -1098,6 +1254,7 @@ function applyFailure(error, payload, context) {
       planItemId: context.planItemId || null,
       decision: context.decision || null,
       excludeId: context.excludeId || null,
+      typed: Boolean(context.typed),
     },
   });
 }
@@ -1642,6 +1799,7 @@ function bindGlobals() {
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
       fitPanel();
+      if (!isPhone()) document.getElementById("mcaLauncher")?.classList.remove("is-away");
       positionLauncher();
       fitDrawerViewport();
     });
@@ -1649,16 +1807,26 @@ function bindGlobals() {
   window.addEventListener("resize", onResize);
   window.addEventListener("orientationchange", onResize);
   let scrollFrame = 0;
+  let settle = 0;
   window.addEventListener(
     "scroll",
     () => {
-      if (scrollFrame) return;
-      scrollFrame = requestAnimationFrame(() => {
-        scrollFrame = 0;
-        checkLauncherCollision();
-      });
+      if (!document.getElementById("mcaLauncher")) return;
+      if (!scrollFrame)
+        scrollFrame = requestAnimationFrame(() => {
+          scrollFrame = 0;
+          updateLauncherScroll();
+          // Throttled while moving, then once more when scrolling settles.
+          if (Date.now() - (S.launcherCheckedAt || 0) > 90) checkLauncherCollision();
+        });
+      clearTimeout(settle);
+      settle = setTimeout(checkLauncherCollision, 160);
     },
     { passive: true },
+  );
+  // Pages re-render in place after McAssist changes data or live updates.
+  window.addEventListener("portal:render", () =>
+    setTimeout(checkLauncherCollision, 80),
   );
   window.visualViewport?.addEventListener("resize", fitDrawerViewport);
   window.visualViewport?.addEventListener("scroll", fitDrawerViewport);
@@ -1714,66 +1882,223 @@ export function renderAssistant(data, k) {
       if (view) fillInput(view, button.dataset.mcaFill);
     });
   });
-  createView(content.querySelector(".mca-panel-page"), "page");
+  const view = createView(content.querySelector(".mca-panel-page"), "page");
   fitPanel();
   requestAnimationFrame(fitPanel);
+  const prompt = takePromptParam();
+  if (prompt) fillInput(view, prompt);
+}
+
+// main.html?view=assistant&prompt=… (e.g. training's Team progress links)
+// pre-fills the composer without sending, then drops the parameter so a
+// reload or a shared link never re-applies it.
+function takePromptParam() {
+  let url;
+  try {
+    url = new URL(location.href);
+  } catch {
+    return "";
+  }
+  if (!url.searchParams.has("prompt")) return "";
+  const text = String(url.searchParams.get("prompt") || "")
+    .replace(/\r\n?/g, "\n")
+    .trim()
+    .slice(0, 2000);
+  url.searchParams.delete("prompt");
+  try {
+    history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+  } catch {
+    /* Older browsers: the parameter simply stays in the address bar. */
+  }
+  return text;
 }
 
 // ---------------------------------------------------------------------------
 // Public: floating launcher + slide-over drawer on every other page
 // ---------------------------------------------------------------------------
+// The launcher's bottom is owned by CSS: calc(22px + var(--dock-offset)),
+// which already includes the phone tab bar and the safe area.
 function positionLauncher() {
   const launcher = document.getElementById("mcaLauncher");
   if (!launcher) return;
-  const lift = navLift();
-  const value = lift ? lift + 14 + "px" : "";
-  if (launcher.style.getPropertyValue("--mca-bottom") !== value) {
-    if (value) launcher.style.setProperty("--mca-bottom", value);
-    else launcher.style.removeProperty("--mca-bottom");
-  }
+  launcher.style.removeProperty("--mca-bottom");
   checkLauncherCollision();
 }
 
-// The launcher must never sit on top of a page control. When a button, link
-// or field is underneath its resting spot it slides aside into a small tab at
-// the screen edge (still tappable) and comes back once the way is clear.
+// The launcher must never cover page content. Three resting states:
+//   full     nothing under its spot
+//   .is-peek something under it: a compact circle hugging the screen edge
+//            (inside the page gutter, always fully on screen)
+//   .is-covered  content under both spots: it steps aside until the way is
+//            clear again (the nav's McAssist link is always there too)
+// On phones it also hides while scrolling down and returns on scroll up
+// (.is-away). Keep PEEK in step with the .is-peek rules in mcassist.css.
+const PEEK = {
+  phone: { shift: 12, scale: 0.846 },
+  wide: { shift: 16, scale: 0.85 },
+};
 const INTERACTIVE =
   "a[href], button, input, select, textarea, summary, label, [role='button'], [role='tab'], [role='link'], [role='checkbox'], [role='switch']";
+const MEDIA =
+  "img, svg, video, canvas, picture, iframe, input, select, textarea, progress, meter";
+const isPhone = () =>
+  window.matchMedia?.("(max-width: 760px)").matches ?? window.innerWidth <= 760;
+
+function launcherSpots(launcher) {
+  const phone = isPhone();
+  // offset* ignore transforms, so these are the resting position even while
+  // the launcher is peeking or stepping aside. It is anchored by its right
+  // edge, so that edge never moves.
+  const right = launcher.offsetLeft + launcher.offsetWidth;
+  const top = launcher.offsetTop;
+  const h = launcher.offsetHeight;
+  let width = h;
+  if (!phone) {
+    const cl = launcher.classList;
+    if (!cl.contains("is-peek")) S.launcherWidth = launcher.offsetWidth;
+    else if (!S.launcherWidth) {
+      // Label hidden while peeking: measure the full pill once.
+      cl.remove("is-peek");
+      S.launcherWidth = launcher.offsetWidth;
+      cl.add("is-peek");
+    }
+    width = S.launcherWidth || launcher.offsetWidth;
+  }
+  const rest = { left: right - width, right, top, bottom: top + h };
+  const p = phone ? PEEK.phone : PEEK.wide;
+  const size = h * p.scale;
+  const middle = top + h / 2;
+  const peek = {
+    left: right + p.shift - size,
+    right: right + p.shift,
+    top: middle - size / 2,
+    bottom: middle + size / 2,
+  };
+  return { rest, peek };
+}
+
+// Is (x, y) inside the pill/circle drawn in rect (radius = half its height)?
+function insidePill(rect, x, y) {
+  const r = (rect.bottom - rect.top) / 2;
+  const cx = Math.min(Math.max(x, rect.left + r), rect.right - r);
+  const cy = rect.top + r;
+  return (x - cx) ** 2 + (y - cy) ** 2 <= (r + 1) * (r + 1);
+}
+
+function paintedBackground(style) {
+  if (style.backgroundImage && style.backgroundImage !== "none") return true;
+  const match = String(style.backgroundColor || "").match(/rgba?\(([^)]*)\)/);
+  if (!match) return false;
+  const parts = match[1].split(/[\s,/]+/).filter(Boolean);
+  return (parts.length > 3 ? parseFloat(parts[3]) : 1) > 0.04;
+}
+
+function textUnder(el, rect) {
+  for (const node of el.childNodes) {
+    if (node.nodeType !== 3 || !node.nodeValue.trim()) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    for (const r of range.getClientRects())
+      if (
+        r.width &&
+        r.right > rect.left &&
+        r.left < rect.right &&
+        r.bottom > rect.top &&
+        r.top < rect.bottom
+      )
+        return true;
+  }
+  return false;
+}
+
+// Content = controls, media, text, or small painted things (pills, chips,
+// avatars, badges, bars). Large surfaces such as card backgrounds are not.
+function isContent(el, rect) {
+  if (!el || el === document.body || el === document.documentElement) return false;
+  if (el.closest?.(".mobile-nav, .mca-drawer, #toast, .toast-stack")) return false;
+  const control = el.closest?.(INTERACTIVE);
+  if (control && control !== document.body) return true;
+  if (el.closest?.(MEDIA)) return true;
+  if (textUnder(el, rect)) return true;
+  const box = el.getBoundingClientRect();
+  // Taller boxes are surfaces (cards, tiles); their text is checked above.
+  if (box.height > 56) return false;
+  const style = getComputedStyle(el);
+  if (/^table/.test(style.display)) return false; // Cell shading, not content.
+  // Thin bars (progress, timeline shifts) and small rounded shapes (pills,
+  // chips, avatars, badges, icon tiles).
+  if (box.height <= 24) return paintedBackground(style);
+  const rounded =
+    parseFloat(style.borderTopLeftRadius) > 0 ||
+    parseFloat(style.borderBottomRightRadius) > 0;
+  if (!rounded || box.width > window.innerWidth * 0.6) return false;
+  return (
+    paintedBackground(style) ||
+    (parseFloat(style.borderTopWidth) > 0 &&
+      style.borderTopStyle !== "none" &&
+      paintedBackground({ backgroundColor: style.borderTopColor }))
+  );
+}
+
+function contentUnder(rect, launcher) {
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const vh = window.innerHeight;
+  const seen = new Set();
+  const steps = [0.08, 0.29, 0.5, 0.71, 0.92];
+  for (const fx of steps)
+    for (const fy of steps) {
+      const x = rect.left + fx * (rect.right - rect.left);
+      const y = rect.top + fy * (rect.bottom - rect.top);
+      if (x < 0 || y < 0 || x >= vw || y >= vh || !insidePill(rect, x, y)) continue;
+      for (const el of document.elementsFromPoint(x, y)) {
+        if (launcher.contains(el)) continue;
+        // Only the top-most surface under the launcher matters.
+        if (!seen.has(el)) {
+          seen.add(el);
+          if (isContent(el, rect)) return true;
+        }
+        break;
+      }
+    }
+  return false;
+}
+
 function checkLauncherCollision() {
   const launcher = document.getElementById("mcaLauncher");
   if (!launcher || typeof document.elementsFromPoint !== "function") return;
-  if (launcher.offsetParent === null && getComputedStyle(launcher).display === "none") return;
-  // offsetLeft/Top ignore transforms, so this is the resting position even
-  // while the launcher is peeking.
-  const x = launcher.offsetLeft;
-  const y = launcher.offsetTop;
-  const w = launcher.offsetWidth;
-  const h = launcher.offsetHeight;
-  if (!w || !h) return;
-  const points = [
-    [x + w / 2, y + h / 2],
-    [x + 6, y + 6],
-    [x + w - 6, y + 6],
-    [x + 6, y + h - 6],
-    [x + w - 6, y + h - 6],
-  ];
-  let blocked = false;
-  for (const [px, py] of points) {
-    if (px < 0 || py < 0 || px >= window.innerWidth || py >= window.innerHeight) continue;
-    for (const el of document.elementsFromPoint(px, py)) {
-      if (launcher.contains(el)) continue;
-      const hit = el.closest?.(INTERACTIVE);
-      if (hit && !hit.closest(".mobile-nav") && hit !== document.body) {
-        blocked = true;
-        break;
-      }
-      // Stop at the first opaque surface under the launcher.
-      if (el !== document.documentElement && el !== document.body) break;
-    }
-    if (blocked) break;
-  }
-  if (launcher.classList.contains("is-peek") !== blocked)
-    launcher.classList.toggle("is-peek", blocked);
+  S.launcherCheckedAt = Date.now();
+  if (!launcher.offsetWidth || !launcher.offsetHeight) return; // hidden
+  const { rest, peek } = launcherSpots(launcher);
+  const state = !contentUnder(rest, launcher)
+    ? "full"
+    : !contentUnder(peek, launcher)
+      ? "peek"
+      : "covered";
+  if (launcher.classList.contains("is-peek") !== (state === "peek"))
+    launcher.classList.toggle("is-peek", state === "peek");
+  if (launcher.classList.contains("is-covered") !== (state === "covered"))
+    launcher.classList.toggle("is-covered", state === "covered");
+}
+
+// Phones: out of the way while scrolling down (reading), back on scroll up,
+// at the top and at the very end of the page (where the page's extra bottom
+// padding keeps the spot clear).
+function updateLauncherScroll() {
+  const launcher = document.getElementById("mcaLauncher");
+  if (!launcher) return;
+  const y = Math.max(0, window.scrollY || window.pageYOffset || 0);
+  const last = S.lastScrollY ?? y;
+  const end =
+    Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) -
+    window.innerHeight;
+  let away = launcher.classList.contains("is-away");
+  if (!isPhone() || y < 48 || y >= end - 24) away = false;
+  else if (y - last > 8) away = true;
+  else if (last - y > 8) away = false;
+  else return; // Small movement: keep the current state and reference point.
+  S.lastScrollY = y;
+  if (launcher.classList.contains("is-away") !== away)
+    launcher.classList.toggle("is-away", away);
 }
 
 function updateLauncherBadge() {
@@ -1921,10 +2246,27 @@ export function installAssistantLauncher(data, k) {
     launcher.innerHTML = `<span class="mca-launcher-icon">${svg("spark")}</span><span class="mca-launcher-label">Ask McAssist</span><span class="mca-sr mca-launcher-sr"></span><span class="mca-launcher-badge" aria-hidden="true" hidden></span>`;
     launcher.addEventListener("click", openDrawer);
     document.body.appendChild(launcher);
+    S.lastScrollY = Math.max(0, window.scrollY || 0);
     bindGlobals();
-    // Re-check once entrance animations and late content have settled.
+    // Re-check once entrance animations and late content have settled, when
+    // the page changes size, and gently in the background (content can also
+    // move without resizing, e.g. entrance animations or live updates).
     setTimeout(checkLauncherCollision, 700);
     setTimeout(checkLauncherCollision, 1600);
+    if (typeof ResizeObserver === "function") {
+      let queued = 0;
+      new ResizeObserver(() => {
+        if (queued) return;
+        queued = requestAnimationFrame(() => {
+          queued = 0;
+          checkLauncherCollision();
+        });
+      }).observe(document.body);
+    }
+    setInterval(() => {
+      if (document.visibilityState === "visible" && !S.drawer?.dialog?.open)
+        checkLauncherCollision();
+    }, 1500);
   }
   positionLauncher();
   updateLauncherBadge();
@@ -2055,7 +2397,7 @@ function demoState() {
     live.team = Array.isArray(live.team) ? live.team : [];
     return live;
   }
-  const saved = readJSON("mc_preview_" + kit.preview, null);
+  const saved = kit.loadPreview?.();
   if (saved?.user) {
     saved.shifts = Array.isArray(saved.shifts) ? saved.shifts : [];
     saved.team = Array.isArray(saved.team) ? saved.team : [];
@@ -2071,14 +2413,7 @@ function demoState() {
 }
 
 function demoPersist(state) {
-  if (typeof kit.savePreview === "function") kit.savePreview(state);
-  else
-    writeJSON("mc_preview_" + kit.preview, {
-      user: state.user,
-      shifts: state.shifts,
-      team: state.team,
-      progress: state.progress,
-    });
+  kit.savePreview?.(state);
 }
 
 function demoPeople(state) {
@@ -2343,6 +2678,8 @@ function newPlan(record) {
   const plans = memRead(demoPlansKey(), {}) || {};
   for (const [key, value] of Object.entries(plans))
     if (!value || value.expiresAt < Date.now()) delete plans[key];
+    // Like the server: a newer plan replaces any plan still waiting.
+    else if (!value.supersededBy) value.supersededBy = id;
   plans[id] = record;
   memWrite(demoPlansKey(), plans);
   return id;
@@ -2350,12 +2687,20 @@ function newPlan(record) {
 
 // Demo answers take about as long as the real thing would, so the typing
 // indicator can show what McAssist is checking. Plans take a little longer.
-async function demoRespond(body) {
+async function demoRespond(body, context = {}) {
   const started = Date.now();
   const settle = async (ms) => pause(Math.max(0, ms - (Date.now() - started)));
-  if (body.confirm) {
+  // A typed "yes" / "cancel" right after a plan resolves it, like the server.
+  const typedPlan =
+    context.typed && context.planItemId ? findItem(context.planItemId) : null;
+  if (body.confirm || typedPlan?.pending) {
     await settle(1300);
-    return demoConfirm(body.confirm);
+    return demoConfirm(
+      body.confirm || {
+        pendingId: typedPlan.pending.id,
+        decision: context.decision === "cancel" ? "cancel" : "approve",
+      },
+    );
   }
   const text = String(body.message || "");
   const t = normText(text);
@@ -2465,10 +2810,14 @@ function demoRoute(text, t, state) {
       uiAction: { type: "openUrl", url: url.pathname + url.search, label: "the crew preview" },
     });
   }
-  if (planLive && /^(yes|yep|yeah|confirm|go ahead|do it|ok|okay|sure|approve)\b/.test(t))
+  if (planLive && /^(yes|yep|yeah|confirm|go ahead|do it|ok|okay|sure|approve)\b/.test(t)) {
+    const live = [...items()].reverse().find(planIsLive);
     return read(
-      "Tap the confirm button on the plan above to go ahead — I always wait for that button before changing anything important.",
+      live?.pending.risk === "high" && TYPED_CASUAL.test(t)
+        ? `This one can't be undone, so I need a clear yes — tap **${live.pending.confirmLabel}** on the plan above, or type "confirm".`
+        : `Tap **${live?.pending.confirmLabel || "the confirm button"}** on the plan above to go ahead — I always wait for your OK before changing anything important.`,
     );
+  }
   if (planLive && /^(no|nope|cancel|stop|don't|do not)\b/.test(t))
     return read("Tap the cancel button on the plan above and I'll drop it.");
 
@@ -3439,6 +3788,11 @@ function demoConfirm(confirm) {
       404,
       "That plan is no longer available, so nothing was changed. Ask again and I'll prepare a fresh one.",
     );
+  if (plan.supersededBy)
+    throw demoError(
+      409,
+      "That plan was replaced by a newer one, so nothing was changed. Use the latest plan card.",
+    );
   delete plans[confirm.pendingId];
   memWrite(demoPlansKey(), plans);
   if (plan.expiresAt < Date.now())
@@ -3449,6 +3803,8 @@ function demoConfirm(confirm) {
   if (confirm.decision === "cancel")
     return {
       reply: "No problem — I've cancelled that plan. Nothing was changed.",
+      results: [],
+      actions: [],
       suggestions: startersFor("page").slice(0, 2),
     };
   const state = demoState();
@@ -3575,5 +3931,8 @@ function demoConfirm(confirm) {
       suggestions: ["Show me the team"],
     };
   }
-  return { reply: "That plan type isn't part of the demo, so nothing was changed." };
+  return {
+    reply: "That plan type isn't part of the demo, so nothing was changed.",
+    results: [],
+  };
 }

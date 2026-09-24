@@ -37,6 +37,7 @@ import {
   sortTeam,
   whenLabel,
   stationStyle,
+  isInactive,
 } from "./pages-views.js";
 
 let ctx = null;
@@ -397,6 +398,7 @@ export function bindPage(page, c) {
   if (page === "team") bindTeamFilters(root);
   if (page === "availability") bindAvailability();
   if (page === "manage") consumeDeepLink();
+  refreshShiftEditor();
 }
 
 function setWeek(offset) {
@@ -453,14 +455,33 @@ function defaultStation(member) {
   return verified[0] || (member ? "Training" : "Front Counter");
 }
 
+// The open shift editor, so a live team update can refresh its member list.
+let openEditor = null;
+function refreshShiftEditor() {
+  if (openEditor?.form.isConnected && $("pgSheet")?.open) openEditor.refresh();
+  else openEditor = null;
+}
+
 export function openShiftEditor({ shift = null, memberId = "", date = "" } = {}) {
   const s = ctx.state;
   if (!ctx.isManager()) return;
-  const team = sortTeam(s.team).filter(
-    (m) => String(m.status || "").toLowerCase() !== "inactive" || m.id === shift?.userId,
-  );
+  // Deactivated people can't be given new shifts (an existing shift of theirs
+  // can still be edited or removed).
+  const pickable = () =>
+    sortTeam(ctx.state.team).filter((m) => !isInactive(m) || m.id === shift?.userId);
+  let team = pickable();
+  // Signed in, the team arrives on its own live listener, which can land
+  // after the planner opens. The list fills in (and unlocks) when it does.
+  const loadingTeam = () => !team.length && !ctx.state.teamLoaded;
+  const optionsHTML = () =>
+    loadingTeam()
+      ? '<option value="">Loading your team…</option>'
+      : `<option value="">Choose a team member</option>${team
+          .map((m) => `<option value="${esc(m.id)}">${esc(m.name || "Team member")} · ${esc(roleLabel(m.role))}</option>`)
+          .join("")}`;
   const editing = Boolean(shift);
-  const member = team.find((m) => m.id === (shift?.userId || memberId)) || null;
+  const wanted = shift?.userId || memberId;
+  const member = team.find((m) => m.id === wanted) || null;
   const today = isoDate();
   const viewed = weekDates(s.offset || 0);
   const day =
@@ -470,11 +491,9 @@ export function openShiftEditor({ shift = null, memberId = "", date = "" } = {})
   const times = editing ? { start: shift.start, end: shift.end } : suggestTimes(member, day);
   const station = shift?.station || defaultStation(member);
   const brk = editing ? Number(shift.breakMinutes) || 0 : 30;
-  const memberOptions = team
-    .map((m) => `<option value="${esc(m.id)}">${esc(m.name || "Team member")} · ${esc(roleLabel(m.role))}</option>`)
-    .join("");
+  let optionsShown = optionsHTML();
   const stations = STATIONS.includes(station) ? STATIONS : [station, ...STATIONS];
-  const body = `<form id="pgShiftForm" class="pg-shift-form" novalidate><div class="pg-form-grid"><label class="pg-field pg-span-2"><span>Team member</span><select name="member" required><option value="">Choose a team member</option>${memberOptions}</select></label><label class="pg-field"><span>Date</span><input type="date" name="date" required value="${esc(day)}"></label><label class="pg-field"><span>Station</span><select name="station">${stations.map((x) => `<option>${esc(x)}</option>`).join("")}</select></label><label class="pg-field"><span>Starts</span><input type="time" name="start" required step="300" value="${esc(times.start)}"></label><label class="pg-field"><span>Finishes</span><input type="time" name="end" required step="300" value="${esc(times.end)}"></label><label class="pg-field"><span>Unpaid break</span><select name="breakMinutes">${[0, 15, 20, 30, 45, 60]
+  const body = `<form id="pgShiftForm" class="pg-shift-form" novalidate><div class="pg-form-grid"><label class="pg-field pg-span-2"><span>Team member</span><select name="member" required${loadingTeam() ? " disabled" : ""}>${optionsShown}</select></label><label class="pg-field"><span>Date</span><input type="date" name="date" required value="${esc(day)}"></label><label class="pg-field"><span>Station</span><select name="station">${stations.map((x) => `<option>${esc(x)}</option>`).join("")}</select></label><label class="pg-field"><span>Starts</span><input type="time" name="start" required step="300" value="${esc(times.start)}"></label><label class="pg-field"><span>Finishes</span><input type="time" name="end" required step="300" value="${esc(times.end)}"></label><label class="pg-field"><span>Unpaid break</span><select name="breakMinutes">${[0, 15, 20, 30, 45, 60]
     .map((n) => `<option value="${n}">${n ? n + " minutes" : "No break"}</option>`)
     .join("")}</select></label><div class="pg-field pg-quick"><span>Quick times</span><div class="pg-quick-times" role="group" aria-label="Quick times"><button type="button" class="pg-chip" data-times="avail">Match availability</button>${[
     ["06:00", "14:00"],
@@ -523,11 +542,13 @@ export function openShiftEditor({ shift = null, memberId = "", date = "" } = {})
     const warnings = editing
       ? check.warnings.filter((w) => !(w === "This date has already passed." && d.date === shift.date))
       : check.warnings;
-    const list = [
-      ...check.errors.map((t) => `<li class="err">${ic("alert")}<span>${esc(t)}</span></li>`),
-      ...warnings.map((t) => `<li class="warn">${ic("alert")}<span>${esc(t)}</span></li>`),
-      ...check.notes.map((t) => `<li class="note">${ic("shield")}<span>${esc(t)}</span></li>`),
-    ];
+    const list = loadingTeam()
+      ? [`<li class="note">${ic("team")}<span>Loading your team. The list fills in as soon as it arrives.</span></li>`]
+      : [
+          ...check.errors.map((t) => `<li class="err">${ic("alert")}<span>${esc(t)}</span></li>`),
+          ...warnings.map((t) => `<li class="warn">${ic("alert")}<span>${esc(t)}</span></li>`),
+          ...check.notes.map((t) => `<li class="note">${ic("shield")}<span>${esc(t)}</span></li>`),
+        ];
     if (!check.errors.length && !warnings.length && d.userId)
       list.unshift(`<li class="ok">${ic("check")}<span>No clashes, within availability and enough rest.</span></li>`);
     const rate = rateOf(d.person);
@@ -546,7 +567,7 @@ export function openShiftEditor({ shift = null, memberId = "", date = "" } = {})
         .sort((x, y) => (x.date + x.start).localeCompare(y.date + y.start));
       setHTML($("pgShiftContext"), `<div class="pg-ctx av-${a.status}"><small>${esc(dateMed(d.date))} availability</small><b>${a.status === "on" ? esc(a.windows.map((w) => `${w.start}–${w.end}`).join(", ")) : a.status === "off" ? "Unavailable" : "Not set"}</b></div><div class="pg-ctx"><small>Nearby shifts</small><b>${same.length ? same.map((x) => `${esc(dateMed(x.date))} ${esc(x.start)}–${esc(x.end)}`).join("<br>") : "None"}</b></div>`);
     } else setHTML($("pgShiftContext"), "");
-    const blocked = busy || check.errors.length > 0;
+    const blocked = busy || check.errors.length > 0 || loadingTeam();
     if (submit.disabled !== blocked) submit.disabled = blocked;
     setText(
       submit,
@@ -558,6 +579,35 @@ export function openShiftEditor({ shift = null, memberId = "", date = "" } = {})
   };
   form.addEventListener("input", update);
   form.addEventListener("change", update);
+  let chosen = false,
+    timesEdited = false;
+  el.member.addEventListener("change", () => (chosen = true));
+  el.start.addEventListener("input", () => (timesEdited = true));
+  el.end.addEventListener("input", () => (timesEdited = true));
+  // Live team update while the editor is open (bindPage calls this).
+  const refreshTeam = () => {
+    team = pickable();
+    const html = optionsHTML();
+    if (html === optionsShown) return;
+    optionsShown = html;
+    const keep = el.member.value || (chosen ? "" : wanted);
+    el.member.innerHTML = html;
+    el.member.disabled = loadingTeam();
+    const found = team.find((m) => m.id === keep) || null;
+    el.member.value = found ? keep : "";
+    // The person this editor was opened for has just arrived: suggest their
+    // usual times and station, unless the manager already set them.
+    if (!editing && found && keep === wanted && !member && !timesEdited) {
+      const times = suggestTimes(found, el.date.value);
+      el.start.value = times.start;
+      el.end.value = times.end;
+      const preferred = defaultStation(found);
+      if ([...el.station.options].some((o) => o.value === preferred))
+        el.station.value = preferred;
+    }
+    update();
+  };
+  openEditor = { form, refresh: refreshTeam };
   form.querySelectorAll("[data-times]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -574,6 +624,7 @@ export function openShiftEditor({ shift = null, memberId = "", date = "" } = {})
         }
         el.start.value = times[0];
         el.end.value = times[1];
+        timesEdited = true;
         update();
       }),
   );
@@ -651,12 +702,16 @@ export function openCopyWeek() {
   const offset = s.offset || 0;
   const target = weekDates(offset),
     source = weekDates(offset - 1);
+  // Deactivated people are left out: their shifts are skipped, not copied.
   const plan = planCopy({
     source: s.shifts.filter((x) => source.includes(x.date)),
     existing: s.shifts,
-    team: s.team,
+    team: (s.team || []).filter((m) => !isInactive(m)),
     days: 7,
   });
+  const inactiveIds = new Set((s.team || []).filter(isInactive).map((m) => m.id));
+  for (const x of plan.skipped)
+    if (inactiveIds.has(x.shift?.userId)) x.reason = "account deactivated";
   const row = (x, reason = "") =>
     `<li><span class="pg-station-dot" style="${stationStyle(x.station)}" aria-hidden="true"></span><span class="grow"><b>${esc(x.userName)}</b><small>${esc(dateMed(x.date))} · ${esc(x.start)}–${esc(x.end)} · ${esc(x.station || "Station TBC")}</small></span>${reason ? `<em>${esc(reason)}</em>` : ""}</li>`;
   const body = `<p class="pg-muted">Copies every shift from <b>${esc(weekRangeLabel(source))}</b> into <b>${esc(weekRangeLabel(target))}</b>. Anything that would clash, fall outside availability or land in the past is skipped.</p><div class="pg-copy-sum"><div class="ok"><b>${plan.create.length}</b><small>to copy</small></div><div class="skip"><b>${plan.skipped.length}</b><small>skipped</small></div></div>${
@@ -1118,18 +1173,13 @@ export function updateBell(c) {
   if (!button || !c.state.user) return;
   if (!bellInstalled) {
     bellInstalled = true;
-    // Capture phase so the panel wins over any handler the shell attaches.
-    document.addEventListener(
-      "click",
-      (event) => {
-        const target = event.target.closest?.("#notifications");
-        if (!target) return;
-        event.preventDefault();
-        event.stopPropagation();
-        openNotifications();
-      },
-      true,
-    );
+    // The only handler for the bell. Delegated, because the shell (and so the
+    // button) is rebuilt when the role or name changes.
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest?.("#notifications")) return;
+      event.preventDefault();
+      openNotifications();
+    });
   }
   const items = notificationItems(c);
   const seen = loadSeen();

@@ -235,7 +235,12 @@ test("invalid bodies and oversized states are rejected before the upstream", asy
     [{}, 400],
     ["{not json", 400],
     [[1, 2], 400],
-    [{ state: { notes: "x".repeat(750_001) } }, 413],
+    [{ state: { nope: 1 } }, 400],
+    [{ state: { ...sampleState(), items: {} } }, 400],
+    [{ state: { ...sampleState(), counts: [] } }, 400],
+    [{ state: { ...sampleState(), history: null } }, 400],
+    [{ state: { ...sampleState(), draft: "Close" } }, 400],
+    [{ state: { ...sampleState(), notes: "x".repeat(750_001) } }, 413],
     [{ action: "drop-table" }, 400],
     [{ action: 7 }, 400],
   ];
@@ -249,8 +254,8 @@ test("invalid bodies and oversized states are rejected before the upstream", asy
 });
 
 test("a state exactly at the 750 KB limit is accepted", async () => {
-  const base = JSON.stringify({ notes: "" }).length;
-  const state = { notes: "y".repeat(750_000 - base) };
+  const base = JSON.stringify({ ...sampleState(), notes: "" }).length;
+  const state = { ...sampleState(), notes: "y".repeat(750_000 - base) };
   assert.equal(JSON.stringify(state).length, 750_000);
   const result = await call(handler(), { method: "POST", body: { state } });
   assert.equal(result.status, 200);
@@ -344,7 +349,8 @@ test("unsupported methods are refused", async () => {
 
 test("server helpers validate before contacting the upstream", async () => {
   await assert.rejects(storeModule.writeWasteState([]), (e) => e.status === 400);
-  await assert.rejects(storeModule.writeWasteState({ big: "z".repeat(760_000) }), (e) => e.status === 413);
+  await assert.rejects(storeModule.writeWasteState({ big: 1 }), (e) => e.status === 400);
+  await assert.rejects(storeModule.writeWasteState({ ...sampleState(), big: "z".repeat(760_000) }), (e) => e.status === 413);
   await assert.rejects(storeModule.wastePinAction("pin-drop"), (e) => e.status === 400);
   assert.equal(upstream.requests.length, 0);
   const { updatedAt } = await storeModule.writeWasteState(sampleState());

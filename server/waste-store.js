@@ -122,8 +122,21 @@ function isRecord(value) {
   return value === null || (typeof value === "object" && !Array.isArray(value));
 }
 
+const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+// The shared record is read by the hub, the standalone app and its APK, so a
+// write must keep the shape they all expect: an item list, a counts map and a
+// history list (plus an optional draft). Anything else (a stray object, a
+// buggy client) would wipe or break every other device's copy. Entries are
+// left to the clients, which already read them defensively.
 export function isValidWasteState(state) {
-  return Boolean(state) && typeof state === "object" && !Array.isArray(state);
+  return (
+    isPlainObject(state) &&
+    Array.isArray(state.items) &&
+    isPlainObject(state.counts) &&
+    Array.isArray(state.history) &&
+    (state.draft === undefined || state.draft === null || isPlainObject(state.draft))
+  );
 }
 
 export function wasteStateSize(state) {

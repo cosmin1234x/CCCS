@@ -3,7 +3,7 @@
 // mode never reads from or writes to Firebase.
 import { weekDates } from "./portal-core.js";
 
-export const PREVIEW_VERSION = 4;
+export const PREVIEW_VERSION = 5;
 const KEY = (role) => `mc_preview_v${PREVIEW_VERSION}_${role}`;
 const DAY = 864e5;
 
@@ -503,11 +503,32 @@ export function buildPreviewData(role = "crew", now = new Date()) {
     "order-presenting",
     ...(manager ? ["manager-shift-planning"] : []),
   ];
+  // The two most recent completions are today and yesterday (worked out when
+  // the sample is built), so the learning hub shows a live streak and some
+  // activity in "This week".
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const todayAt = Math.min(
+    t,
+    Math.max(startOfToday.getTime() + 60e3, t - 50 * 60e3),
+  );
+  const yesterday = new Date(startOfToday);
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(18, 30, 0, 0);
+  const yesterdayAt = yesterday.getTime();
+  const recent = [yesterdayAt, todayAt];
   const progress = Object.fromEntries(
-    ownModules.map((id, i) => [
-      id,
-      { completed: true, xp: 100, completedAt: doneAt(i) },
-    ]),
+    ownModules.map((id, i) => {
+      const fromEnd = ownModules.length - 1 - i;
+      return [
+        id,
+        {
+          completed: true,
+          xp: 100,
+          completedAt: fromEnd < 2 ? recent[1 - fromEnd] : doneAt(i),
+        },
+      ];
+    }),
   );
 
   // Crew accounts only ever see their own shifts, recognition and sign-offs.

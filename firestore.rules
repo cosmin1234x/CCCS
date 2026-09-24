@@ -44,7 +44,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Sign-up: always Crew, no stars, pay, notes or verified stations.
+      // Sign-up: always Crew, no stars, pay, notes or verified stations. The
+      // store's display name is filled in by the server (/api/portal-data).
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.role == 'crew'
@@ -55,7 +56,7 @@ service cloud.firestore {
         && request.resource.data.storeId.size() <= 80
         && !request.resource.data.keys().hasAny([
           'hourlyRate', 'badge', 'notes', 'status', 'roleApprovedBy',
-          'roleApprovedAt', 'lastVerificationAt', 'updatedBy'
+          'roleApprovedAt', 'lastVerificationAt', 'updatedBy', 'storeName'
         ]);
 
       allow read: if signedIn()
@@ -72,9 +73,9 @@ service cloud.firestore {
           (
             request.auth.uid == userId
             && !changed().hasAny([
-              'role', 'storeId', 'stars', 'verifiedStations', 'hourlyRate',
-              'badge', 'notes', 'status', 'roleApprovedBy', 'roleApprovedAt',
-              'lastVerificationAt', 'updatedBy'
+              'role', 'storeId', 'storeName', 'stars', 'verifiedStations',
+              'hourlyRate', 'badge', 'notes', 'status', 'roleApprovedBy',
+              'roleApprovedAt', 'lastVerificationAt', 'updatedBy'
             ])
             && (!changed().hasAny(['roleRequestStatus'])
               || request.resource.data.roleRequestStatus == 'pending')

@@ -178,6 +178,39 @@ async function press(locator) {
 const syncLabel = (page) => page.locator("#wasteSyncLabel");
 const noOverflow = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
+// Where the Save dock is: its slot (#wasteDock, sticky), the visible bar
+// inside it (which slides away while tucked) and what it must not cover.
+const dockState = (page) =>
+  page.evaluate(() => {
+    const dock = document.getElementById("wasteDock");
+    const bar = dock.querySelector(".waste-dock-bar");
+    const slot = dock.getBoundingClientRect();
+    const barRect = bar.getBoundingClientRect();
+    const nav = document.querySelector(".mobile-nav");
+    const navTop = nav && getComputedStyle(nav).display !== "none" ? nav.getBoundingClientRect().top : innerHeight;
+    return {
+      tucked: dock.hasAttribute("data-tucked"),
+      floating: dock.dataset.floating === "true",
+      opacity: getComputedStyle(bar).opacity,
+      slotTop: slot.top,
+      barTop: barRect.top,
+      barBottom: barRect.bottom,
+      barHeight: barRect.height,
+      controlsBottom: document.querySelector(".waste-list-head").getBoundingClientRect().bottom,
+      actionsBottom: document.querySelector(".waste-actions").getBoundingClientRect().bottom,
+      navTop,
+    };
+  });
+// Let the scroll handler run and the dock's slide transition finish.
+async function settleDock(page) {
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 60)))),
+  );
+  await page
+    .locator("#wasteDock .waste-dock-bar")
+    .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+}
+
 // ---------------------------------------------------------------- tests
 test("counts with fast +/- controls, saves the sheet and syncs through /api/waste", async ({ page }) => {
   await signedIn(page, "crew");
@@ -525,6 +558,14 @@ test("layout fits the screen with touch-friendly controls on every tab", async (
   await wasteApi(page, { state: sharedState() });
   await page.goto("/waste.html");
   await expect(syncLabel(page)).toHaveText("Cloud synced");
+  // Once synced nothing loops forever (the sync dot only pulses while syncing).
+  const endless = await page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((a) => a.effect?.getTiming().iterations === Infinity && document.getElementById("wasteApp")?.contains(a.effect.target))
+      .map((a) => a.animationName || "?"),
+  );
+  expect(endless).toEqual([]);
   for (const tab of ["Count", "Graphics", "History"]) {
     await press(page.getByRole("tab", { name: tab }));
     await page.waitForTimeout(250);
@@ -547,24 +588,195 @@ test("layout fits the screen with touch-friendly controls on every tab", async (
   expect(metrics.minFont, "inputs below 16px make iOS zoom in").toBeGreaterThanOrEqual(16);
   expect(metrics.rowsInside).toBeTruthy();
   expect(metrics.save.height).toBeGreaterThanOrEqual(44);
-  // The Save dock stays visible while scrolling and above the bottom navigation.
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 3));
-  await page.waitForTimeout(250);
-  const dock = await page.evaluate(() => {
-    const rect = document.getElementById("wasteDock").getBoundingClientRect();
-    const nav = document.querySelector(".mobile-nav");
-    const navTop = nav && getComputedStyle(nav).display !== "none" ? nav.getBoundingClientRect().top : innerHeight;
-    return { top: rect.top, bottom: rect.bottom, navTop, innerHeight };
-  });
-  expect(dock.bottom).toBeLessThanOrEqual(dock.navTop + 1);
-  expect(dock.top).toBeGreaterThan(0);
-  // Dialogs fit on screen.
-  await press(page.getByRole("button", { name: "Manage items" }));
-  const box = await page.getByRole("dialog", { name: "Manage waste items" }).boundingBox();
   const viewport = page.viewportSize();
+  const phone = viewport.width < 761;
+
+  // The Save dock never covers the controls above the item rows (RAW/FULL,
+  // menu period, search, filters, categories): on a first view where
+  // floating would hide them, it steps aside.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await settleDock(page);
+  let dock = await dockState(page);
+  expect(dock.tucked || dock.controlsBottom <= dock.slotTop + 1, "dock covers the RAW/FULL and filter controls").toBeTruthy();
+
+  // Among the rows it floats, visible and above the bottom navigation.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 3));
+  await settleDock(page);
+  dock = await dockState(page);
+  expect(dock.tucked).toBe(false);
+  expect(dock.opacity).toBe("1");
+  expect(dock.barBottom).toBeLessThanOrEqual(dock.navTop + 1);
+  expect(dock.barTop).toBeGreaterThan(0);
+  expect(dock.controlsBottom).toBeLessThanOrEqual(dock.barTop + 1);
+  if (phone) {
+    // One compact line on phones: TOTAL · status · Save.
+    expect(dock.barHeight).toBeLessThanOrEqual(60);
+    await expect(page.locator("#wasteDockShort")).toHaveText("Not saved yet");
+    await expect(page.locator("#wasteDockShort")).toBeVisible();
+  }
+
+  // At the end of the page it rests in its own slot: the notes and the
+  // Clear / Print / Download actions are never left underneath it.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await settleDock(page);
+  dock = await dockState(page);
+  expect(dock.floating).toBe(false);
+  expect(dock.tucked).toBe(false);
+  expect(dock.actionsBottom).toBeLessThanOrEqual(dock.barTop + 1);
+  expect(dock.barBottom).toBeLessThanOrEqual(dock.navTop + 1);
+
+  // Dialogs fit on screen once their open animation has finished.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await press(page.getByRole("button", { name: "Manage items" }));
+  const dialog = page.getByRole("dialog", { name: "Manage waste items" });
+  await expect(dialog).toBeVisible();
+  await dialog.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+  const box = await dialog.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
-  // Phones get a full-width bottom sheet.
-  if (viewport.width < 761) expect(box.width).toBeGreaterThanOrEqual(viewport.width - 1);
+  if (phone) {
+    // Phones get a full-width bottom sheet resting flush on the bottom edge.
+    expect(box.width).toBeGreaterThanOrEqual(viewport.width - 1);
+    expect(Math.abs(box.y + box.height - viewport.height)).toBeLessThanOrEqual(1);
+  }
+});
+
+test("the dock appears once counting starts and keyboard focus always reveals it", async ({ page }) => {
+  await signedIn(page, "crew");
+  await wasteApi(page, { state: sharedState({ counts: {} }) });
+  await page.goto("/waste.html");
+  await expect(syncLabel(page)).toHaveText("Cloud synced");
+  // At the top the hero already shows the totals, so the dock stays out of
+  // the way of the first rows.
+  await settleDock(page);
+  let dock = await dockState(page);
+  if (dock.floating) expect(dock.tucked).toBe(true);
+  // Well into the list, with nothing counted yet there is nothing to save.
+  const item = defaultItems().filter((i) => i.type === "raw")[11].name;
+  const add = page.getByRole("button", { name: `Add one ${item}` });
+  await add.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await settleDock(page);
+  dock = await dockState(page);
+  expect(dock.floating).toBe(true);
+  expect(dock.tucked).toBe(true);
+  // The first count brings it in.
+  await add.click();
+  await expect(page.locator("#wasteDockTotal")).toHaveText("1");
+  await settleDock(page);
+  dock = await dockState(page);
+  expect(dock.tucked).toBe(false);
+  expect(dock.opacity).toBe("1");
+  // Back at the top the dock steps aside if it would cover the selectors, but
+  // moving keyboard focus to Save brings it straight back.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await settleDock(page);
+  await page.locator("#wasteSaveBtn").focus();
+  await settleDock(page);
+  dock = await dockState(page);
+  expect(dock.opacity).toBe("1");
+  expect(dock.barBottom).toBeLessThanOrEqual(dock.navTop + 1);
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#toast")).toContainText("Waste sheet saved");
+  await expect(page.locator("#wasteDockState")).toContainText("Saved at");
+  // The confirmation toast rises above the dock instead of covering Save.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const toast = [...document.querySelectorAll("#toast .toast")].pop();
+        const bar = document.querySelector(".waste-dock-bar").getBoundingClientRect();
+        if (!toast) return "no toast";
+        const t = toast.getBoundingClientRect();
+        return Math.min(t.bottom, bar.bottom) - Math.max(t.top, bar.top) <= 0 ? "clear" : "overlaps";
+      }),
+    )
+    .toBe("clear");
+});
+
+test("keyboard moves between Count, Graphics and History and out to the hub navigation", async ({ page }) => {
+  await signedIn(page, "crew");
+  await wasteApi(page, { state: sharedState() });
+  await page.goto("/waste.html");
+  await expect(syncLabel(page)).toHaveText("Cloud synced");
+  const tab = (name) => page.getByRole("tab", { name });
+  await tab("Count").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(tab("Graphics")).toBeFocused();
+  await expect(tab("Graphics")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tabpanel", { name: "Graphics" })).toBeVisible();
+  await expect(page).toHaveURL(/#graphics$/);
+  await page.keyboard.press("End");
+  await expect(tab("History")).toBeFocused();
+  await expect(page.getByRole("tabpanel", { name: "History" })).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(tab("Count")).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(tab("History")).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(tab("Count")).toBeFocused();
+  await expect(page.getByRole("tabpanel", { name: "Count" })).toBeVisible();
+  await expect(page).not.toHaveURL(/#/);
+  // Only the selected tab is in the Tab order (roving tabindex).
+  await expect(page.locator('[role="tab"][tabindex="0"]')).toHaveCount(1);
+  await expect(tab("Count")).toHaveAttribute("tabindex", "0");
+  // Enter on a tab activates it too, and focus lands on the panel heading.
+  await tab("History").focus();
+  await page.keyboard.press("Enter");
+  await expect(tab("History")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: "Every shift, saved." })).toBeFocused();
+  // Hash changes (back/forward, shared links) switch tabs as well.
+  await page.evaluate(() => (location.hash = "#graphics"));
+  await expect(tab("Graphics")).toHaveAttribute("aria-selected", "true");
+
+  // Enter opens the item manager; Esc closes it (after its exit animation)
+  // and focus goes back to the button that opened it.
+  await tab("Count").focus();
+  await page.keyboard.press("Enter");
+  await expect(tab("Count")).toHaveAttribute("aria-selected", "true");
+  const manage = page.getByRole("button", { name: "Manage items" });
+  await manage.focus();
+  await page.keyboard.press("Enter");
+  const manager = page.getByRole("dialog", { name: "Manage waste items" });
+  await expect(manager).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(manager).toBeHidden();
+  await expect(manage).toBeFocused();
+  await expect(page.locator("html")).not.toHaveClass(/waste-dialog-open/);
+
+  // McAssist's floating launcher stays out of the way on this page.
+  expect(await page.evaluate(() => document.body.dataset.hideAssistantLauncher)).toBe("true");
+  const launcher = page.locator(".mca-launcher");
+  if (await launcher.count()) await expect(launcher).toBeHidden();
+
+  // The hub navigation stays reachable: on phones Waste lives in the More
+  // sheet, which opens from the keyboard and hands focus back on Esc; larger
+  // screens mark Waste as the current page in the sidebar.
+  const phone = page.viewportSize().width < 761;
+  if (phone) {
+    const more = page.getByRole("navigation", { name: "Mobile navigation" }).getByRole("button", { name: "More" });
+    await more.focus();
+    await page.keyboard.press("Enter");
+    const sheet = page.getByRole("dialog", { name: "More" });
+    await expect(sheet).toBeVisible();
+    await expect(more).toHaveAttribute("aria-expanded", "true");
+    await expect(sheet.getByRole("link", { name: /Waste/ })).toHaveAttribute("aria-current", "page");
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await expect(more).toBeFocused();
+    await expect(page.locator("html")).not.toHaveClass(/waste-dialog-open/);
+  } else {
+    await expect(
+      page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: /Waste/ }),
+    ).toHaveAttribute("aria-current", "page");
+  }
+  // The counter kept its state through all of that.
+  await expect(page.locator("#wasteGrandTotal")).toHaveText("5");
+  const home = page
+    .getByRole("navigation", { name: phone ? "Mobile navigation" : "Main navigation" })
+    .getByRole("link", { name: /^Home/ });
+  await home.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/main\.html/);
 });

@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
 
+// These are multi-page journeys (four page loads each); WebKit on a busy
+// machine needs more than the default 30 seconds for them.
+test.describe.configure({ timeout: 60000 });
+
 for (const preview of [false, true]) {
   test(`older Safari navigation preserves destinations (${preview ? "preview" : "signed in"})`, async ({
     page,

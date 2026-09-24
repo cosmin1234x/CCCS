@@ -428,26 +428,54 @@ const seedShifts = {
   "sh-3": { userId: "qa-crew", userName: "Sam Carter", role: "crew", date: "2026-09-21", start: "16:00", end: "22:00", station: "Fries", breakMinutes: 20 },
 };
 
-async function signedIn(page, uid, { deny = [] } = {}) {
+// Options: deny (write kinds that fail with permission-denied), extraPeople /
+// extraShifts (added to the seed), getDocFailures (profile reads that fail as
+// "client is offline" first), holdTeam (the team listener waits for
+// __qa.release()), noProfile (the signed-in user has no profile document) and
+// storeShifts (the server's store rota for Crew Trainers).
+async function signedIn(
+  page,
+  uid,
+  {
+    deny = [],
+    extraPeople = {},
+    extraShifts = {},
+    getDocFailures = 0,
+    holdTeam = false,
+    noProfile = false,
+    storeShifts = null,
+  } = {},
+) {
+  const everyone = { ...people, ...extraPeople };
   const docs = {};
-  for (const [id, p] of Object.entries(people)) docs["users/" + id] = p;
-  for (const [id, s] of Object.entries(seedShifts)) docs[`stores/${STORE}/Shifts/${id}`] = s;
+  for (const [id, p] of Object.entries(everyone)) docs["users/" + id] = p;
+  if (noProfile) delete docs["users/" + uid];
+  for (const [id, s] of Object.entries({ ...seedShifts, ...extraShifts }))
+    docs[`stores/${STORE}/Shifts/${id}`] = s;
   docs[`users/${uid}/portalTraining/first-shift`] = { completed: true };
   await page.addInitScript(
-    ({ uid, docs, deny }) => {
+    ({ uid, docs, deny, getDocFailures, holdTeam }) => {
       window.__qa = {
         uid,
         docs,
         deny,
+        getDocFailures,
+        getDocCalls: 0,
+        holdTeam,
+        pendingWrites: false,
         writes: [],
         listeners: [],
         seq: 0,
         notify() {
           setTimeout(() => this.listeners.slice().forEach((l) => l()), 10);
         },
+        release() {
+          this.holdTeam = false;
+          this.notify();
+        },
       };
     },
-    { uid, docs, deny },
+    { uid, docs, deny, getDocFailures, holdTeam },
   );
   await page.route("**/firebase-init.js", (r) =>
     r.fulfill({
@@ -464,13 +492,13 @@ async function signedIn(page, uid, { deny = [] } = {}) {
   await page.route("https://www.gstatic.com/firebasejs/**/firebase-firestore.js", (r) =>
     r.fulfill({ contentType: "text/javascript", body: FIRESTORE_MOCK }),
   );
-  const team = Object.entries(people).map(([id, p]) => ({
+  const team = Object.entries(everyone).map(([id, p]) => ({
     id,
     ...p,
     roleLabel: { manager: "Manager", crew: "Crew Member", crewTrainer: "Crew Trainer" }[p.role],
     verifiedStations: p.verifiedStations || [],
   }));
-  const me = team.find((p) => p.id === uid);
+  const me = team.find((p) => p.id === uid) || { id: uid, name: "Nobody", role: "crew" };
   const verification = {
     id: "ver-1",
     crewId: "qa-crew",
@@ -484,14 +512,24 @@ async function signedIn(page, uid, { deny = [] } = {}) {
     createdAt: NOW.getTime() - 7200e3,
   };
   const calls = [];
+  // Tests can change what the server answers from here (Node side).
+  const server = { failGet: false, roleRequests: null };
+  calls.server = server;
+  calls.gets = () => calls.filter((c) => c[0] === "portal-data:get").length;
   await page.route("**/api/portal-data", async (r) => {
     if (r.request().method() === "POST") {
       calls.push(["portal-data", r.request().postDataJSON()]);
       return r.fulfill({ json: { ok: true, stars: 7, recognitionId: "rec-server" } });
     }
+    calls.push(["portal-data:get"]);
+    if (server.failGet)
+      return r.fulfill({ status: 503, json: { error: "Could not load portal data." } });
+    if (noProfile)
+      return r.fulfill({ status: 403, json: { error: "Your crew profile is missing.", code: "profile-missing" } });
     return r.fulfill({
       json: {
         profile: me,
+        ...(storeShifts ? { storeShifts } : {}),
         permissions: {
           canPlanShifts: me.role === "manager",
           canVerify: me.role === "crewTrainer",
@@ -503,9 +541,10 @@ async function signedIn(page, uid, { deny = [] } = {}) {
         teamProgress: me.role === "manager" ? { "qa-crew": ["first-shift", "food-safety"], "qa-trainer": ["first-shift"] } : {},
         verifications: me.role === "manager" || uid === "qa-crew" ? [verification] : [],
         roleRequests:
-          me.role === "manager"
+          server.roleRequests ??
+          (me.role === "manager"
             ? [{ id: "qa-trainer", uid: "qa-trainer", name: "Taylor Brooks", requestedRole: "manager", status: "pending", storeId: STORE }]
-            : [],
+            : []),
         recognition: [
           { id: "rec-1", userId: "qa-crew", userName: "Sam Carter", amount: 2, note: "Great close", createdByName: "Morgan Reed", createdAt: NOW.getTime() - 86400e3 },
         ].filter((x) => me.role === "manager" || x.userId === uid),
@@ -569,7 +608,17 @@ function apply(path, data, merge) {
 function guard(kind) {
   if (qa.deny.includes(kind)) { const e = new Error("Missing or insufficient permissions."); e.code = "permission-denied"; throw e; }
 }
-export const getDoc = async (ref) => { const d = qa.docs[ref.path]; return { id: ref.id, exists: () => Boolean(d), data: () => d && { ...d } }; };
+export const getDoc = async (ref) => {
+  qa.getDocCalls++;
+  if (qa.getDocFailures > 0) {
+    qa.getDocFailures--;
+    const e = new Error("Failed to get document because the client is offline.");
+    e.code = "unavailable";
+    throw e;
+  }
+  const d = qa.docs[ref.path];
+  return { id: ref.id, exists: () => Boolean(d), data: () => d && { ...d } };
+};
 export const getDocs = async (ref) => { const docs = list(ref); return { docs, forEach: (fn) => docs.forEach(fn) }; };
 export const setDoc = async (ref, data, opts) => { guard("set"); qa.writes.push(["set", ref.path, data]); apply(ref.path, data, opts && opts.merge); qa.notify(); };
 export const updateDoc = async (ref, data) => { guard("update"); qa.writes.push(["update", ref.path, data]); apply(ref.path, data, true); qa.notify(); };
@@ -591,8 +640,9 @@ export const writeBatch = () => {
 };
 export function onSnapshot(ref, next) {
   const run = () => {
+    if (qa.holdTeam && ref.path === "users") return;
     if (ref.__col || ref.filters) next({ docs: list(ref) });
-    else { const d = qa.docs[ref.path]; next({ id: ref.id, exists: () => Boolean(d), data: () => d && { ...d } }); }
+    else { const d = qa.docs[ref.path]; next({ id: ref.id, exists: () => Boolean(d), data: () => d && { ...d }, metadata: { hasPendingWrites: Boolean(qa.pendingWrites) } }); }
   };
   qa.listeners.push(run);
   setTimeout(run, 20);
@@ -800,4 +850,263 @@ test.describe("signed in", () => {
     await expect(page.locator(".pg-glance-col").first()).toContainText("Sam Carter");
     await noOverflow(page);
   });
+});
+
+// ------------------------------------------------ shell integration ---
+const dataChanged = (page, preview) =>
+  page.evaluate(
+    (preview) =>
+      window.dispatchEvent(new CustomEvent("mcassist:data-changed", { detail: { preview } })),
+    preview,
+  );
+// The marker survives only while the page is not reloaded.
+const marker = (page) =>
+  page.evaluate(() => window.__marker ?? null).catch(() => "navigating");
+
+test.describe("McAssist changes appear behind the drawer", () => {
+  test("preview: the saved sample restaurant is reloaded and repainted", async ({ page }) => {
+    await page.goto("/admin.html?preview=manager");
+    const maya = page.getByRole("button", { name: "Open Maya Patel" });
+    await expect(maya).toContainText("★ 9");
+    // What the McAssist demo does: save its change to this tab's sample.
+    await page.evaluate(() => {
+      const key = Object.keys(sessionStorage).find((k) => /^mc_preview_v\d+_manager$/.test(k));
+      const saved = JSON.parse(sessionStorage.getItem(key));
+      saved.team.find((m) => m.id === "preview-maya").stars = 42;
+      saved.team.find((m) => m.id === "preview-ryan").status = "inactive";
+      sessionStorage.setItem(key, JSON.stringify(saved));
+      window.__marker = 1;
+    });
+    await dataChanged(page, true);
+    await expect(maya).toContainText("★ 42");
+    await expect(page.getByRole("button", { name: "Open Ryan Davies" })).toHaveCount(0);
+    await expect(page.locator(".pg-inactive")).toContainText("Ryan Davies");
+    expect(await marker(page)).toBe(1);
+  });
+
+  test("signed in: a fresh server load repaints the page without a reload", async ({ page }) => {
+    const calls = await signedIn(page, "qa-manager");
+    await page.goto("/main.html");
+    const attention = page.locator(".pg-card", { hasText: "Needs your attention" });
+    await expect(attention).toContainText("Taylor Brooks");
+    await page.evaluate(() => (window.__marker = 1));
+    // Nothing loaded just before (McAssist usually refreshes first itself).
+    await page.waitForTimeout(1600);
+    const before = calls.gets();
+    calls.server.roleRequests = [];
+    await dataChanged(page, false);
+    await expect.poll(() => calls.gets()).toBeGreaterThan(before);
+    await expect(attention).not.toContainText("Taylor Brooks");
+    expect(await marker(page)).toBe(1);
+  });
+});
+
+test.describe("start-up", () => {
+  const home = (page) => page.getByRole("heading", { name: "Good afternoon, Sam." });
+
+  test("a dropped connection is retried before anything else", async ({ page }) => {
+    await signedIn(page, "qa-crew", { getDocFailures: 2 });
+    await page.goto("/main.html");
+    await expect(home(page)).toBeVisible();
+    expect(await page.evaluate(() => window.__qa.getDocCalls)).toBeGreaterThanOrEqual(3);
+    await expect(page.getByText("Let’s get your account ready.")).toHaveCount(0);
+  });
+
+  test("when Firestore stays unreachable the server supplies the profile", async ({ page }) => {
+    const calls = await signedIn(page, "qa-crew", { getDocFailures: 99 });
+    await page.goto("/main.html");
+    await expect(home(page)).toBeVisible({ timeout: 15000 });
+    expect(calls.gets()).toBeGreaterThanOrEqual(1);
+  });
+
+  test("with no connection at all a friendly card offers a retry, not sign-out", async ({ page }) => {
+    const calls = await signedIn(page, "qa-crew", { getDocFailures: 99 });
+    calls.server.failGet = true;
+    await page.goto("/main.html");
+    const card = page.getByRole("alert");
+    await expect(card).toContainText("We can’t reach your crew hub right now.", { timeout: 15000 });
+    await expect(card).toContainText("Your account is fine.");
+    await expect(page.getByRole("button", { name: "Back to sign in" })).toHaveCount(0);
+    await expect(page.getByText("Let’s get your account ready.")).toHaveCount(0);
+    await noOverflow(page);
+    // Back online: Try again opens the hub without a reload.
+    await page.evaluate(() => {
+      window.__qa.getDocFailures = 0;
+      window.__marker = 1;
+    });
+    calls.server.failGet = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(home(page)).toBeVisible();
+    expect(await marker(page)).toBe(1);
+  });
+
+  test("a truly missing profile shows the account set-up card", async ({ page }) => {
+    await signedIn(page, "qa-crew", { noProfile: true });
+    await page.goto("/main.html");
+    await expect(page.getByRole("heading", { name: "Let’s get your account ready." })).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("profile is missing");
+    await expect(page.getByRole("button", { name: "Back to sign in" })).toBeVisible();
+  });
+
+  test("a deactivated account is told so", async ({ page }) => {
+    await signedIn(page, "qa-crew", {
+      extraPeople: { "qa-crew": { ...people["qa-crew"], status: "inactive" } },
+    });
+    await page.goto("/main.html");
+    await expect(page.getByRole("heading", { name: "This account is switched off." })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Back to sign in" })).toBeVisible();
+  });
+
+  test("the local echo of our own write never reloads the page", async ({ page }) => {
+    await signedIn(page, "qa-crew");
+    await page.goto("/main.html");
+    await expect(home(page)).toBeVisible();
+    await page.evaluate(() => {
+      const qa = window.__qa;
+      window.__marker = 1;
+      qa.pendingWrites = true;
+      qa.docs["users/qa-crew"] = { ...qa.docs["users/qa-crew"], role: "crewTrainer" };
+      qa.notify();
+    });
+    await page.waitForTimeout(500);
+    expect(await marker(page)).toBe(1);
+    // The confirmed snapshot with a real role change rebuilds the app.
+    await page.evaluate(() => {
+      window.__qa.pendingWrites = false;
+      window.__qa.notify();
+    });
+    await expect.poll(() => marker(page)).toBeNull();
+  });
+});
+
+test.describe("deactivated team members", () => {
+  const gone = {
+    "qa-gone": {
+      name: "Casey Moss",
+      email: "casey@example.invalid",
+      role: "crew",
+      storeId: STORE,
+      stars: 30,
+      status: "inactive",
+      availability: {},
+    },
+  };
+  const goneShifts = {
+    "sh-gone-1": { userId: "qa-gone", userName: "Casey Moss", role: "crew", date: "2026-09-24", start: "12:00", end: "20:00", station: "Grill", breakMinutes: 30 },
+  };
+
+  test("are badged and left out of lists, pickers and counts", async ({ page }) => {
+    await signedIn(page, "qa-manager", { extraPeople: gone, extraShifts: goneShifts });
+    const phone = page.viewportSize().width <= 760;
+    // Home: not on shift now, but their leftover shift needs a look.
+    await page.goto("/main.html");
+    const glance = page.locator(".pg-glance");
+    await expect(glance).toContainText("Morgan Reed");
+    await expect(glance).not.toContainText("Casey Moss");
+    await expect(page.locator(".pg-kpi").first()).toContainText("1");
+    const attention = page.locator(".pg-card", { hasText: "Needs your attention" });
+    await expect(attention).toContainText("1 upcoming shift for deactivated accounts");
+    await expect(attention).toContainText("Casey can’t work it.");
+    // Team: not in the grid or the counts; listed with a badge.
+    await page.goto("/admin.html");
+    await expect(page.locator("#teamGrid")).not.toContainText("Casey Moss");
+    await expect(page.locator(".pg-head")).toContainText("3 people");
+    const inactive = page.locator(".pg-inactive");
+    await inactive.locator("summary").click();
+    await expect(inactive).toContainText("Casey Moss");
+    await expect(inactive.locator(".pg-role.r-inactive")).toHaveText("Deactivated");
+    await inactive.getByRole("button", { name: "View Casey Moss" }).click();
+    await expect(sheet(page).locator(".pg-role.r-inactive")).toHaveText("Deactivated");
+    await sheet(page).getByRole("button", { name: "Close" }).click();
+    await expect(sheet(page)).toBeHidden();
+    // Planner: never offered for a new shift; their row only exists to clear up.
+    await page.goto("/shifts-admin.html");
+    await expect(page.getByRole("heading", { name: "Shift planner" })).toBeVisible();
+    await expect(page.locator(".pg-planner-stats")).toContainText("of 3 people");
+    await expect(page.getByRole("button", { name: /Add shift for Casey/ })).toHaveCount(0);
+    const row = page
+      .locator(phone ? ".pg-pl-dayrow" : ".pg-pl-row")
+      .filter({ hasText: "Casey Moss" });
+    await expect(row.filter({ visible: true })).toContainText("Deactivated");
+    await expect(page.getByRole("region", { name: "Week check" })).toContainText("Casey’s account is deactivated");
+    await page.locator(".pg-head-actions").getByRole("button", { name: "Add shift" }).click();
+    const picker = sheet(page).getByLabel("Team member");
+    await expect(picker.locator("option")).toHaveCount(4);
+    await expect(picker).not.toContainText("Casey");
+    await page.keyboard.press("Escape");
+    await expect(sheet(page)).toBeHidden();
+    // Team rota and the McStars leaderboard leave them out.
+    await page.goto("/schedule.html");
+    await expect(page.getByRole("heading", { name: "Team rota" })).toBeVisible();
+    await expect(page.locator(".pg-day-detail")).toContainText("Morgan Reed");
+    await expect(page.locator(".pg-day-detail")).not.toContainText("Casey Moss");
+    await expect(page.locator(".pg-rota")).not.toContainText("Casey Moss");
+    await page.goto("/break-rewards.html");
+    await expect(page.locator(".pg-board")).toContainText("Sam Carter");
+    await expect(page.locator(".pg-board")).not.toContainText("Casey Moss");
+  });
+});
+
+test.describe("planner and trainer data", () => {
+  test("Add shift fills in the team when the team listener arrives late", async ({ page }) => {
+    await signedIn(page, "qa-manager", { holdTeam: true });
+    await page.goto("/shifts-admin.html?week=1");
+    await expect(page.getByRole("heading", { name: "Shift planner" })).toBeVisible();
+    await page.locator(".pg-head-actions").getByRole("button", { name: "Add shift" }).click();
+    const form = sheet(page);
+    const picker = form.getByLabel("Team member");
+    await expect(picker).toBeDisabled();
+    await expect(picker.locator("option")).toHaveText(["Loading your team…"]);
+    await expect(form.locator("#pgShiftChecks")).toContainText("Loading your team");
+    await expect(form.locator("#pgShiftSubmit")).toBeDisabled();
+    await page.evaluate(() => window.__qa.release());
+    await expect(picker).toBeEnabled();
+    await expect(picker.locator("option")).toHaveCount(4);
+    await picker.selectOption("qa-crew");
+    await form.getByLabel("Date").fill("2026-09-29");
+    await form.getByLabel("Starts").fill("10:00");
+    await form.getByLabel("Finishes").fill("16:00");
+    await expect(form.locator("#pgShiftChecks")).toContainText("No clashes");
+    await expect(form.locator("#pgShiftSubmit")).toBeEnabled();
+  });
+
+  test("a Crew Trainer sees who else is on the rota today", async ({ page }) => {
+    await signedIn(page, "qa-trainer", {
+      storeShifts: [
+        { date: "2026-09-24", start: "12:00", end: "20:00", station: "Shift Lead", userId: "qa-manager", userName: "Morgan Reed" },
+        { date: "2026-09-24", start: "16:00", end: "22:00", station: "Fries", userId: "qa-crew", userName: "Sam Carter" },
+        { date: "2026-09-24", start: "09:00", end: "13:00", station: "Grill", userId: "qa-trainer", userName: "Taylor Brooks" },
+        { date: "2026-09-25", start: "09:00", end: "17:00", station: "Grill", userId: "qa-crew", userName: "Sam Carter" },
+      ],
+    });
+    await page.goto("/main.html");
+    const card = page.locator(".pg-trainer-rota");
+    await expect(card.getByRole("heading", { name: "On the rota today" })).toBeVisible();
+    await expect(card.locator(".pg-list-row")).toHaveCount(2);
+    await expect(card).toContainText("Morgan Reed");
+    await expect(card).toContainText("Sam Carter");
+    await expect(card).toContainText("16:00–22:00");
+    await expect(card).not.toContainText("Taylor Brooks");
+    await expect(card.getByRole("link", { name: /Verify crew/ })).toHaveAttribute("href", "/verification.html");
+    await noOverflow(page);
+  });
+});
+
+test("preview learning has completions today and yesterday", async ({ page }) => {
+  await page.goto("/main.html?preview=crew");
+  await expect(page.locator(".pg-page")).toBeVisible();
+  const recent = await page.evaluate(async () => {
+    const { buildPreviewData } = await import("/preview-data.js");
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const stamps = Object.values(buildPreviewData("crew", now).progress).map((p) => p.completedAt);
+    const on = (day) => stamps.filter((t) => new Date(t).toDateString() === day.toDateString());
+    return {
+      today: on(now).length,
+      yesterday: on(yesterday).length,
+      future: stamps.filter((t) => t > now.getTime()).length,
+    };
+  });
+  expect(recent).toEqual({ today: 1, yesterday: 1, future: 0 });
 });

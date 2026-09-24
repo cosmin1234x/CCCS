@@ -32,7 +32,6 @@ for (const file of [
   "verification.html",
   "waste.html",
   "portal.css",
-  "portal-v2.css",
   "pages.css",
   "training.css",
   "mcassist.css",
