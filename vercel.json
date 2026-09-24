@@ -69,10 +69,12 @@
   ],
   "functions": {
     "api/ai-chat.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "module-data.js"
     },
     "api/mcassist.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "module-data.js"
     },
     "api/waste.js": {
       "maxDuration": 20
