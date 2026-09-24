@@ -2385,6 +2385,13 @@ html[data-entering] :is(.progress, .pg-bar, [role="progressbar"]) > span {
 html[data-entering] .rail > * {
   animation: rise 0.5s var(--ease-out) 0.2s backwards;
 }
+/* A live update repaints #content in place (portal.js sets [data-live] after
+   the first paint): the entrance plays once, not again for every update. */
+html[data-entering] .content[data-live] > *,
+html[data-entering] .content[data-live] .pg-kpis > *,
+html[data-entering] .content[data-live] :is(.progress, .pg-bar, [role="progressbar"]) > span {
+  animation: none;
+}
 @keyframes rise {
   from {
     opacity: 0;

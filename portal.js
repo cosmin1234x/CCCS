@@ -10,7 +10,7 @@ import {
   weekOffsetOf,
 } from "./portal-core.js";
 import { renderPage } from "./portal-pages.js";
-import { bindPage, updateBell, isPageBusy } from "./pages-ui.js";
+import { bindPage, refreshPage, updateBell, isPageBusy } from "./pages-ui.js";
 import { clampOffset } from "./pages-views.js";
 import {
   buildPreviewData,
@@ -25,6 +25,7 @@ import {
   openDialog,
   closeDialog,
   authErrorMessage,
+  prefersReducedMotion,
 } from "./motion.js";
 const $ = (id) => document.getElementById(id);
 const icons = {
@@ -359,7 +360,7 @@ function pageContext() {
     isManager,
     myShifts,
     toast: (text) => toast(text),
-    render: requestRender,
+    render: renderForUser,
     persist: persistPreview,
     firebase: () => ({ fb, db }),
     api: portalApi,
@@ -368,6 +369,13 @@ function pageContext() {
 }
 // Several live snapshots can land together: coalesce them into one render.
 let renderQueued = false;
+// Pages call this after something the person did (week change, Discard, a
+// save): it always repaints, straight away, even during the entrance.
+let userRender = false;
+function renderForUser() {
+  userRender = true;
+  requestRender();
+}
 function requestRender() {
   if (renderQueued) return;
   renderQueued = true;
@@ -410,9 +418,65 @@ function restoreView(content, view) {
     } catch {}
   }
 }
+// ---- First paint --------------------------------------------------------
+// Signed in, the data arrives in pieces: shifts, learning, profile and team
+// snapshots, then the server extras. Painting (and replaying the entrance
+// animation) for each one made the page flicker several times on load. So
+// #content shows one skeleton until those first arrivals are in, or
+// FIRST_PAINT_MS has passed, and then paints once. Later updates repaint in
+// place: unchanged markup is left alone and changed markup is swapped without
+// the entrance animation (#content[data-live], see portal.css and pages.css).
+const FIRST_PAINT_MS = 1500;
+const firstPaint = { holding: false, waiting: new Set(), timer: 0 };
+function holdFirstPaint(sources) {
+  firstPaint.holding = true;
+  firstPaint.waiting = new Set(sources);
+  clearTimeout(firstPaint.timer);
+  firstPaint.timer = setTimeout(releaseFirstPaint, FIRST_PAINT_MS);
+}
+function arrived(source) {
+  if (!firstPaint.holding || !firstPaint.waiting.delete(source)) return;
+  if (!firstPaint.waiting.size) releaseFirstPaint();
+}
+function releaseFirstPaint() {
+  if (!firstPaint.holding) return;
+  firstPaint.holding = false;
+  clearTimeout(firstPaint.timer);
+  requestRender();
+}
+// Pages drawn by a feature module (portal-enhancements.js) only get a
+// skeleton from renderPage. verification.html has no portal page at all.
+const moduleSkeleton = () =>
+  `<div class="page-loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><p>Opening station sign-offs…</p></div>`;
+const coreSkeleton = () =>
+  `<div class="pg-page pg-skeleton" role="status" aria-live="polite"><span class="sr-only">Loading your crew hub…</span><span class="skeleton-title" aria-hidden="true"></span><span class="skeleton-card" aria-hidden="true"></span><div class="pg-skeleton-row" aria-hidden="true"><span class="skeleton-card"></span><span class="skeleton-card"></span></div><span class="skeleton-line" aria-hidden="true"></span><span class="skeleton-line short" aria-hidden="true"></span></div>`;
+const moduleOwned = () =>
+  path === "verification" ||
+  ["training", "module", "assistant", "waste"].includes(page);
+const pageMarkup = (ctx) =>
+  path === "verification" ? moduleSkeleton() : renderPage(page, ctx);
+// The first paint's entrance animations (portal.css, pages.css) run for
+// about this long. A data update landing inside it waits until it has
+// finished instead of cutting it off half way.
+const ENTRANCE_MS = 1100;
+let settleTimer = 0;
+// The markup of the last paint, the #content it went into (the shell, and so
+// #content, is rebuilt when the name or role changes) and when.
+let painted = { content: null, html: null, at: 0 };
 function renderContent() {
+  const byUser = userRender;
+  userRender = false;
   const content = $("content");
   if (!content || !state.user) return;
+  if (firstPaint.holding) {
+    if (!content.childElementCount) {
+      const html = moduleOwned() ? pageMarkup(pageContext()) : coreSkeleton();
+      content.innerHTML = html;
+      // A module page keeps its skeleton until the module takes over.
+      if (moduleOwned()) painted = { content, html, at: 0 };
+    }
+    return;
+  }
   // Enhanced pages own their DOM. Live snapshots must not destroy chat or forms.
   if (content.dataset.enhancedPage) {
     updateBell(pageContext());
@@ -424,9 +488,31 @@ function renderContent() {
     updateBell(pageContext());
     return;
   }
-  const view = captureView(content);
   const ctx = pageContext();
-  content.innerHTML = renderPage(page, ctx);
+  const html = pageMarkup(ctx);
+  // A data update that leaves the markup unchanged keeps the DOM. A repaint
+  // the person asked for (e.g. Discard) always happens: the DOM may hold
+  // edits that the markup does not.
+  if (painted.content === content && painted.html === html && !byUser) {
+    refreshPage(page, ctx);
+    updateBell(ctx);
+    window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
+    return;
+  }
+  if (painted.content === content) {
+    const settling = ENTRANCE_MS - (performance.now() - painted.at);
+    if (settling > 0 && !byUser && !prefersReducedMotion()) {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(requestRender, settling);
+      updateBell(ctx);
+      return;
+    }
+    content.dataset.live = "";
+  }
+  clearTimeout(settleTimer);
+  painted = { content, html, at: performance.now() };
+  const view = captureView(content);
+  content.innerHTML = html;
   bindPage(page, ctx);
   restoreView(content, view);
   updateBell(ctx);
@@ -641,7 +727,8 @@ function subscribe() {
   unsubscribers = [];
   const uid = state.user.id,
     store = state.user.storeId;
-  const fail = (error) => {
+  const fail = (source) => (error) => {
+    arrived(source);
     state.loaded = true;
     console.warn("Live data listener failed", error?.code || error);
     showDataWarning(
@@ -666,9 +753,10 @@ function subscribe() {
           .map((d) => ({ ...d.data(), id: d.id }))
           .filter((x) => x.date && x.start && x.end);
         state.loaded = true;
+        arrived("shifts");
         requestRender();
       },
-      fail,
+      fail("shifts"),
     ),
   );
   unsubscribers.push(
@@ -679,6 +767,7 @@ function subscribe() {
           s.docs.map((d) => [d.id, d.data()]),
         );
         state.progressLoaded = true;
+        arrived("progress");
         if (page === "module" && $("moduleStatus"))
           $("moduleStatus").textContent = state.progress[params.get("id")]
             ?.completed
@@ -686,7 +775,7 @@ function subscribe() {
             : "In progress";
         if (page !== "module") requestRender();
       },
-      fail,
+      fail("progress"),
     ),
   );
   // Your own profile stays live: McStars, badge, pay rate and availability
@@ -699,6 +788,7 @@ function subscribe() {
         // snapshot with pending writes. The confirmed snapshot follows; never
         // reload or repaint on the echo.
         if (snap?.metadata?.hasPendingWrites) return;
+        arrived("profile");
         if (typeof snap?.exists !== "function" || !snap.exists()) return;
         const next = { ...snap.data(), id: uid };
         next.name = next.name || state.user.name;
@@ -716,7 +806,7 @@ function subscribe() {
         state.user = Object.assign(state.user, next);
         requestRender();
       },
-      () => {},
+      () => arrived("profile"),
     ),
   );
   if (isManager())
@@ -726,9 +816,10 @@ function subscribe() {
         (s) => {
           state.team = s.docs.map((d) => ({ ...d.data(), id: d.id }));
           state.teamLoaded = true;
+          arrived("team");
           requestRender();
         },
-        fail,
+        fail("team"),
       ),
     );
 }
@@ -761,6 +852,8 @@ async function refreshExtras(force = false) {
     applyExtras(await loadPortalData(force));
   } catch (error) {
     console.warn("Could not refresh portal extras", error);
+  } finally {
+    arrived("extras");
   }
 }
 // Any fresh load (for example after McAssist changed something) updates the
@@ -770,6 +863,7 @@ let portalDataAt = -Infinity;
 window.addEventListener("portal:data", (event) => {
   portalDataAt = performance.now();
   applyExtras(event.detail);
+  arrived("extras");
 });
 document.addEventListener("visibilitychange", () => {
   if (
@@ -782,6 +876,23 @@ document.addEventListener("visibilitychange", () => {
 });
 // ---- Start-up -------------------------------------------------------------
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// The shell appears once the web fonts are in, so its text does not re-flow a
+// moment later (a late font swap read as another flicker). They are preloaded
+// and usually ready already; never wait more than FONT_WAIT_MS, and a font
+// that fails to load simply leaves the fallback in place.
+const FONT_WAIT_MS = 800;
+function fontsReady() {
+  if (typeof document.fonts?.load !== "function") return Promise.resolve();
+  // Every latin weight declared in portal.css.
+  const faces = [
+    ...[400, 500, 600, 700, 800, 900].map((w) => `${w} 1em "DM Sans"`),
+    ...[600, 700, 800, 900].map((w) => `${w} 1em "Nunito"`),
+  ];
+  return Promise.race([
+    Promise.allSettled(faces.map((face) => document.fonts.load(face))),
+    wait(FONT_WAIT_MS),
+  ]);
+}
 // A dropped or not-yet-open Firestore connection reports "unavailable" /
 // "client is offline"; failed fetches surface as TypeError. These are worth
 // retrying and never mean the account itself is wrong.
@@ -913,12 +1024,21 @@ async function startSession(user) {
   if (String(profile.status || "").toLowerCase() === "inactive")
     return deactivatedCard();
   state.user = profile;
+  await fontsReady();
+  holdFirstPaint([
+    "shifts",
+    "progress",
+    "profile",
+    "extras",
+    ...(isManager() ? ["team"] : []),
+  ]);
   shell();
   subscribe();
   refreshExtras();
 }
 async function boot() {
   if (preview) {
+    await fontsReady();
     setupPreview();
     return;
   }

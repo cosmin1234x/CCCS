@@ -428,7 +428,9 @@ function timeline(c, shifts, today) {
   const origin = new Date(`${today}T05:00`);
   const span = 24 * 60;
   const now = new Date();
-  const nowPct = ((now - origin) / 60000 / span) * 100;
+  // Whole minutes, so the markup only changes once a minute (portal.js skips
+  // live repaints whose markup is unchanged).
+  const nowPct = (Math.floor((now - origin) / 60000) / span) * 100;
   const rows = sortShifts(shifts)
     .map((s) => {
       const a = Math.max(0, (shiftStart(s) - origin) / 60000);
