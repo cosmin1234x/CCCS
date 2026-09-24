@@ -6,7 +6,7 @@ import {
   updateProfile,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { renderTraining, renderModule } from "./training-ui.js";
-import { renderAssistant } from "./mcassist-ui.js";
+import { renderAssistant, installAssistantLauncher } from "./mcassist-ui.js";
 import { renderWaste } from "./waste-page.js";
 import {
   collection,
@@ -1044,6 +1044,7 @@ async function enhanceLoggedIn() {
   if (isTrainingRoute()) renderTraining(data, kit);
   if (path === "module.html") renderModule(data, kit);
   if (isAssistantRoute()) renderAssistant(data, kit);
+  else installAssistantLauncher(data, kit);
   if (path === "waste.html") await renderWaste(data, kit);
   await renderVerification(data);
   appendManagerRoleRequests(data);

@@ -253,3 +253,9 @@ export function renderAssistant(data, k) {
 
   renderV2Chat(data.profile);
 }
+
+// Optional quick-access launcher on every signed-in page except the McAssist
+// page itself. Must be idempotent: it is called on every portal render.
+export function installAssistantLauncher(data, k) {
+  kit = k;
+}
