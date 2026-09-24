@@ -1,4 +1,8 @@
 rules_version = '2';
+// McTraining crew hub — Firestore security rules.
+// Browser clients get exactly what the pages use; everything else (role
+// approval, verifications, McAssist plans and audit) is written by the
+// authenticated server endpoints with Firebase Admin, which bypasses rules.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -10,26 +14,49 @@ service cloud.firestore {
     }
 
     function myRole() {
-      return signedIn() ? me().data.role : null;
+      return me().data.get('role', '');
+    }
+
+    // Deactivated accounts (status "inactive") keep their own profile only.
+    function active() {
+      return signedIn() && me().data.get('status', '') != 'inactive';
     }
 
     function normalManagerRole() {
-      return myRole() in ['manager', 'shiftCreator', 'admin'];
+      return active() && myRole() in ['manager', 'shiftCreator', 'shiftcreator', 'admin'];
     }
 
     function crewTrainerRole() {
-      return myRole() in ['crewTrainer', 'trainer'];
+      return active() && myRole() in ['crewTrainer', 'trainer'];
     }
 
     function sameStore(storeId) {
-      return signedIn() && me().data.storeId == storeId;
+      return active() && me().data.get('storeId', '') == storeId;
+    }
+
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function optionalString(data, key, max) {
+      return !data.keys().hasAny([key])
+        || (data[key] is string && data[key].size() <= max);
     }
 
     match /users/{userId} {
+      // Sign-up: always Crew, no stars, pay, notes or verified stations.
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.role == 'crew'
-        && request.resource.data.stars == 0;
+        && request.resource.data.get('stars', 0) == 0
+        && request.resource.data.get('verifiedStations', []).size() == 0
+        && request.resource.data.storeId is string
+        && request.resource.data.storeId.size() > 0
+        && request.resource.data.storeId.size() <= 80
+        && !request.resource.data.keys().hasAny([
+          'hourlyRate', 'badge', 'notes', 'status', 'roleApprovedBy',
+          'roleApprovedAt', 'lastVerificationAt', 'updatedBy'
+        ]);
 
       allow read: if signedIn()
         && (
@@ -37,16 +64,40 @@ service cloud.firestore {
           || ((normalManagerRole() || crewTrainerRole()) && sameStore(resource.data.storeId))
         );
 
+      // Own profile: availability, name and a pending role request only.
+      // Managers (same store, not themselves): pay rate, badge, notes, McStars
+      // and availability, with sane values.
       allow update: if signedIn()
         && (
           (
             request.auth.uid == userId
-            && request.resource.data.role == resource.data.role
-            && request.resource.data.storeId == resource.data.storeId
-            && request.resource.data.stars == resource.data.stars
-            && request.resource.data.verifiedStations == resource.data.verifiedStations
+            && !changed().hasAny([
+              'role', 'storeId', 'stars', 'verifiedStations', 'hourlyRate',
+              'badge', 'notes', 'status', 'roleApprovedBy', 'roleApprovedAt',
+              'lastVerificationAt', 'updatedBy'
+            ])
+            && (!changed().hasAny(['roleRequestStatus'])
+              || request.resource.data.roleRequestStatus == 'pending')
+            && optionalString(request.resource.data, 'name', 80)
           )
-          || (normalManagerRole() && sameStore(resource.data.storeId))
+          || (
+            normalManagerRole()
+            && request.auth.uid != userId
+            && sameStore(resource.data.storeId)
+            && changed().hasOnly([
+              'hourlyRate', 'badge', 'notes', 'stars', 'availability',
+              'updatedAt', 'updatedBy'
+            ])
+            && (request.resource.data.get('hourlyRate', null) == null
+              || (request.resource.data.hourlyRate is number
+                && request.resource.data.hourlyRate > 0
+                && request.resource.data.hourlyRate <= 100))
+            && request.resource.data.get('stars', 0) is number
+            && request.resource.data.get('stars', 0) >= 0
+            && optionalString(request.resource.data, 'badge', 60)
+            && optionalString(request.resource.data, 'notes', 1000)
+            && request.resource.data.get('updatedBy', request.auth.uid) == request.auth.uid
+          )
         );
 
       allow delete: if false;
@@ -61,7 +112,8 @@ service cloud.firestore {
         && request.auth.uid == userId
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.requestedRole in ['crewTrainer', 'manager']
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && request.resource.data.storeId == me().data.get('storeId', '');
 
       allow read: if signedIn()
         && (
@@ -73,6 +125,19 @@ service cloud.firestore {
     }
 
     match /stores/{storeId}/Shifts/{shiftId} {
+      function validShift(d) {
+        return d.userId is string && d.userId.size() > 0 && d.userId.size() <= 128
+          && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && d.start is string && d.start.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+          && d.end is string && d.end.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+          && d.start != d.end
+          && d.get('breakMinutes', 0) is int
+          && d.get('breakMinutes', 0) >= 0
+          && d.get('breakMinutes', 0) <= 120
+          && optionalString(d, 'station', 60)
+          && optionalString(d, 'userName', 120);
+      }
+
       allow read: if signedIn()
         && sameStore(storeId)
         && (
@@ -80,9 +145,16 @@ service cloud.firestore {
           || resource.data.userId == request.auth.uid
         );
 
-      allow create, update, delete: if signedIn()
+      allow create: if normalManagerRole()
         && sameStore(storeId)
-        && normalManagerRole();
+        && validShift(request.resource.data)
+        && request.resource.data.get('createdBy', request.auth.uid) == request.auth.uid;
+
+      allow update: if normalManagerRole()
+        && sameStore(storeId)
+        && validShift(request.resource.data);
+
+      allow delete: if normalManagerRole() && sameStore(storeId);
     }
 
     match /stores/{storeId}/verifications/{verificationId} {
@@ -107,7 +179,37 @@ service cloud.firestore {
           || resource.data.userId == request.auth.uid
         );
 
-      allow create, update, delete: if false;
+      // Managers give McStars from the team page (written in the same batch as
+      // the member's star total). History is append-only.
+      allow create: if normalManagerRole()
+        && sameStore(storeId)
+        && request.resource.data.keys().hasOnly([
+          'userId', 'userName', 'amount', 'note', 'createdBy', 'createdByName',
+          'createdAt', 'source'
+        ])
+        && request.resource.data.userId is string
+        && request.resource.data.userId != request.auth.uid
+        && request.resource.data.amount is int
+        && request.resource.data.amount != 0
+        && request.resource.data.amount >= -100
+        && request.resource.data.amount <= 100
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && optionalString(request.resource.data, 'note', 240)
+        && optionalString(request.resource.data, 'userName', 120)
+        && optionalString(request.resource.data, 'createdByName', 120)
+        && optionalString(request.resource.data, 'source', 20);
+
+      allow update, delete: if false;
+    }
+
+    // Server-only: McAssist pending plans and the audit trail.
+    match /stores/{storeId}/assistantPending/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /stores/{storeId}/assistantAudit/{document=**} {
+      allow read, write: if false;
     }
   }
 }

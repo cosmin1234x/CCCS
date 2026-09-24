@@ -23,6 +23,10 @@ export function adminDb() {
   return getFirestore(getAdminApp());
 }
 
+export function adminAuth() {
+  return getAuth(getAdminApp());
+}
+
 export { FieldValue };
 
 export async function authenticateRequest(req) {
@@ -81,8 +85,19 @@ export function cleanText(value, max = 120) {
   return String(value ?? "").trim().slice(0, max);
 }
 
+// The restaurant runs on UK time, so "today" is the Europe/London calendar date
+// (Vercel servers run in UTC, which is an hour behind during British Summer Time).
+const londonDateFormat = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/London",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 export function isoDate(date = new Date()) {
-  return date.toISOString().slice(0, 10);
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) return londonDateFormat.format(new Date());
+  return londonDateFormat.format(value);
 }
 
 export function timeOk(value) {

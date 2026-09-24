@@ -89,6 +89,12 @@ export default async function handler(req, res) {
     const user = userSnap.data();
     if (request.storeId !== profile.storeId || user.storeId !== profile.storeId)
       return res.status(403).json({ error: "That account belongs to another store." });
+    if (uid === decoded.uid)
+      return res.status(403).json({ error: "Another manager needs to review your own role request." });
+    if (["approve", "reject"].includes(action) && request.status !== "pending")
+      return res.status(409).json({
+        error: "This request has already been " + (request.status || "reviewed") + ".",
+      });
 
     if (action === "approve") {
       const requestedRole = normalizeRole(request.requestedRole);

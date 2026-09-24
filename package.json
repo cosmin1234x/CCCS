@@ -8,6 +8,10 @@
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "playwright test",
+    "test:e2e": "playwright test --config=playwright.e2e.config.mjs",
+    "test:e2e:guard": "node --test tests/e2e/guard.test.mjs",
+    "e2e:emulators": "node scripts/e2e-emulators.mjs",
+    "e2e:seed": "node scripts/e2e-seed.mjs",
     "dev:local": "node --env-file=.env.local scripts/dev.mjs"
   },
   "devDependencies": {

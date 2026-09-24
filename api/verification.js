@@ -33,9 +33,19 @@ const STATIONS = {
   cleaning: "Dining Area",
 };
 
-function normaliseStation(value) {
+// Canonical names as shown in the app (e.g. "Chicken & Fryer") are accepted
+// case-insensitively, as well as the short aliases above.
+const CANONICAL = [...new Set(Object.values(STATIONS))];
+
+export function normaliseStation(value) {
   const key = cleanText(value, 80).toLowerCase().replace(/\s+/g, " ");
-  return STATIONS[key] || null;
+  if (!key) return null;
+  return (
+    STATIONS[key] ||
+    CANONICAL.find((name) => name.toLowerCase() === key) ||
+    STATIONS[key.replace(/\s*&\s*/g, " ").replace(/é/g, "e")] ||
+    null
+  );
 }
 
 function serialise(value) {
@@ -50,7 +60,8 @@ function serialise(value) {
 function safeSignature(body) {
   const typedName = cleanText(body.typedName, 100);
   const signatureData = String(body.signatureData || "");
-  if (!typedName) throw Object.assign(new Error("Enter your name before signing."), { status: 400 });
+  if (typedName.length < 2)
+    throw Object.assign(new Error("Type your full name before signing."), { status: 400 });
   if (signatureData && (!signatureData.startsWith("data:image/png;base64,") || signatureData.length > 140000))
     throw Object.assign(new Error("Signature image is invalid or too large."), { status: 400 });
   return { typedName, signatureData: signatureData || null };
@@ -177,6 +188,10 @@ export default async function handler(req, res) {
         const latest = snap.data();
         const field = isCrew ? "crewSignature" : "trainerSignature";
         const otherField = isCrew ? "trainerSignature" : "crewSignature";
+        if (latest.status === "verified")
+          throw Object.assign(new Error("This station is already verified."), { status: 409 });
+        if (latest[field])
+          throw Object.assign(new Error("You have already signed this verification."), { status: 409 });
         const ownSignature = {
           uid: decoded.uid,
           name: profile.name || signature.typedName,

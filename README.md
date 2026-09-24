@@ -89,3 +89,17 @@ Managers now get an audited, server-side control layer over the operational Fire
 Manager writes are validated on the server and logged under `stores/{storeId}/assistantAudit` with the acting Manager, target member, action and before/after values. McAssist can chain several explicit actions from one message, with a maximum of six database actions per request.
 
 McAssist deliberately does not receive unrestricted raw Firestore write access. It cannot forge or grant station verification, write arbitrary documents/fields, move a user across store security boundaries, or silently demote the signed-in Manager account. Those boundaries prevent a model mistake from bypassing the role and verification system.
+
+
+## Core pages (Showcase V4)
+
+- **Home** is role-aware. Crew see their next shift (live "on shift now" / "starts in"), hours and estimated pay for the week, learning progress, McStars, sign-offs waiting for them and quick actions. Managers see who is on shift now and next, today's rota as a timeline, team hours with an estimated labour cost, role requests and verifications waiting on them, rota issues for the week and a team learning snapshot.
+- **Notifications** (bell in the top bar) list upcoming shifts, approvals/sign-offs waiting on you and recent McStars, with an unread count that clears when opened.
+- **Schedule** has week navigation (four weeks back, eight ahead, `?week=` deep links). Crew get a day-by-day agenda with pay; managers get a team rota grid (members × days) with a day detail and a print-friendly A4 landscape layout.
+- **Shift planner** is a week grid shaded by availability. Tap a slot to add a pre-filled shift, tap a shift to edit or delete it. Validation runs as you type: clashes (including overnight shifts), 12-hour maximum, break length, availability, 11-hour rest, 48-hour weeks and unverified stations. **Copy last week** copies the previous week, skipping anything that would clash, fall outside availability or land in the past, and shows a summary first.
+- **Team** has search, a role filter, pending role requests and a member drawer (availability, upcoming shifts, learning, sign-offs, recognition) where managers edit pay rate, badge and notes and give McStars.
+- **Availability** has per-day switches, time pickers, presets and an unsaved-changes bar. **McStars** shows your recognition history and, for managers, a team leaderboard.
+- **Verification** signing works with a finger, Apple Pencil (pressure aware) or mouse and survives rotating the iPad.
+- `/api/portal-data` also returns recognition, team learning progress and counts, and accepts manager `updateMember` / `giveStars` requests as a server-checked fallback when the deployed rules are older than `firestore.rules`.
+
+Deploy the updated rules with `firebase deploy --only firestore:rules` after review. They allow exactly the browser writes the pages make (manager shift writes, manager pay/badge/notes/McStars edits with a recognition record, a member's own availability) and deny server-only collections such as `assistantPending` and `assistantAudit`.

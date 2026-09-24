@@ -1,8 +1,21 @@
-// module-data.js — shared training module content
-// General learning support for the independent crew hub.
-// Exact restaurant procedures, recipes, cook cycles, holding times and allergen processes
-// must always come from current official restaurant guidance and a trained manager/trainer.
+// module-data.js: shared learning module content for the crew hub.
+// General learning support for an independent team tool. Exact restaurant
+// procedures, recipes, cook cycles, temperatures, holding times and allergen
+// processes must always come from current official restaurant guidance and a
+// trained manager or Crew Trainer. Never add those numbers here.
+//
+// Progress is stored per module id in users/{uid}/portalTraining/{id}, so
+// existing ids must never change.
+//
+// Module shape:
+//   id, icon, title, tagline, category, station, keywords[], roles[], xp,
+//   level, time, priority?,
+//   sections[{ title, text, points?[], takeaway }]   (4–6 lessons)
+//   practice[]   what to practise on shift with a trainer (Station focus)
+//   checklist[]  confidence check before the quiz
+//   quiz[{ q, a[], correct, explain }]                (4–5 questions)
 window.McModules = {
+  passMark: 75,
   modules: [
     {
       id: "first-shift",
@@ -11,21 +24,48 @@ window.McModules = {
       tagline: "Know where to go, who to ask and how to start safely.",
       category: "Essentials",
       station: "All stations",
-      keywords: ["first shift", "new starter", "basics", "help"],
+      keywords: ["first shift", "new starter", "basics", "help", "induction"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 80,
       level: "New starter",
       time: "8 min",
       sections: [
-        { title: "Start with clarity", text: "Arrive ready, find your trainer or shift lead and confirm the station you are learning before you begin." },
-        { title: "Do not guess", text: "If you are unsure about food safety, equipment, allergens, tills or a customer issue, stop and ask a trained person." },
-        { title: "Accuracy before speed", text: "Build safe, correct habits first. Speed comes naturally once the process is familiar." }
+        {
+          title: "Arrive ready",
+          text: "Arrive a little before your start time in a clean uniform with your name badge on. Put your phone, bag and coat in the crew room, not at the station.",
+          points: ["Clean uniform and name badge", "Phone and bags away from the floor", "Hair and jewellery as your restaurant requires"],
+          takeaway: "Being ready before your start time shows the team they can count on you.",
+        },
+        {
+          title: "Find your people",
+          text: "Check in with the shift manager, then find your trainer or buddy. Confirm which station you are learning today and who to go to if your trainer steps away.",
+          points: ["Who is running the shift", "Who is training you today", "Which station you start on"],
+          takeaway: "Know who to ask before you need to ask.",
+        },
+        {
+          title: "Learn the layout",
+          text: "Ask for a quick walk-round: fire exits, the first-aid kit, handwash sinks, the crew room and where cleaning chemicals are kept. Knowing where things are keeps you safe and makes you useful quickly.",
+          takeaway: "Safety starts with knowing where the exits, first aid and sinks are.",
+        },
+        {
+          title: "Never guess",
+          text: "If you are unsure about food safety, equipment, allergens, tills or a customer issue, stop and ask a trained person. Nobody expects you to know everything on day one.",
+          takeaway: "Asking is a strength, not a weakness.",
+        },
+        {
+          title: "Accuracy before speed",
+          text: "Watch, try, then repeat with feedback. Build safe, correct habits first. Speed comes naturally once the process is familiar.",
+          takeaway: "Get it right first. Fast comes later.",
+        },
       ],
-      checklist: ["I know who my trainer or shift lead is", "I know my first station", "I know where to ask for help", "I understand that official store guidance takes priority"],
+      practice: ["Walk the fire exits and first-aid point with your trainer", "Introduce yourself to the shift manager", "Shadow one full order from the till to the hand-off"],
+      checklist: ["I know who my trainer or shift lead is", "I know my first station", "I know where the exits, first aid and handwash sinks are", "I understand that official store guidance takes priority"],
       quiz: [
-        { q: "What should you do if you are unsure about a process?", a: ["Guess quickly", "Ask a trainer or manager", "Ignore it"], correct: 1 },
-        { q: "What matters first for a new starter?", a: ["Accuracy and safety", "Being the fastest", "Never asking questions"], correct: 0 }
-      ]
+        { q: "What should you do if you are unsure about a process?", a: ["Guess quickly", "Ask a trainer or manager", "Ignore it"], correct: 1, explain: "Asking a trained person keeps customers and the team safe. A guess can cause food safety or accuracy problems." },
+        { q: "What matters first for a new starter?", a: ["Accuracy and safety", "Being the fastest", "Never asking questions"], correct: 0, explain: "Safe, accurate habits come first. Speed builds naturally with practice." },
+        { q: "Which of these should you find out on your first shift?", a: ["The manager's home address", "Where the fire exits and first-aid kit are", "The Wi-Fi password"], correct: 1, explain: "Knowing the exits, first aid and handwash sinks keeps you and others safe from day one." },
+        { q: "Your trainer steps away and a customer asks something you don't know. What's best?", a: ["Make up an answer", "Say you'll get someone who can help", "Pretend you didn't hear"], correct: 1, explain: "It's fine not to know. Fetching the right person gives the customer a correct answer." },
+      ],
     },
     {
       id: "food-safety",
@@ -34,21 +74,54 @@ window.McModules = {
       tagline: "The everyday habits that protect customers and the team.",
       category: "Safety",
       station: "All stations",
-      keywords: ["food safety", "hygiene", "hands", "clean", "contamination"],
+      keywords: ["food safety", "hygiene", "hands", "clean", "contamination", "illness"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 120,
       level: "Priority",
-      time: "10 min",
+      priority: true,
+      time: "12 min",
       sections: [
-        { title: "Hands and personal hygiene", text: "Wash hands at the required moments, keep uniform and hands clean and follow your restaurant's hygiene process every shift." },
-        { title: "Prevent contamination", text: "Use the correct tools and separation for each task. Never move dirty equipment or food-contact items between tasks without following the cleaning process." },
-        { title: "Clean as you go", text: "Deal with spills, dirty surfaces and clutter early so the station stays safe during busy periods." }
+        {
+          title: "Why it matters",
+          text: "Food safety protects every customer, including people who are elderly, pregnant, very young or unwell. One missed step can make someone seriously ill, so these habits apply on every shift at every station.",
+          takeaway: "Food safety is everyone's job, every shift.",
+        },
+        {
+          title: "Hands and personal hygiene",
+          text: "Wash your hands thoroughly at the moments your restaurant requires: starting work, after breaks, after touching your face or phone, after handling rubbish or cleaning, and when you switch tasks. Keep your uniform clean and follow the rules on hair, jewellery and covering cuts.",
+          points: ["Use the handwash sink, never a food sink", "Cover cuts the way your restaurant directs", "Keep your phone off the floor"],
+          takeaway: "Clean hands at the right moments stop most contamination.",
+        },
+        {
+          title: "Fit for work",
+          text: "If you have sickness or diarrhoea, or you have been around someone who has, tell your manager before your shift. Your restaurant's policy decides when you can come back. Never handle food while you are unwell.",
+          takeaway: "Tell your manager about illness before your shift, not during it.",
+        },
+        {
+          title: "Stop cross-contamination",
+          text: "Keep raw and ready-to-eat food, tools and surfaces apart exactly as you were trained. Use the correct labelled or colour-coded equipment for each task, and never move tools between tasks without cleaning them the approved way.",
+          takeaway: "Right tool, right task, right clean.",
+        },
+        {
+          title: "Let the system set times and temperatures",
+          text: "Cooking, holding and storage times and temperatures come from official procedures and the equipment. Never guess, extend or shortcut them. If a timer, check or display looks wrong, stop and tell a manager.",
+          takeaway: "The system sets the numbers. You follow it and flag problems.",
+        },
+        {
+          title: "Clean as you go",
+          text: "Deal with spills, dirty surfaces and clutter early so the station stays safe when it gets busy. Only use approved, labelled chemicals and keep them away from food.",
+          takeaway: "A tidy station is a safer station.",
+        },
       ],
-      checklist: ["I know when handwashing is required", "I keep food-contact tools correctly separated", "I report hygiene problems", "I clean as I go"],
+      practice: ["Show your trainer each moment you need to wash your hands", "Find the handwash sink and approved sanitiser for your station", "Ask where food safety checks are recorded"],
+      checklist: ["I know when handwashing is required", "I report illness before my shift", "I keep raw and ready-to-eat tools separate", "I never guess times or temperatures", "I clean as I go"],
       quiz: [
-        { q: "What is the safest response when a food-safety step is unclear?", a: ["Carry on and guess", "Ask a trained person before continuing", "Skip the step"], correct: 1 },
-        { q: "Why clean as you go?", a: ["To reduce hazards and keep the station ready", "Only for appearance", "It is optional during a shift"], correct: 0 }
-      ]
+        { q: "What is the safest response when a food safety step is unclear?", a: ["Carry on and guess", "Ask a trained person before continuing", "Skip the step"], correct: 1, explain: "Pausing to ask is always safer than guessing. Food safety steps exist to protect customers." },
+        { q: "You wake up with sickness and diarrhoea before a shift. What should you do?", a: ["Come in and avoid the kitchen", "Tell your manager before your shift and follow their policy", "Take medicine and work as normal"], correct: 1, explain: "Illness can spread through food. Your manager decides when it's safe for you to come back." },
+        { q: "A timer or temperature display looks wrong. What do you do?", a: ["Adjust it to what seems right", "Stop and tell a manager", "Ignore it until the rush ends"], correct: 1, explain: "Times and temperatures are set by official procedures. Flag problems straight away instead of guessing." },
+        { q: "Why clean as you go?", a: ["It reduces hazards and keeps the station ready", "Only so it looks nice", "It's optional during a shift"], correct: 0, explain: "Spills and clutter create slip, hygiene and contamination risks, especially in a rush." },
+        { q: "Which sink should you wash your hands in?", a: ["Any sink that's free", "The designated handwash sink", "The food prep sink"], correct: 1, explain: "The designated handwash sink keeps food preparation areas free from contamination." },
+      ],
     },
     {
       id: "allergens",
@@ -57,21 +130,196 @@ window.McModules = {
       tagline: "Never guess. Use the current approved allergen information.",
       category: "Safety",
       station: "All stations",
-      keywords: ["allergen", "allergy", "cross contact", "customer safety"],
+      keywords: ["allergen", "allergy", "cross contact", "customer safety", "anaphylaxis", "14 allergens"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 130,
       level: "Priority",
+      priority: true,
+      time: "12 min",
+      sections: [
+        {
+          title: "Why allergies are serious",
+          text: "For some customers, a tiny amount of an allergen can cause a severe reaction called anaphylaxis, which can be life-threatening. That's why every allergy request is treated seriously, however busy it is.",
+          takeaway: "An allergy request is a safety request.",
+        },
+        {
+          title: "The 14 major allergens",
+          text: "UK law recognises 14 major allergens. Customers can ask about any of them, and the approved allergen information for your restaurant covers them.",
+          points: ["Celery, cereals containing gluten, crustaceans, eggs, fish", "Lupin, milk, molluscs, mustard, peanuts", "Sesame, soya, sulphur dioxide/sulphites, tree nuts"],
+          takeaway: "Know the 14, but always check the approved information.",
+        },
+        {
+          title: "Use current information, never memory",
+          text: "Ingredients and recipes change. Only use the current approved allergen information in your restaurant. Don't rely on memory, packaging from a different product or what a colleague thinks.",
+          takeaway: "If it isn't in the approved source, you don't know it.",
+        },
+        {
+          title: "Involve the right person",
+          text: "Follow your restaurant's allergen process and involve the manager or trained person responsible on shift. Never promise that an item is 'allergen-free' or 'completely safe'.",
+          takeaway: "Never promise. Involve the trained person.",
+        },
+        {
+          title: "Prevent cross-contact",
+          text: "Follow the restaurant process for clean hands, fresh gloves where required, clean equipment and careful preparation. If you are unsure whether cross-contact could happen, stop and ask.",
+          takeaway: "Clean hands, clean tools, careful handling.",
+        },
+        {
+          title: "If someone has a reaction",
+          text: "Tell a manager immediately. If the person has swelling, trouble breathing or collapses, call 999 and follow your first-aid procedure. If they carry an adrenaline auto-injector, they or a first aider may use it. Stay with them.",
+          takeaway: "Get help fast: manager, first aider, 999.",
+        },
+      ],
+      practice: ["Find where the current allergen information is kept", "Ask who handles allergen requests on each shift", "Walk through an allergy order with your trainer"],
+      checklist: ["I never guess allergen information", "I know where the current allergen information is", "I know who to involve on shift", "I understand cross-contact matters", "I know what to do if someone has a reaction"],
+      quiz: [
+        { q: "A customer asks whether a product is safe for their allergy. What should you do?", a: ["Promise it is safe", "Use the approved allergen information and involve the trained person", "Answer from memory"], correct: 1, explain: "Only the current approved allergen information and the trained person on shift can answer this properly." },
+        { q: "Can a busy period justify skipping the allergen process?", a: ["Yes", "No", "Only for regular customers"], correct: 1, explain: "Allergen steps are never optional. A rush doesn't change the risk to the customer." },
+        { q: "Which of these is one of the 14 major allergens in UK law?", a: ["Sesame", "Sugar", "Salt"], correct: 0, explain: "Sesame is one of the 14. Sugar and salt aren't allergens under UK law." },
+        { q: "A regular says, \"It's fine, I have it every week.\" Do you still follow the process?", a: ["No, they know best", "Yes, every time", "Only if a manager is watching"], correct: 1, explain: "Recipes and processes can change, so the process is followed every single time." },
+        { q: "A customer's lips start swelling and they struggle to breathe. What first?", a: ["Give them water and wait", "Alert a manager and call 999", "Finish serving the queue"], correct: 1, explain: "Swelling or breathing trouble can be anaphylaxis, a medical emergency. Get help immediately." },
+      ],
+    },
+    {
+      id: "workplace-safety",
+      icon: "🦺",
+      title: "Workplace Safety: Slips, Burns & Lifting",
+      tagline: "Look after yourself and the team in a busy, hot workplace.",
+      category: "Safety",
+      station: "All stations",
+      keywords: ["workplace safety", "slips", "trips", "burns", "lifting", "manual handling", "first aid", "hazard"],
+      roles: ["crew", "crewTrainer", "manager"],
+      xp: 110,
+      level: "Core skill",
       time: "10 min",
       sections: [
-        { title: "Treat every allergy request seriously", text: "Pause the normal flow and follow your restaurant's approved allergen process. Never promise that an item is allergen-free." },
-        { title: "Use current information", text: "Ingredients and processes can change. Use the current approved allergen source and involve the trained person responsible on shift." },
-        { title: "Prevent cross-contact", text: "Follow the restaurant process for clean hands, equipment and preparation. If you are unsure, stop and ask." }
+        {
+          title: "Spot hazards early",
+          text: "Wet floors, trailing cables, boxes in walkways and damaged equipment cause most injuries. Fix a hazard straight away if it's safe and you're trained to, or put up a sign and tell your shift lead.",
+          takeaway: "See it, sort it or report it.",
+        },
+        {
+          title: "Slips and trips",
+          text: "Wear the safe, slip-resistant footwear your restaurant requires. Clean spills immediately using the approved method and use a wet floor sign until the floor is dry. Walk, don't run, even in a rush.",
+          points: ["Spill: sign first, then clean", "Keep walkways and exits clear", "Walk, never run"],
+          takeaway: "Most slips are prevented by a sign and a quick clean.",
+        },
+        {
+          title: "Burns and hot equipment",
+          text: "Fryers, grills, toasters and hot drinks can all burn. Use the correct tools and protective equipment, call out \"hot behind\" when moving with anything hot, and never reach across hot equipment.",
+          takeaway: "Call it out and use the right protection.",
+        },
+        {
+          title: "Lifting safely",
+          text: "Before you lift, check the weight and your route. Keep the load close, bend your knees and avoid twisting. Use trolleys where provided, and ask for help with anything heavy or awkward.",
+          takeaway: "Plan the lift. Ask for help with heavy or awkward loads.",
+        },
+        {
+          title: "If someone gets hurt",
+          text: "Tell your manager and the first aider straight away. For a burn, cool it under cool running water as first-aid guidance directs and get help. Every accident, even a small one, is recorded the way your restaurant requires.",
+          takeaway: "Report every injury, however small.",
+        },
       ],
-      checklist: ["I never guess allergen information", "I know where the current allergen information is", "I know who to involve on shift", "I understand cross-contact matters"],
+      practice: ["Find the spill kit, wet floor signs and first-aid kit", "Ask who the first aider is on your shift", "Practise a safe lift with your trainer on a delivery day"],
+      checklist: ["I put a sign up before cleaning a spill", "I call out when moving with something hot", "I ask for help with heavy lifts", "I know who the first aider is", "I report every injury"],
       quiz: [
-        { q: "A customer asks whether a product is safe for their allergy. What should you do?", a: ["Promise it is safe", "Use approved allergen information and involve the trained person", "Guess from memory"], correct: 1 },
-        { q: "Can a busy period justify skipping the allergen process?", a: ["Yes", "No", "Only for regular customers"], correct: 1 }
-      ]
+        { q: "You see a drink spilled near the front counter. What should happen first?", a: ["Step around it", "Put up a wet floor sign and clean it the approved way", "Wait for the cleaner"], correct: 1, explain: "A sign warns others straight away. Then clean it using the approved method." },
+        { q: "What should you do before lifting a heavy box of stock?", a: ["Lift it fast to get it over with", "Check the weight and route, keep it close and ask for help if needed", "Drag it across the floor"], correct: 1, explain: "Planning the lift and asking for help prevents back injuries." },
+        { q: "A colleague burns their hand on a hot surface. What's the right response?", a: ["Carry on and mention it later", "Tell the first aider and manager and cool the burn under running water", "Put butter on it"], correct: 1, explain: "Cool running water and first-aid help are the right response. Every injury gets reported." },
+        { q: "Why call out \"hot behind\" when you move with a hot tray?", a: ["It warns colleagues so nobody bumps into you", "It's a way of saying hello", "It's only for managers"], correct: 0, explain: "A clear call-out stops collisions around hot equipment and product." },
+      ],
+    },
+    {
+      id: "teamwork-communication",
+      icon: "🤝",
+      title: "Teamwork & Communication",
+      tagline: "Clear calls, quick help and a team that has each other's backs.",
+      category: "Essentials",
+      station: "All stations",
+      keywords: ["teamwork", "communication", "call outs", "help", "respect", "team"],
+      roles: ["crew", "crewTrainer", "manager"],
+      xp: 90,
+      level: "Core skill",
+      time: "8 min",
+      sections: [
+        {
+          title: "One team, one goal",
+          text: "Every station depends on another. The till relies on the kitchen, the kitchen relies on stock and everyone relies on a clean, safe restaurant. When one area struggles, the whole team feels it.",
+          takeaway: "Your station is one part of the whole.",
+        },
+        {
+          title: "Clear, short call-outs",
+          text: "Use short, specific calls: what you need, how many and by when. Wait for a reply so you know you were heard. A clear call early beats a panicked shout later.",
+          points: ["Say what you need and how many", "Name the person when you can", "Confirm you heard a call"],
+          takeaway: "Short, specific and confirmed.",
+        },
+        {
+          title: "Offer help, ask for help",
+          text: "If your station is under control, ask your shift lead where to help next. If you're falling behind, say so early. Asking for help is how good teams stay ahead.",
+          takeaway: "Speak up early, whether you need help or can give it.",
+        },
+        {
+          title: "Respect every teammate",
+          text: "Be kind and patient, especially with new starters. Keep feedback about the task, not the person. Raise problems with your shift lead instead of arguing on the floor.",
+          takeaway: "Kind, calm and focused on the task.",
+        },
+        {
+          title: "Hand over properly",
+          text: "Before a break or the end of your shift, tell the next person what's running low, what's in progress and anything unusual. A good handover keeps the next person out of trouble.",
+          takeaway: "Leave your station ready for the next person.",
+        },
+      ],
+      practice: ["Make three clear call-outs during your next shift", "Ask your shift lead where to help when your station is quiet", "Give a proper handover before your break"],
+      checklist: ["I use short, specific call-outs", "I confirm when I hear a call", "I ask for help early", "I give a handover before breaks"],
+      quiz: [
+        { q: "Which is the clearest call-out?", a: ["\"We need stuff!\"", "\"Two more fries baskets for drive-thru, please\"", "Saying nothing and hoping someone notices"], correct: 1, explain: "Say what you need, how many and who it's for, so the right person can act straight away." },
+        { q: "Your station is quiet and under control. What's best?", a: ["Go on your phone", "Ask your shift lead where to help next", "Leave early"], correct: 1, explain: "Helping where the pressure is keeps the whole restaurant moving." },
+        { q: "A teammate makes a mistake during a rush. What's the best response?", a: ["Criticise them in front of customers", "Help fix it calmly and talk about it later if needed", "Ignore it"], correct: 1, explain: "Fix it together first. Feedback is kinder and more useful once the rush is over." },
+        { q: "What should a handover include?", a: ["What's low, what's in progress and anything unusual", "Just \"bye\"", "Only your break time"], correct: 0, explain: "A good handover means the next person isn't caught out." },
+      ],
+    },
+    {
+      id: "greeting-hospitality",
+      icon: "👋",
+      title: "Greeting & Hospitality",
+      tagline: "A warm welcome, a real smile and customers who want to come back.",
+      category: "Service",
+      station: "Front Counter",
+      keywords: ["greeting", "hospitality", "welcome", "smile", "customer experience", "lobby"],
+      roles: ["crew", "crewTrainer", "manager"],
+      xp: 80,
+      level: "Service skill",
+      time: "7 min",
+      sections: [
+        {
+          title: "First impressions count",
+          text: "Customers decide how they feel about a visit in the first few seconds. Make eye contact, smile and greet them before they reach you, even if you're busy with something else.",
+          takeaway: "Acknowledge every customer quickly.",
+        },
+        {
+          title: "Sound like you mean it",
+          text: "Use a friendly, natural tone rather than a script read at speed. Use the customer's name when you have it, for example on a collection order.",
+          takeaway: "Warm and natural beats fast and flat.",
+        },
+        {
+          title: "Adapt to the customer",
+          text: "Some customers want a chat, others are in a hurry. Families may need more time, and some customers may need extra help with screens, menus or accessibility. Read the situation and adjust.",
+          points: ["Offer help with kiosks and menus", "Be patient with families and older customers", "Keep it quick when someone is in a hurry"],
+          takeaway: "Treat people as individuals.",
+        },
+        {
+          title: "Finish well",
+          text: "Thank the customer, make sure they have everything including sauces, straws and napkins where needed, and invite them back. A good goodbye is as important as a good hello.",
+          takeaway: "Thank, check and invite them back.",
+        },
+      ],
+      practice: ["Greet every customer within a few seconds on your next shift", "Offer help to someone using a kiosk", "Practise a warm close with your trainer"],
+      checklist: ["I greet customers quickly with eye contact", "I use a friendly, natural tone", "I adapt to what each customer needs", "I thank customers and check they have everything"],
+      quiz: [
+        { q: "When should you greet a customer?", a: ["Only once they've ordered", "As soon as you notice them, even if you're busy", "Only if they greet you first"], correct: 1, explain: "A quick acknowledgement tells the customer they've been seen, even if you need a moment." },
+        { q: "A customer is struggling with the kiosk. What do you do?", a: ["Leave them to work it out", "Offer friendly help", "Tell them to use the app"], correct: 1, explain: "Offering help turns a frustrating moment into good service." },
+        { q: "What makes a greeting feel genuine?", a: ["Reading a script quickly", "A smile, eye contact and a natural tone", "Not looking up from the screen"], correct: 1, explain: "People respond to warmth. Eye contact and a natural tone make the difference." },
+        { q: "What's a good way to finish an interaction?", a: ["Turn away as soon as they pay", "Thank them, check they have everything and invite them back", "Ask them to hurry"], correct: 1, explain: "A warm close and a quick check prevent missing items and bring customers back." },
+      ],
     },
     {
       id: "fries-station",
@@ -80,21 +328,46 @@ window.McModules = {
       tagline: "Stay ahead of demand while keeping hot-oil safety first.",
       category: "Kitchen",
       station: "Fries",
-      keywords: ["fries", "fry", "fryer", "oil", "timers", "salt"],
+      keywords: ["fries", "fry", "fryer", "oil", "timers", "salt", "hash browns"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 95,
       level: "Station skill",
       time: "9 min",
       sections: [
-        { title: "Read demand early", text: "Watch orders and communicate before stock becomes low. Ask for help before the station falls behind." },
-        { title: "Follow the station timer and quality process", text: "Use the current fryer controls, timers, basket guidance and holding process exactly as trained. Do not improvise times or quantities." },
-        { title: "Respect hot oil", text: "Keep the area dry and clear, use the correct equipment and follow the approved response for any spill or equipment issue." }
+        {
+          title: "Set up for success",
+          text: "Before service, check the station is clean, stocked and ready as your station guide shows: baskets, scoops, packaging and the holding area. Report anything missing or faulty before it becomes a problem.",
+          takeaway: "A ready station makes the rush easier.",
+        },
+        {
+          title: "Read demand early",
+          text: "Watch the order screens and listen to the team. Communicate before stock runs low and ask for support before the station falls behind.",
+          takeaway: "Call it early, not when you've run out.",
+        },
+        {
+          title: "Follow the timers and quality steps",
+          text: "Use the fryer controls, timers, basket guidance and holding process exactly as trained. Never improvise cook times, batch sizes or how long product is held.",
+          takeaway: "The timer and station guide decide, not guesswork.",
+        },
+        {
+          title: "Respect hot oil",
+          text: "Hot oil causes serious burns. Keep the area dry and clear, never reach across a fryer and use the correct tools. Filtering, topping up and spills follow the approved process, and only people trained and authorised for them do them.",
+          takeaway: "Only do the oil tasks you're trained for.",
+        },
+        {
+          title: "Quality at the hand-off",
+          text: "Serve product that meets the standard in your station guide. If something doesn't look right, don't serve it. Tell your shift lead and follow the waste process.",
+          takeaway: "If it isn't right, it doesn't go out.",
+        },
       ],
-      checklist: ["I communicate low stock early", "I use the correct station timers", "I keep the floor and station safe", "I follow the official fries station card"],
+      practice: ["Watch a full fryer cycle with your trainer", "Practise calling stock levels to the team", "Find the spill kit and learn who to tell about fryer faults"],
+      checklist: ["I communicate low stock early", "I use the correct station timers", "I keep the floor and station safe", "I follow the official fries station guide"],
       quiz: [
-        { q: "What should you do when demand starts rising?", a: ["Wait until you run out", "Communicate and prepare using the station process", "Ignore the screen"], correct: 1 },
-        { q: "What comes before speed around a fryer?", a: ["Safety", "Bigger batches", "Skipping checks"], correct: 0 }
-      ]
+        { q: "What should you do when demand starts rising?", a: ["Wait until you run out", "Communicate and prepare using the station process", "Ignore the screen"], correct: 1, explain: "Reading demand early and calling it keeps the station ahead without cutting corners." },
+        { q: "What comes before speed around a fryer?", a: ["Safety", "Bigger batches", "Skipping checks"], correct: 0, explain: "Hot oil is a serious burn risk. Safe habits always come first." },
+        { q: "Who decides cook times and batch sizes?", a: ["You, based on the queue", "The equipment programme and station guide", "Whoever is on the till"], correct: 1, explain: "Times and quantities come from the approved station process, never guesswork." },
+        { q: "Product at the hand-off doesn't look right. What do you do?", a: ["Serve it quickly", "Don't serve it and tell your shift lead", "Hide it under fresh product"], correct: 1, explain: "Only product that meets the standard goes out. Your shift lead can sort a replacement." },
+      ],
     },
     {
       id: "grill-station",
@@ -109,15 +382,40 @@ window.McModules = {
       level: "Station skill",
       time: "11 min",
       sections: [
-        { title: "Set the station before the rush", text: "Check that the work area, tools and equipment are ready and that the correct approved cook programmes are available." },
-        { title: "Use the programmed cook cycle", text: "Load product as trained and use the exact equipment programme and timer. Never cook by eye or substitute a different cycle." },
-        { title: "Hold, rotate and communicate", text: "Follow the current holding and rotation process, call product levels clearly and keep raw and cooked tools separated." }
+        {
+          title: "Set the station before the rush",
+          text: "Check the work area, tools and equipment are ready and that the correct approved cook programmes are available. Report faults before service, not in the middle of it.",
+          takeaway: "Check early so you're not surprised later.",
+        },
+        {
+          title: "Use the programmed cook cycle",
+          text: "Load product as trained and use the exact equipment programme and timer. Never cook by eye, cut a cycle short or swap in a different programme.",
+          takeaway: "The programme decides when it's cooked.",
+        },
+        {
+          title: "Raw and cooked never meet",
+          text: "Keep raw and cooked product, tools and gloves separate exactly as trained. Change gloves and clean tools at the points your process requires.",
+          takeaway: "Separate tools protect every customer.",
+        },
+        {
+          title: "Hold, rotate and communicate",
+          text: "Follow the current holding and rotation process, call product levels clearly and tell the team when you're about to run low.",
+          takeaway: "Clear calls keep the line moving.",
+        },
+        {
+          title: "Stay safe around heat",
+          text: "Grill surfaces stay hot. Use the correct tools and protective equipment, keep hands and sleeves clear and report damaged equipment straight away.",
+          takeaway: "Right tools, right protection, every time.",
+        },
       ],
+      practice: ["Watch the grill setup check with your trainer", "Practise the glove and tool change points", "Call product levels during a busy period"],
       checklist: ["I know the grill setup check", "I use the approved cook programme every time", "I keep raw and cooked tools separated", "I communicate product levels"],
       quiz: [
-        { q: "How should cook time be decided?", a: ["By eye", "By the approved equipment programme and station process", "By how busy the store is"], correct: 1 },
-        { q: "Why keep tools separated?", a: ["To prevent contamination", "Only to look tidy", "It does not matter"], correct: 0 }
-      ]
+        { q: "How should cook time be decided?", a: ["By eye", "By the approved equipment programme and station process", "By how busy it is"], correct: 1, explain: "The programme exists so every product is cooked safely and consistently." },
+        { q: "Why keep raw and cooked tools separated?", a: ["To prevent contamination", "Only to look tidy", "It doesn't matter"], correct: 0, explain: "Mixing raw and cooked tools can spread harmful bacteria to ready-to-eat food." },
+        { q: "You notice damaged grill equipment during setup. What do you do?", a: ["Use it carefully", "Report it straight away", "Wait until after the rush"], correct: 1, explain: "Faulty equipment is a safety and quality risk. Report it before service." },
+        { q: "The queue is long. Can you shorten a cook cycle?", a: ["Yes, if it looks done", "No, never", "Only for small orders"], correct: 1, explain: "Cook cycles are never shortened. Ask for support instead." },
+      ],
     },
     {
       id: "chicken-fryer",
@@ -132,15 +430,35 @@ window.McModules = {
       level: "Station skill",
       time: "11 min",
       sections: [
-        { title: "Use the correct product process", text: "Identify the product, basket and fryer position required by the current station guidance before dropping anything." },
-        { title: "Programme, timer and handling", text: "Use the programmed cook cycle and approved handling method every time. Never shorten a cycle or guess when product is ready." },
-        { title: "Protect the station", text: "Keep packaging, frozen product and the floor organised so the area stays safe. Escalate fryer faults immediately." }
+        {
+          title: "Know the product first",
+          text: "Identify the product, basket and fryer position the current station guidance requires before you drop anything. Different products can need different processes.",
+          takeaway: "Check the guide before you drop.",
+        },
+        {
+          title: "Programme, timer and handling",
+          text: "Use the programmed cook cycle and the approved handling method every time. Never shorten a cycle or guess when product is ready.",
+          takeaway: "The programme decides, not the clock on the wall.",
+        },
+        {
+          title: "Handle raw product safely",
+          text: "Keep raw product, packaging and tools away from cooked product. Follow the glove, handwash and tool-cleaning steps exactly as trained.",
+          takeaway: "Raw stays raw, cooked stays safe.",
+        },
+        {
+          title: "Protect the station",
+          text: "Keep packaging, frozen product and the floor organised so the area stays safe. Keep the fryer area dry and escalate any fryer fault immediately.",
+          takeaway: "A clear, dry station is a safe station.",
+        },
       ],
-      checklist: ["I can identify the correct basket/process", "I use the approved cook programme", "I keep the fryer area dry and clear", "I ask before handling an unfamiliar product"],
+      practice: ["Walk through each product's basket and position with your trainer", "Practise the handwash and glove steps between raw and cooked", "Learn who to call about fryer faults"],
+      checklist: ["I can identify the correct basket and process", "I use the approved cook programme", "I keep the fryer area dry and clear", "I ask before handling an unfamiliar product"],
       quiz: [
-        { q: "What should you do with an unfamiliar chicken product?", a: ["Use any similar cycle", "Check the station guidance or ask a trainer", "Guess based on size"], correct: 1 },
-        { q: "Can you shorten a cook cycle to catch up during rush?", a: ["Yes", "No", "Only if the queue is long"], correct: 1 }
-      ]
+        { q: "What should you do with an unfamiliar chicken product?", a: ["Use any similar cycle", "Check the station guidance or ask a trainer", "Guess based on size"], correct: 1, explain: "Different products need different processes. Always check before cooking." },
+        { q: "Can you shorten a cook cycle to catch up during a rush?", a: ["Yes", "No", "Only if the queue is long"], correct: 1, explain: "Undercooked chicken is a serious food safety risk. Cycles are never shortened." },
+        { q: "What keeps raw product from contaminating cooked product?", a: ["Working faster", "Following the glove, handwash and tool steps as trained", "Using the same tongs for everything"], correct: 1, explain: "Separation and hygiene steps stop bacteria spreading to ready-to-eat food." },
+        { q: "A fryer shows a fault. What's the right move?", a: ["Try to fix it yourself", "Stop using it and tell your shift lead", "Keep cooking and hope it clears"], correct: 1, explain: "Fryer faults can be dangerous. Only trained people deal with them." },
+      ],
     },
     {
       id: "kitchen-assembly",
@@ -149,21 +467,46 @@ window.McModules = {
       tagline: "Accurate builds, clean presentation and strong communication.",
       category: "Kitchen",
       station: "Kitchen Assembly",
-      keywords: ["assembly", "line", "build", "burger", "wrap", "order accuracy"],
+      keywords: ["assembly", "line", "build", "burger", "wrap", "order accuracy", "customisation"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 100,
       level: "Station skill",
       time: "10 min",
       sections: [
-        { title: "Read the order before building", text: "Check the screen and customisations before starting. If a build is unfamiliar, use the current build card." },
-        { title: "Consistent portions and order", text: "Follow the approved build sequence and portions instead of relying on memory when unsure." },
-        { title: "Communicate gaps quickly", text: "Call for product or support early. A clear call is better than silently waiting while orders build up." }
+        {
+          title: "Read the order before building",
+          text: "Check the screen and any customisations before you start. If a build is unfamiliar, use the current build card rather than memory.",
+          takeaway: "Read first, build second.",
+        },
+        {
+          title: "Consistent portions and sequence",
+          text: "Follow the approved build sequence and portions every time. Consistency is what makes a product taste the same in every restaurant.",
+          takeaway: "Same build, every time.",
+        },
+        {
+          title: "Customisations and allergies",
+          text: "\"No sauce\" or \"extra pickles\" matter to the customer. Allergy orders follow the allergen process, so check the screen carefully and involve the trained person if there's any doubt.",
+          takeaway: "A customisation is a promise to the customer.",
+        },
+        {
+          title: "Keep it clean and presentable",
+          text: "Wipe as you go, keep the build area organised and make sure the product looks right before it leaves your hands.",
+          takeaway: "Build it like you're serving it to someone you know.",
+        },
+        {
+          title: "Communicate gaps quickly",
+          text: "Call for product or support early. A clear call is better than silently waiting while orders build up.",
+          takeaway: "Say it early, say it clearly.",
+        },
       ],
+      practice: ["Build three different products using the build card", "Practise reading customisations aloud", "Call for product before you run out"],
       checklist: ["I read customisations first", "I use build cards when needed", "I keep the assembly area clean", "I communicate missing product early"],
       quiz: [
-        { q: "What should you use for an unfamiliar build?", a: ["Guess", "The current build card", "A photo from memory"], correct: 1 },
-        { q: "What should happen when a needed product is running low?", a: ["Say nothing", "Communicate early", "Cancel the order"], correct: 1 }
-      ]
+        { q: "What should you use for an unfamiliar build?", a: ["A guess", "The current build card", "A photo from memory"], correct: 1, explain: "Build cards show the approved sequence and portions, so every product is right." },
+        { q: "What should happen when a needed product is running low?", a: ["Say nothing", "Communicate early", "Cancel the order"], correct: 1, explain: "An early call gives the team time to restock without slowing orders." },
+        { q: "An order says \"no onions\". Why does this matter?", a: ["It doesn't, just build it normally", "It could be a preference or a dietary need, so build it exactly", "Only if the customer complains"], correct: 1, explain: "Customisations must be followed exactly. They matter to the customer." },
+        { q: "What's the first thing to do when a new order appears?", a: ["Start building straight away", "Read the order and customisations", "Wait for someone else"], correct: 1, explain: "Reading first prevents remakes and keeps the line moving." },
+      ],
     },
     {
       id: "breakfast",
@@ -172,21 +515,41 @@ window.McModules = {
       tagline: "Different menu, same focus on safety, quality and accuracy.",
       category: "Kitchen",
       station: "Breakfast",
-      keywords: ["breakfast", "muffin", "egg", "hash brown", "morning"],
+      keywords: ["breakfast", "muffin", "egg", "hash brown", "morning", "changeover"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 100,
       level: "Station skill",
       time: "10 min",
       sections: [
-        { title: "Know the breakfast setup", text: "Morning equipment and product flow can differ from the main menu. Confirm your station setup with the trainer before service." },
-        { title: "Use the correct product programmes", text: "Follow the approved equipment settings, handling and build cards for each breakfast item." },
-        { title: "Prepare for changeover", text: "Keep the station organised and follow manager direction for menu changeover, stock and cleaning." }
+        {
+          title: "Know the breakfast setup",
+          text: "Morning equipment and product flow can differ from the main menu. Confirm your station setup with your trainer before service starts.",
+          takeaway: "Breakfast is its own station. Learn its setup.",
+        },
+        {
+          title: "Use the correct product guidance",
+          text: "Follow the approved equipment settings, handling and build cards for each breakfast item. Never assume a lunch process works for breakfast products.",
+          takeaway: "Every item has its own guide.",
+        },
+        {
+          title: "Eggs and hygiene",
+          text: "Egg products follow specific handling and hygiene steps. Follow them exactly as trained, including handwashing and cleaning tools between tasks.",
+          takeaway: "Careful handling, every time.",
+        },
+        {
+          title: "Prepare for changeover",
+          text: "Keep the station organised and follow manager direction for the menu changeover, stock and cleaning. A smooth changeover sets up the lunch team.",
+          takeaway: "Finish breakfast so lunch starts strong.",
+        },
       ],
+      practice: ["Walk through the breakfast setup with your trainer", "Practise one build of each breakfast item using the card", "Help with a changeover under supervision"],
       checklist: ["I know my breakfast station setup", "I use the correct product guidance", "I keep builds accurate", "I follow changeover instructions"],
       quiz: [
-        { q: "Breakfast product settings should come from where?", a: ["Guessing", "Approved station guidance", "Whatever is fastest"], correct: 1 },
-        { q: "Who coordinates menu changeover?", a: ["The shift team under manager direction", "Nobody", "Customers"], correct: 0 }
-      ]
+        { q: "Where should breakfast product settings come from?", a: ["Guessing", "Approved station guidance", "Whatever is fastest"], correct: 1, explain: "Breakfast items have their own approved settings and handling." },
+        { q: "Who coordinates the menu changeover?", a: ["The shift team under manager direction", "Nobody", "Customers"], correct: 0, explain: "Changeover is planned by the manager so stock, cleaning and equipment switch safely." },
+        { q: "Can you use a lunch process for a breakfast product?", a: ["Yes, it's the same", "No, check the breakfast guidance", "Only on weekends"], correct: 1, explain: "Different products need different processes. Always use the correct guide." },
+        { q: "What should you do with tools between egg handling and other tasks?", a: ["Keep using them", "Clean them as trained", "Wipe them on your apron"], correct: 1, explain: "Cleaning tools between tasks prevents cross-contamination." },
+      ],
     },
     {
       id: "front-counter",
@@ -195,21 +558,95 @@ window.McModules = {
       tagline: "Friendly, accurate service without rushing the customer.",
       category: "Service",
       station: "Front Counter",
-      keywords: ["front counter", "till", "orders", "customer", "payment"],
+      keywords: ["front counter", "till", "orders", "customer", "payment", "counter"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 80,
       level: "Service skill",
       time: "8 min",
       sections: [
-        { title: "Greet and listen", text: "A clear greeting and careful listening prevent many order mistakes before they happen." },
-        { title: "Confirm important details", text: "Repeat customisations, drinks, sauces and anything unusual before finishing the order." },
-        { title: "Know when to involve a manager", text: "Use manager support for refunds, difficult complaints, unusual payment issues and allergen questions according to store process." }
+        {
+          title: "Greet and listen",
+          text: "A clear greeting and careful listening prevent many order mistakes before they happen. Give the customer your full attention.",
+          takeaway: "Listen fully before you tap anything.",
+        },
+        {
+          title: "Confirm the important details",
+          text: "Repeat customisations, drinks, sauces and anything unusual before you finish the order. It takes seconds and saves remakes.",
+          takeaway: "Confirm it once, get it right once.",
+        },
+        {
+          title: "Stay calm when the queue grows",
+          text: "A long queue can feel stressful. Keep a steady pace, acknowledge waiting customers with a smile and ask your shift lead for support if needed.",
+          takeaway: "Steady and friendly beats rushed and wrong.",
+        },
+        {
+          title: "Keep the counter ready",
+          text: "Keep trays, napkins, sauces and the counter area stocked and clean between customers.",
+          takeaway: "A ready counter keeps service smooth.",
+        },
+        {
+          title: "Know when to involve a manager",
+          text: "Refunds, difficult complaints, unusual payment issues and allergen questions follow your store's process, which may mean involving a manager.",
+          takeaway: "Know your limits and use them.",
+        },
       ],
+      practice: ["Take five orders while your trainer listens", "Practise repeating back a customised order", "Restock the counter between rushes"],
       checklist: ["I greet customers clearly", "I confirm key order details", "I stay calm when the queue grows", "I know when to call a manager"],
       quiz: [
-        { q: "What helps prevent order mistakes?", a: ["Guessing", "Confirming details", "Rushing the customer"], correct: 1 },
-        { q: "What should you do with an issue outside your training?", a: ["Make up a solution", "Ask the appropriate manager or trained person", "Ignore it"], correct: 1 }
-      ]
+        { q: "What helps prevent order mistakes?", a: ["Guessing", "Confirming the details", "Rushing the customer"], correct: 1, explain: "Repeating key details catches mistakes before they reach the kitchen." },
+        { q: "What should you do with an issue outside your training?", a: ["Make up a solution", "Ask the appropriate manager or trained person", "Ignore it"], correct: 1, explain: "Getting the right person means the customer gets the right answer." },
+        { q: "The queue is getting long. What's best?", a: ["Rush and skip confirming orders", "Keep a steady pace, acknowledge people and ask for support if needed", "Close the till"], correct: 1, explain: "Accuracy still matters in a rush, and support is there when you ask." },
+        { q: "A customer asks about an allergy at the counter. What do you do?", a: ["Answer from memory", "Follow the allergen process and involve the trained person", "Tell them it's fine"], correct: 1, explain: "Allergen questions always follow the approved process." },
+      ],
+    },
+    {
+      id: "till-cash",
+      icon: "💷",
+      title: "Till & Cash Basics",
+      tagline: "Accurate payments, honest counting and a secure till.",
+      category: "Service",
+      station: "Front Counter",
+      keywords: ["till", "cash", "payment", "card", "change", "refund", "security"],
+      roles: ["crew", "crewTrainer", "manager"],
+      xp: 85,
+      level: "Service skill",
+      time: "8 min",
+      sections: [
+        {
+          title: "Your till, your responsibility",
+          text: "Only use the till login you have been given and never share it. Log out or lock the till whenever you step away.",
+          takeaway: "Your login is yours alone.",
+        },
+        {
+          title: "Taking payment",
+          text: "Tell the customer the total clearly. For card and contactless payments, follow the screen prompts and wait for confirmation. If a payment is declined, stay polite and discreet and let the customer try again or use another method.",
+          takeaway: "Wait for confirmation before handing over.",
+        },
+        {
+          title: "Cash and change",
+          text: "Place the customer's note on or near the till until the change is counted, then count the change back clearly. Keep the drawer closed between transactions.",
+          points: ["Say the amount received", "Count change back to the customer", "Close the drawer every time"],
+          takeaway: "Count it back, close the drawer.",
+        },
+        {
+          title: "Voids, refunds and discounts",
+          text: "Voids, refunds and discounts follow store process and often need a manager. Never adjust an order or price without the right approval.",
+          takeaway: "Approval first, every time.",
+        },
+        {
+          title: "If something doesn't add up",
+          text: "If you think you've made a mistake, or you notice something suspicious, tell your manager straight away. Honest mistakes are easy to fix when reported early.",
+          takeaway: "Report it early. Honesty protects you.",
+        },
+      ],
+      practice: ["Practise counting change back with your trainer", "Ask your manager to walk you through the refund process", "Lock the till every time you step away"],
+      checklist: ["I never share my till login", "I count change back to the customer", "I get approval for voids and refunds", "I report mistakes straight away"],
+      quiz: [
+        { q: "A colleague asks to use your till login. What do you say?", a: ["Sure, go ahead", "No, logins aren't shared. Ask a manager for help", "Only if they're quick"], correct: 1, explain: "Your login records your transactions. Sharing it puts you at risk." },
+        { q: "What's the best way to give change?", a: ["Hand it over in a pile", "Count it back clearly to the customer", "Leave it on the counter"], correct: 1, explain: "Counting change back prevents mistakes and disagreements." },
+        { q: "A customer wants a refund. What should you do?", a: ["Give cash from the till", "Follow the store process and involve a manager if required", "Refuse without explanation"], correct: 1, explain: "Refunds need the right approval and process." },
+        { q: "You realise you gave the wrong change earlier. What now?", a: ["Hope nobody notices", "Tell your manager straight away", "Take it from the tip jar"], correct: 1, explain: "Reporting early makes honest mistakes easy to fix." },
+      ],
     },
     {
       id: "drive-thru",
@@ -218,21 +655,46 @@ window.McModules = {
       tagline: "Clear headset habits for speed and accuracy.",
       category: "Service",
       station: "Drive-thru",
-      keywords: ["drive thru", "drive-thru", "headset", "order taking", "accuracy"],
+      keywords: ["drive thru", "drive-thru", "headset", "order taking", "accuracy", "car"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 95,
       level: "Station skill",
       time: "9 min",
       sections: [
-        { title: "Speak clearly", text: "Use a calm pace and confirm key order details so both the customer and kitchen receive the right information." },
-        { title: "Stay organised", text: "Follow the headset and till process you were trained on. Avoid taking on extra tasks beyond your current training level." },
-        { title: "Escalate unusual requests", text: "If a request, complaint or allergy question is unclear, pause and get the right support rather than guessing." }
+        {
+          title: "Speak clearly",
+          text: "Use a calm, friendly pace so both the customer and the kitchen get the right information. Smile when you speak. Customers can hear it.",
+          takeaway: "Calm and clear is faster than rushed.",
+        },
+        {
+          title: "Confirm the order",
+          text: "Read the order back or point customers to the order screen, especially for customisations, drinks and sauces.",
+          takeaway: "Confirm it before they drive on.",
+        },
+        {
+          title: "Stay organised",
+          text: "Follow the headset and till process you were trained on. Avoid taking on extra tasks beyond your current training level.",
+          takeaway: "Your process keeps the lane flowing.",
+        },
+        {
+          title: "Work as a lane team",
+          text: "Order taking, payment and presenting work together. Tell the team about large or unusual orders early so they can prepare.",
+          takeaway: "Warn the team about big orders early.",
+        },
+        {
+          title: "Escalate unusual requests",
+          text: "If a request, complaint or allergy question is unclear, pause and get the right support rather than guessing.",
+          takeaway: "When in doubt, get support.",
+        },
       ],
+      practice: ["Listen in on the headset with your trainer", "Practise reading back a customised order", "Call a large order to the kitchen early"],
       checklist: ["I use a clear headset voice", "I confirm custom orders", "I keep the team updated", "I ask for help when a request is unclear"],
       quiz: [
-        { q: "What should you do if you did not hear part of an order?", a: ["Guess", "Politely confirm it again", "Ignore it"], correct: 1 },
-        { q: "Drive-thru speed depends most on what?", a: ["Clear teamwork and accuracy", "Talking as fast as possible", "Skipping confirmation"], correct: 0 }
-      ]
+        { q: "What should you do if you didn't hear part of an order?", a: ["Guess", "Politely ask them to repeat it", "Ignore it"], correct: 1, explain: "Asking again takes seconds. A wrong order takes much longer to fix." },
+        { q: "What does drive-thru speed depend on most?", a: ["Clear teamwork and accuracy", "Talking as fast as possible", "Skipping confirmation"], correct: 0, explain: "A lane moves fastest when orders are right first time and the team communicates." },
+        { q: "A car orders a large, complicated order. What helps most?", a: ["Tell the kitchen and presenter early", "Say nothing", "Ask them to go inside"], correct: 0, explain: "An early heads-up lets the team prepare and keep the lane moving." },
+        { q: "A customer asks about allergens over the headset. What do you do?", a: ["Answer from memory", "Follow the allergen process and get the trained person", "Tell them it's safe"], correct: 1, explain: "Allergen questions always follow the approved process, whatever the station." },
+      ],
     },
     {
       id: "drinks-mccafe",
@@ -241,21 +703,41 @@ window.McModules = {
       tagline: "Correct cup, clean equipment and accurate hand-off.",
       category: "Service",
       station: "Drinks & McCafé",
-      keywords: ["drinks", "mccafe", "coffee", "shake", "cup", "beverage"],
+      keywords: ["drinks", "mccafe", "coffee", "shake", "cup", "beverage", "hot drinks"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 90,
       level: "Station skill",
       time: "9 min",
       sections: [
-        { title: "Read the full drink order", text: "Check size, type and customisation before starting so remakes do not slow the hand-off." },
-        { title: "Use the machine process", text: "Follow the current drink equipment prompts, cleaning process and product guidance. Do not bypass machine warnings." },
-        { title: "Present accurately", text: "Match completed drinks to the correct order and keep lids, cups and the hand-off area organised." }
+        {
+          title: "Read the full drink order",
+          text: "Check size, type and customisation before you start so remakes don't slow the hand-off.",
+          takeaway: "Size, type, customisation, then pour.",
+        },
+        {
+          title: "Use the machine process",
+          text: "Follow the current drink equipment prompts, cleaning process and product guidance. Never bypass machine warnings.",
+          takeaway: "Machine warnings mean stop and check.",
+        },
+        {
+          title: "Hot drinks safety",
+          text: "Hot drinks can scald. Fit lids securely, use carriers for multiple drinks and hand them over carefully so the customer takes them safely.",
+          takeaway: "Secure lids, careful hand-off.",
+        },
+        {
+          title: "Present accurately",
+          text: "Match completed drinks to the correct order and keep lids, cups and the hand-off area organised.",
+          takeaway: "Right drink, right order, right customer.",
+        },
       ],
-      checklist: ["I check size and customisation", "I follow equipment prompts", "I keep the area clean", "I match drinks to the right order"],
+      practice: ["Make each drink size with your trainer watching", "Learn the daily cleaning steps for your machines", "Practise a safe hot-drink hand-off"],
+      checklist: ["I check size and customisation", "I follow equipment prompts", "I fit lids securely", "I match drinks to the right order"],
       quiz: [
-        { q: "A machine shows a warning you do not recognise. What should you do?", a: ["Ignore it", "Ask a trained person and follow the equipment process", "Keep pressing buttons"], correct: 1 },
-        { q: "What reduces drink remakes?", a: ["Checking the full order first", "Working from memory", "Making random sizes"], correct: 0 }
-      ]
+        { q: "A machine shows a warning you don't recognise. What should you do?", a: ["Ignore it", "Ask a trained person and follow the equipment process", "Keep pressing buttons"], correct: 1, explain: "Warnings are there for safety and quality. Get help from someone trained." },
+        { q: "What reduces drink remakes?", a: ["Checking the full order first", "Working from memory", "Making random sizes"], correct: 0, explain: "Checking size, type and customisation first gets it right the first time." },
+        { q: "How should you hand over a hot drink?", a: ["Quickly, without a lid", "With a secure lid, carefully, so the customer has a good grip", "Slide it across the counter"], correct: 1, explain: "Secure lids and a careful hand-off prevent scalds." },
+        { q: "Two drinks look the same. How do you avoid mixing them up?", a: ["Guess", "Match each to its order before handing over", "Give both to the first customer"], correct: 1, explain: "Matching to the order makes sure every customer gets what they asked for." },
+      ],
     },
     {
       id: "order-presenting",
@@ -264,67 +746,41 @@ window.McModules = {
       tagline: "One final accuracy check before the order reaches the customer.",
       category: "Service",
       station: "Present",
-      keywords: ["present", "runner", "order assembly", "bag", "accuracy"],
+      keywords: ["present", "runner", "order assembly", "bag", "accuracy", "hand-off"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 85,
       level: "Service skill",
       time: "8 min",
       sections: [
-        { title: "Work from the order", text: "Use the order display and the restaurant's assembly process instead of relying on memory." },
-        { title: "Check before hand-off", text: "Confirm key items, drinks and special requests are matched to the correct order." },
-        { title: "Keep the lane moving", text: "Communicate missing items early and use the approved waiting/parking process when directed." }
+        {
+          title: "Work from the order",
+          text: "Use the order display and the restaurant's assembly process instead of relying on memory.",
+          takeaway: "The screen is your checklist.",
+        },
+        {
+          title: "Check before hand-off",
+          text: "Confirm key items, drinks and special requests are matched to the correct order. Check sauces, napkins and straws where needed.",
+          takeaway: "One last check prevents most complaints.",
+        },
+        {
+          title: "Bag it properly",
+          text: "Pack hot and cold items as trained, keep drinks upright and fold or seal bags so nothing spills on the way.",
+          takeaway: "Packed well, arrives well.",
+        },
+        {
+          title: "Keep the lane moving",
+          text: "Communicate missing items early and use the approved waiting or parking process when directed.",
+          takeaway: "Speak up early about anything missing.",
+        },
       ],
+      practice: ["Check ten orders against the screen with your trainer", "Practise packing a large family order", "Learn your restaurant's waiting-bay process"],
       checklist: ["I match items to the correct order", "I check special requests", "I communicate missing items", "I keep the hand-off area organised"],
       quiz: [
-        { q: "What should drive order assembly?", a: ["The order display and store process", "Guessing", "Whichever bag is nearest"], correct: 0 },
-        { q: "What should you do when an item is missing?", a: ["Hide it", "Communicate it early", "Send the order anyway"], correct: 1 }
-      ]
-    },
-    {
-      id: "dining-cleaning",
-      icon: "🧹",
-      title: "Dining Area, Cleaning & Safety",
-      tagline: "A clean restaurant is part of the customer experience.",
-      category: "Cleanliness",
-      station: "Dining Area",
-      keywords: ["lobby", "dining area", "cleaning", "spill", "bins", "toilets"],
-      roles: ["crew", "crewTrainer", "manager"],
-      xp: 80,
-      level: "Core skill",
-      time: "8 min",
-      sections: [
-        { title: "See hazards early", text: "Spills, damaged furniture, blocked routes and overflowing bins should be dealt with or reported quickly." },
-        { title: "Use cleaning products correctly", text: "Use only the approved product and method for the task. Never mix chemicals or use an unlabelled product." },
-        { title: "Reset the area", text: "Leave tables, floors, bins and customer areas ready for the next customer while keeping walkways clear." }
+        { q: "What should drive order assembly?", a: ["The order display and store process", "Guessing", "Whichever bag is nearest"], correct: 0, explain: "The display is the single source of truth for what the customer ordered." },
+        { q: "What should you do when an item is missing?", a: ["Hide it", "Communicate it early", "Send the order anyway"], correct: 1, explain: "An early call gets the item made while you keep other orders moving." },
+        { q: "What's often forgotten at hand-off?", a: ["Sauces, straws and napkins", "The receipt printer", "The menu board"], correct: 0, explain: "Small extras make a big difference to the customer." },
+        { q: "How should drinks be packed?", a: ["Lying down in the bag", "Upright, as trained", "Any way that fits"], correct: 1, explain: "Upright drinks in the right carrier don't spill on the way." },
       ],
-      checklist: ["I report hazards quickly", "I use approved cleaning products", "I keep walkways clear", "I wash hands after cleaning tasks when required"],
-      quiz: [
-        { q: "What should you do with an unknown cleaning chemical?", a: ["Use it anyway", "Ask and use only the approved labelled product", "Mix it with another cleaner"], correct: 1 },
-        { q: "Why deal with spills quickly?", a: ["They can create slip and hygiene hazards", "Only because they look bad", "There is no reason"], correct: 0 }
-      ]
-    },
-    {
-      id: "stock-waste",
-      icon: "📦",
-      title: "Stock, Rotation & Waste",
-      tagline: "Keep product organised and record waste accurately.",
-      category: "Operations",
-      station: "Stock",
-      keywords: ["stock", "rotation", "fifo", "waste", "delivery", "labels"],
-      roles: ["crew", "crewTrainer", "manager"],
-      xp: 85,
-      level: "Core skill",
-      time: "9 min",
-      sections: [
-        { title: "Rotate correctly", text: "Follow your restaurant's date, label and rotation process so older in-date stock is used before newer stock." },
-        { title: "Store product properly", text: "Return stock to the correct approved storage area and keep packaging protected from contamination." },
-        { title: "Record waste honestly", text: "Use the restaurant waste process. Accurate waste records help managers understand stock and production." }
-      ],
-      checklist: ["I understand stock rotation", "I check labels and dates as trained", "I put stock in the correct area", "I record waste instead of hiding it"],
-      quiz: [
-        { q: "Why record waste accurately?", a: ["It helps stock and production decisions", "It is better to hide it", "It has no use"], correct: 0 },
-        { q: "What should you do with a label or date you do not understand?", a: ["Guess", "Ask a trained person", "Remove it"], correct: 1 }
-      ]
     },
     {
       id: "customer-recovery",
@@ -333,21 +789,46 @@ window.McModules = {
       tagline: "Listen, own the issue and get the right help quickly.",
       category: "Service",
       station: "Customer service",
-      keywords: ["complaint", "customer recovery", "refund", "mistake", "replacement"],
+      keywords: ["complaint", "customer recovery", "refund", "mistake", "replacement", "upset customer"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 90,
       level: "Service skill",
       time: "9 min",
       sections: [
-        { title: "Listen first", text: "Let the customer explain the issue without arguing or interrupting. Confirm what has gone wrong." },
-        { title: "Use the correct recovery route", text: "Follow the authority level and recovery options your restaurant has trained you to use. Involve a manager when required." },
-        { title: "Close the loop", text: "Make sure the customer receives the agreed fix and share useful learning with the team." }
+        {
+          title: "Listen first",
+          text: "Let the customer explain the issue without arguing or interrupting. Confirm what went wrong so they know you understand.",
+          takeaway: "Listening calms most situations.",
+        },
+        {
+          title: "Apologise and own it",
+          text: "A genuine apology isn't admitting blame. It shows you care. Avoid blaming another station or colleague.",
+          takeaway: "\"I'm sorry, let me sort that for you.\"",
+        },
+        {
+          title: "Use the correct recovery route",
+          text: "Follow the authority level and recovery options your restaurant has trained you to use. Involve a manager when required.",
+          takeaway: "Know what you can offer and when to get a manager.",
+        },
+        {
+          title: "Stay calm and safe",
+          text: "If a customer becomes aggressive, don't argue back. Keep a safe distance and get your manager straight away.",
+          takeaway: "Your safety comes first.",
+        },
+        {
+          title: "Close the loop",
+          text: "Make sure the customer receives the agreed fix, thank them for their patience and share anything useful with the team so it doesn't happen again.",
+          takeaway: "Fix it, thank them, learn from it.",
+        },
       ],
+      practice: ["Role-play a missing-item complaint with your trainer", "Ask your manager what recovery options you can offer", "Watch how your shift lead handles a complaint"],
       checklist: ["I listen before responding", "I stay calm", "I know when manager approval is needed", "I confirm the issue is resolved"],
       quiz: [
-        { q: "What is the first step with a complaint?", a: ["Argue", "Listen and understand the issue", "Blame another station"], correct: 1 },
-        { q: "What if the requested fix is outside your authority?", a: ["Promise it anyway", "Get manager support", "Ignore the customer"], correct: 1 }
-      ]
+        { q: "What's the first step with a complaint?", a: ["Argue", "Listen and understand the issue", "Blame another station"], correct: 1, explain: "Listening shows respect and helps you understand the real problem." },
+        { q: "What if the requested fix is outside your authority?", a: ["Promise it anyway", "Get manager support", "Ignore the customer"], correct: 1, explain: "Your manager can approve what you can't. Never promise what you can't deliver." },
+        { q: "A customer starts shouting. What should you do?", a: ["Shout back", "Stay calm, keep a safe distance and get your manager", "Walk off without a word"], correct: 1, explain: "Your safety matters. A manager is trained to handle escalations." },
+        { q: "Once the issue is fixed, what's next?", a: ["Nothing", "Thank the customer and share useful learning with the team", "Complain about the customer"], correct: 1, explain: "Closing the loop helps the team stop the same problem happening again." },
+      ],
     },
     {
       id: "delivery-orders",
@@ -356,21 +837,185 @@ window.McModules = {
       tagline: "Accurate, sealed and matched to the right collection.",
       category: "Service",
       station: "Delivery",
-      keywords: ["delivery", "courier", "bag", "handover", "order number"],
+      keywords: ["delivery", "courier", "bag", "handover", "order number", "driver"],
       roles: ["crew", "crewTrainer", "manager"],
       xp: 75,
       level: "Service skill",
       time: "7 min",
       sections: [
-        { title: "Match the order", text: "Use the restaurant delivery process to match the correct order number and items before handover." },
-        { title: "Package as trained", text: "Follow the current packaging, sealing and drink handling process for delivery orders." },
-        { title: "Keep collection organised", text: "Separate waiting orders clearly and resolve missing items before handover." }
+        {
+          title: "Match the order",
+          text: "Use the restaurant delivery process to match the correct order number and items before handover.",
+          takeaway: "Right order, right courier.",
+        },
+        {
+          title: "Package as trained",
+          text: "Follow the current packaging, sealing and drink handling process for delivery orders.",
+          takeaway: "Sealed and secure for the journey.",
+        },
+        {
+          title: "Keep collection organised",
+          text: "Keep waiting orders clearly separated and resolve missing items before handover.",
+          takeaway: "An organised shelf prevents mix-ups.",
+        },
+        {
+          title: "Be professional with couriers",
+          text: "Couriers are part of the customer's experience. Be friendly, follow the collection process and involve a manager if there's a dispute.",
+          takeaway: "Friendly, clear and by the process.",
+        },
       ],
-      checklist: ["I match the order number", "I follow packaging guidance", "I keep drinks and bags organised", "I do not hand over an incomplete order"],
+      practice: ["Match three delivery orders with your trainer", "Learn how to seal delivery bags", "Ask how disputes with couriers are handled"],
+      checklist: ["I match the order number", "I follow packaging guidance", "I keep drinks and bags organised", "I never hand over an incomplete order"],
       quiz: [
-        { q: "What should happen before a delivery handover?", a: ["Match the order using the approved process", "Guess which bag it is", "Give the nearest bag"], correct: 0 },
-        { q: "What if an item is missing?", a: ["Hand over anyway", "Resolve it through the team process", "Hide the order"], correct: 1 }
-      ]
+        { q: "What should happen before a delivery handover?", a: ["Match the order using the approved process", "Guess which bag it is", "Give the nearest bag"], correct: 0, explain: "Matching the order number makes sure the right customer gets the right food." },
+        { q: "What if an item is missing?", a: ["Hand over anyway", "Resolve it through the team process", "Hide the order"], correct: 1, explain: "Incomplete orders lead to complaints. Fix it before it leaves." },
+        { q: "Why are delivery bags sealed?", a: ["So the order arrives complete and untouched", "To make them heavier", "It's optional"], correct: 0, explain: "Sealing protects the order on the journey and shows it hasn't been opened." },
+        { q: "A courier disagrees about an order. What do you do?", a: ["Argue", "Stay calm and involve a manager", "Give them any bag"], correct: 1, explain: "A manager can resolve disputes fairly using the process." },
+      ],
+    },
+    {
+      id: "dining-cleaning",
+      icon: "🧹",
+      title: "Dining Area, Cleaning & Safety",
+      tagline: "A clean restaurant is part of the customer experience.",
+      category: "Cleanliness",
+      station: "Dining Area",
+      keywords: ["lobby", "dining area", "cleaning", "spill", "bins", "toilets", "chemicals"],
+      roles: ["crew", "crewTrainer", "manager"],
+      xp: 80,
+      level: "Core skill",
+      time: "8 min",
+      sections: [
+        {
+          title: "See hazards early",
+          text: "Spills, damaged furniture, blocked routes and overflowing bins should be dealt with or reported quickly.",
+          takeaway: "Walk the floor with fresh eyes.",
+        },
+        {
+          title: "Use cleaning products correctly",
+          text: "Use only the approved product and method for each task. Never mix chemicals or use an unlabelled product, and wear any protective equipment the product requires.",
+          takeaway: "Approved, labelled, never mixed.",
+        },
+        {
+          title: "Toilets and touch points",
+          text: "Toilets, door handles, kiosks and highchairs are touched by everyone. Clean them on the schedule your restaurant sets and record checks where required.",
+          takeaway: "Touch points need regular attention.",
+        },
+        {
+          title: "Reset the area",
+          text: "Leave tables, floors, bins and customer areas ready for the next customer while keeping walkways clear.",
+          takeaway: "Every table ready for the next guest.",
+        },
+        {
+          title: "Be a friendly face",
+          text: "The dining area is where customers spend their time. Say hello, offer help and let your shift lead know about anything that needs attention.",
+          takeaway: "Clean and welcoming go together.",
+        },
+      ],
+      practice: ["Walk the lobby checklist with your trainer", "Find the approved products for tables, floors and toilets", "Practise a spill clean-up with signs"],
+      checklist: ["I report hazards quickly", "I use approved cleaning products", "I keep walkways clear", "I wash my hands after cleaning tasks"],
+      quiz: [
+        { q: "What should you do with an unknown cleaning chemical?", a: ["Use it anyway", "Ask and use only the approved labelled product", "Mix it with another cleaner"], correct: 1, explain: "Unknown or mixed chemicals can be dangerous. Only use approved, labelled products." },
+        { q: "Why deal with spills quickly?", a: ["They can cause slips and hygiene problems", "Only because they look bad", "There's no reason"], correct: 0, explain: "Spills are a slip hazard for customers and the team." },
+        { q: "Which areas need regular cleaning because everyone touches them?", a: ["Door handles, kiosks and highchairs", "The ceiling", "The car park lines"], correct: 0, explain: "High-touch points spread germs quickly, so they're cleaned often." },
+        { q: "What should you do after cleaning toilets?", a: ["Go straight back to food prep", "Wash your hands as your restaurant requires", "Nothing"], correct: 1, explain: "Handwashing after cleaning protects food and customers." },
+      ],
+    },
+    {
+      id: "stock-waste",
+      icon: "🗃️",
+      title: "Stock, Rotation & Waste",
+      tagline: "Keep product organised and record waste accurately.",
+      category: "Operations",
+      station: "Stock",
+      keywords: ["stock", "rotation", "fifo", "waste", "delivery", "labels", "dates"],
+      roles: ["crew", "crewTrainer", "manager"],
+      xp: 85,
+      level: "Core skill",
+      time: "9 min",
+      sections: [
+        {
+          title: "Rotate correctly",
+          text: "Follow your restaurant's date, label and rotation process so older in-date stock is used before newer stock.",
+          takeaway: "First in, first out.",
+        },
+        {
+          title: "Store product properly",
+          text: "Return stock to the correct approved storage area straight away and keep packaging protected from contamination and damage.",
+          takeaway: "Right place, right away.",
+        },
+        {
+          title: "Deliveries",
+          text: "Help with deliveries as directed. Move chilled and frozen stock to storage promptly, lift safely and report damaged or unexpected items to your manager.",
+          takeaway: "Chilled and frozen goods go away first.",
+        },
+        {
+          title: "Record waste honestly",
+          text: "Use the restaurant waste process, including the Waste counter in this hub if your restaurant uses it. Accurate records help managers plan stock and production.",
+          takeaway: "Every item counted, nothing hidden.",
+        },
+        {
+          title: "Reduce waste",
+          text: "Most waste comes from over-production, poor rotation and mistakes. Follow production guidance, rotate stock and confirm orders to keep waste down.",
+          takeaway: "Less waste starts with getting it right.",
+        },
+      ],
+      practice: ["Rotate one shelf of stock with your trainer", "Help put away a delivery safely", "Record waste using your restaurant's process"],
+      checklist: ["I understand stock rotation", "I check labels and dates as trained", "I put stock in the correct area", "I record waste instead of hiding it"],
+      quiz: [
+        { q: "Why record waste accurately?", a: ["It helps stock and production decisions", "It's better to hide it", "It has no use"], correct: 0, explain: "Honest waste records help managers order and produce the right amounts." },
+        { q: "What should you do with a label or date you don't understand?", a: ["Guess", "Ask a trained person", "Remove it"], correct: 1, explain: "Labels protect food safety. Always check if you're not sure." },
+        { q: "What does \"first in, first out\" mean?", a: ["Use older in-date stock before newer stock", "Use the newest stock first", "Use whatever is closest"], correct: 0, explain: "Rotation uses older stock first so less goes out of date." },
+        { q: "A delivery arrives. What goes into storage first?", a: ["Chilled and frozen items", "Paper goods", "Whatever is lightest"], correct: 0, explain: "Chilled and frozen products need to reach the right storage quickly." },
+      ],
+    },
+    {
+      id: "rush-crew",
+      icon: "⏱️",
+      title: "Handling a Rush as Crew",
+      tagline: "Stay calm, stay accurate and help the team through peak time.",
+      category: "Operations",
+      station: "All stations",
+      keywords: ["rush", "peak", "busy", "lunch", "pressure", "stress", "calm"],
+      roles: ["crew", "crewTrainer", "manager"],
+      xp: 100,
+      level: "Core skill",
+      time: "9 min",
+      sections: [
+        {
+          title: "Get ready before it starts",
+          text: "Use quiet moments to stock up, clean down and check your station. The work you do before the rush decides how it feels.",
+          takeaway: "Prepare in the quiet, perform in the rush.",
+        },
+        {
+          title: "Know your position",
+          text: "Listen for your shift lead's positioning. Stay on your station unless you're moved, so the plan works.",
+          takeaway: "Trust the plan and own your spot.",
+        },
+        {
+          title: "Accuracy still comes first",
+          text: "Rushing leads to remakes, which slow everyone down. Keep following the process, even when the screens are full.",
+          takeaway: "Right first time is the fastest way.",
+        },
+        {
+          title: "Communicate more, not less",
+          text: "Call stock levels, delays and problems early and briefly. Listen for calls from others and confirm you heard them.",
+          takeaway: "Short calls keep a busy team in sync.",
+        },
+        {
+          title: "Look after yourself",
+          text: "Take a breath, stay hydrated on your breaks and tell your shift lead if you're struggling. Nobody gets through a rush alone.",
+          takeaway: "Calm is contagious. So is panic.",
+        },
+      ],
+      practice: ["Stock and clean your station before the lunch peak", "Make clear stock calls during a rush", "Ask for feedback from your shift lead afterwards"],
+      checklist: ["I prepare my station before peak", "I stay on my position unless moved", "I keep following the process under pressure", "I tell my shift lead if I'm struggling"],
+      quiz: [
+        { q: "When is the best time to restock your station?", a: ["In the middle of the rush", "Before the rush starts", "After you run out"], correct: 1, explain: "Stocking in quiet moments means you're ready when it gets busy." },
+        { q: "Why does accuracy still matter in a rush?", a: ["Remakes slow everyone down", "It doesn't matter in a rush", "Only for large orders"], correct: 0, explain: "Getting it right first time is always faster than fixing mistakes." },
+        { q: "You're falling behind at your station. What should you do?", a: ["Keep quiet and hope it improves", "Tell your shift lead early", "Leave the station"], correct: 1, explain: "An early heads-up lets your shift lead send support before it gets worse." },
+        { q: "What's the best way to communicate during peak?", a: ["Short, clear calls, confirmed", "Long explanations", "Not at all"], correct: 0, explain: "Brief, confirmed calls keep everyone in sync without slowing anyone down." },
+      ],
     },
     {
       id: "trainer-coaching",
@@ -379,21 +1024,94 @@ window.McModules = {
       tagline: "Teach clearly, watch the task and give useful feedback.",
       category: "Crew Trainer",
       station: "Training",
-      keywords: ["crew trainer", "coach", "training", "feedback"],
+      keywords: ["crew trainer", "coach", "training", "feedback", "teaching"],
       roles: ["crewTrainer"],
       xp: 130,
       level: "Crew Trainer",
       time: "12 min",
       sections: [
-        { title: "Explain the why", text: "Show the process in manageable steps and explain the safety or quality reason behind important checks." },
-        { title: "Watch real performance", text: "Let the Crew Member perform the task while you observe. Correct unsafe or incorrect habits before they become routine." },
-        { title: "Give specific feedback", text: "Say what was done well, what needs changing and what the next practice goal is." }
+        {
+          title: "Prepare before you teach",
+          text: "Check which station you're training, have the current station guide ready and know what the learner has already covered.",
+          takeaway: "A prepared trainer builds a confident learner.",
+        },
+        {
+          title: "Explain the why",
+          text: "Show the process in manageable steps and explain the safety or quality reason behind each important check.",
+          takeaway: "People remember the why.",
+        },
+        {
+          title: "Show, then let them try",
+          text: "Demonstrate once at a normal pace, then again slowly. Let the learner try while you stay close enough to help.",
+          takeaway: "Tell, show, try, review.",
+        },
+        {
+          title: "Watch real performance",
+          text: "Let the Crew Member perform the task while you observe. Correct unsafe or incorrect habits before they become routine.",
+          takeaway: "Seeing it done right is the only proof.",
+        },
+        {
+          title: "Give specific feedback",
+          text: "Say what was done well, what needs changing and what the next practice goal is.",
+          takeaway: "Specific praise, specific fixes, a clear next step.",
+        },
       ],
-      checklist: ["I demonstrate before expecting speed", "I observe the Crew Member doing the task", "I give specific feedback", "I escalate anything I am not authorised to teach"],
+      practice: ["Coach one station task using tell, show, try, review", "Give feedback with one strength and one next step", "Log what you covered so the next trainer knows"],
+      checklist: ["I demonstrate before expecting speed", "I observe the Crew Member doing the task", "I give specific feedback", "I escalate anything I'm not authorised to teach"],
       quiz: [
-        { q: "What proves someone can perform a station task?", a: ["They watched once", "You observe them doing it correctly", "They say they understand"], correct: 1 },
-        { q: "Useful feedback should be", a: ["Specific and actionable", "Vague", "Only negative"], correct: 0 }
-      ]
+        { q: "What proves someone can perform a station task?", a: ["They watched once", "You observe them doing it correctly", "They say they understand"], correct: 1, explain: "Observation in the real environment is the only reliable evidence." },
+        { q: "Useful feedback should be…", a: ["Specific and actionable", "Vague", "Only negative"], correct: 0, explain: "Specific feedback tells the learner exactly what to keep and what to change." },
+        { q: "What's the best order for teaching a task?", a: ["Try, then explain", "Tell, show, try, review", "Just watch videos"], correct: 1, explain: "Explaining and demonstrating before practice builds safe habits." },
+        { q: "A learner asks about something you're not authorised to teach. What do you do?", a: ["Teach it anyway", "Escalate to a manager or qualified trainer", "Tell them to look it up"], correct: 1, explain: "Only teach what you're authorised to. Escalating keeps training accurate." },
+      ],
+    },
+    {
+      id: "trainer-new-starter",
+      icon: "🌱",
+      title: "Welcoming New Starters",
+      tagline: "Help new crew feel safe, welcome and ready in their first weeks.",
+      category: "Crew Trainer",
+      station: "Training",
+      keywords: ["new starter", "induction", "onboarding", "buddy", "crew trainer", "welcome"],
+      roles: ["crewTrainer"],
+      xp: 120,
+      level: "Crew Trainer",
+      time: "10 min",
+      sections: [
+        {
+          title: "Make day one welcoming",
+          text: "Greet them by name, introduce them to the shift manager and a few teammates, and show them the crew room and toilets.",
+          takeaway: "People remember how their first day felt.",
+        },
+        {
+          title: "Safety first",
+          text: "Before any station work, walk through fire exits, first aid, handwashing and who to ask for help.",
+          takeaway: "Safe before busy.",
+        },
+        {
+          title: "One station at a time",
+          text: "Focus on one station until the basics are solid. Too much too soon causes mistakes and stress.",
+          takeaway: "Depth before breadth.",
+        },
+        {
+          title: "Use the learning hub",
+          text: "Point them to the priority modules first: Food Safety & Hygiene and Allergens. Then match station modules to their upcoming shifts.",
+          takeaway: "Priority modules first, then station modules.",
+        },
+        {
+          title: "Check in often",
+          text: "Ask how they're finding it, praise progress and share any concerns with the manager early.",
+          takeaway: "Small check-ins prevent big problems.",
+        },
+      ],
+      practice: ["Give a new starter a full walk-round", "Help them start Food Safety & Hygiene in the hub", "Check in with them at the end of their shift"],
+      checklist: ["I cover safety before station work", "I focus on one station at a time", "I point new starters to priority modules", "I check in regularly"],
+      quiz: [
+        { q: "What should a new starter learn before station work?", a: ["Exits, first aid, handwashing and who to ask", "The full menu", "How to close the restaurant"], correct: 0, explain: "Safety basics protect them and everyone else from day one." },
+        { q: "Which modules should new starters complete first?", a: ["Food Safety & Hygiene and Allergens", "Manager modules", "Any module at random"], correct: 0, explain: "Priority safety modules come before station skills." },
+        { q: "Why teach one station at a time?", a: ["Too much too soon causes mistakes and stress", "It's quicker to teach everything at once", "Stations don't matter"], correct: 0, explain: "Solid basics on one station build confidence for the next." },
+        { q: "A new starter seems overwhelmed. What's best?", a: ["Ignore it", "Check in, reassure them and tell the manager if needed", "Give them more tasks"], correct: 1, explain: "Early support keeps good people in the team." },
+      ],
     },
     {
       id: "trainer-verification",
@@ -402,21 +1120,46 @@ window.McModules = {
       tagline: "Use the two-signature check only after real station coaching.",
       category: "Crew Trainer",
       station: "Training",
-      keywords: ["verification", "sign", "crew trainer", "station sign off"],
+      keywords: ["verification", "sign", "crew trainer", "station sign off", "signature"],
       roles: ["crewTrainer"],
       xp: 140,
       level: "Crew Trainer",
       time: "10 min",
       sections: [
-        { title: "Verification is not a shortcut", text: "A learning module alone does not prove station competence. Observe the Crew Member performing the station task in the real working environment." },
-        { title: "Discuss the result together", text: "Confirm strengths, corrections and any follow-up practice before either person signs." },
-        { title: "Two signatures are required", text: "The Crew Trainer signs only their own side and the Crew Member signs only their own side. Never sign on behalf of another person." }
+        {
+          title: "Verification is not a shortcut",
+          text: "A learning module alone doesn't prove station competence. Observe the Crew Member performing the station task in the real working environment.",
+          takeaway: "Modules prepare. Observation proves.",
+        },
+        {
+          title: "Observe a real shift",
+          text: "Watch the full task, including setup, quality checks, hygiene steps and communication, not just the easy parts.",
+          takeaway: "Watch the whole task, not just the highlights.",
+        },
+        {
+          title: "Discuss the result together",
+          text: "Confirm strengths, corrections and any follow-up practice before either person signs.",
+          takeaway: "Talk it through before anyone signs.",
+        },
+        {
+          title: "Two signatures are required",
+          text: "The Crew Trainer signs only their own side and the Crew Member signs only their own side. Never sign on behalf of another person.",
+          takeaway: "Your signature, your side only.",
+        },
+        {
+          title: "Not ready yet? That's fine",
+          text: "If the Crew Member isn't ready, leave the verification pending, agree a practice plan and check again on a later shift.",
+          takeaway: "Pending is better than wrong.",
+        },
       ],
+      practice: ["Observe a full station task before starting a verification", "Talk through the result before signing", "Open a verification from the Verify crew page"],
       checklist: ["I observed the real station task", "I discussed feedback before sign-off", "I sign only my own side", "I know an unsigned check stays pending"],
       quiz: [
-        { q: "Can a Crew Trainer sign for the Crew Member?", a: ["Yes", "No", "Only if busy"], correct: 1 },
-        { q: "When should station verification happen?", a: ["After observing the task", "Before training begins", "Without seeing the station"], correct: 0 }
-      ]
+        { q: "Can a Crew Trainer sign for the Crew Member?", a: ["Yes", "No", "Only if busy"], correct: 1, explain: "Each person signs only their own side. That's what makes the check trustworthy." },
+        { q: "When should station verification happen?", a: ["After observing the task", "Before training begins", "Without seeing the station"], correct: 0, explain: "Verification records a real, observed performance." },
+        { q: "The Crew Member isn't quite ready. What do you do?", a: ["Sign anyway", "Leave it pending and agree a practice plan", "Delete their account"], correct: 1, explain: "A pending check with a plan is honest and helps them improve." },
+        { q: "Does completing a learning module verify a station?", a: ["Yes, automatically", "No, verification needs real observation and two signatures", "Only for kitchen stations"], correct: 1, explain: "Modules build knowledge. Verification confirms real-world skill." },
+      ],
     },
     {
       id: "manager-rush",
@@ -425,21 +1168,46 @@ window.McModules = {
       tagline: "Check coverage before peak pressure hits.",
       category: "Manager",
       station: "Shift leadership",
-      keywords: ["manager", "rush", "peak", "coverage", "positions"],
+      keywords: ["manager", "rush", "peak", "coverage", "positions", "deployment"],
       roles: ["manager"],
       xp: 140,
       level: "Manager",
       time: "12 min",
       sections: [
-        { title: "Look ahead", text: "Review staffing, breaks, station capability and expected pressure before the peak begins." },
-        { title: "Protect key positions", text: "Put trained people where the shift needs stability and make sure new starters have appropriate support." },
-        { title: "Move people early", text: "Small early adjustments are usually easier than emergency moves once orders or queues are already building." }
+        {
+          title: "Look ahead",
+          text: "Review staffing, breaks, station capability and expected pressure before the peak begins.",
+          takeaway: "The rush is won before it starts.",
+        },
+        {
+          title: "Protect key positions",
+          text: "Put trained people where the shift needs stability and make sure new starters have the right support.",
+          takeaway: "Strength where it matters most.",
+        },
+        {
+          title: "Plan breaks around peak",
+          text: "Schedule breaks so key positions stay covered and nobody misses a break they're entitled to.",
+          takeaway: "Breaks planned, never forgotten.",
+        },
+        {
+          title: "Move people early",
+          text: "Small early adjustments are usually easier than emergency moves once orders or queues are already building.",
+          takeaway: "Adjust early, not in a panic.",
+        },
+        {
+          title: "Debrief afterwards",
+          text: "After the peak, thank the team, note what worked and what didn't, and use it to plan the next shift.",
+          takeaway: "Every rush teaches something.",
+        },
       ],
-      checklist: ["I reviewed the rota", "I know who is verified on key stations", "I planned break coverage", "I know where new starters need support"],
+      practice: ["Check verified stations for tomorrow's peak", "Plan breaks around the lunch rush", "Run a two-minute debrief after peak"],
+      checklist: ["I reviewed the rota", "I know who is verified on key stations", "I planned break cover", "I know where new starters need support"],
       quiz: [
-        { q: "When is the best time to fix an obvious coverage gap?", a: ["Before peak", "After pressure is already severe", "Never"], correct: 0 },
-        { q: "Station verification can help a manager understand what?", a: ["Who has documented station sign-offs", "Who is tallest", "Who arrived first"], correct: 0 }
-      ]
+        { q: "When is the best time to fix an obvious coverage gap?", a: ["Before peak", "After pressure is already severe", "Never"], correct: 0, explain: "Early fixes are calmer and far more effective." },
+        { q: "What can station verification help a manager understand?", a: ["Who has documented station sign-offs", "Who is tallest", "Who arrived first"], correct: 0, explain: "Verified stations show who can hold a key position with confidence." },
+        { q: "How should breaks be planned around peak?", a: ["Skipped entirely", "Scheduled so key positions stay covered", "Taken by everyone at once"], correct: 1, explain: "Good break planning keeps coverage and looks after the team." },
+        { q: "What's a quick way to improve the next rush?", a: ["A short debrief with the team", "Blaming whoever was slowest", "Changing nothing"], correct: 0, explain: "A short, positive debrief turns experience into a better plan." },
+      ],
     },
     {
       id: "manager-shift-planning",
@@ -448,24 +1216,97 @@ window.McModules = {
       tagline: "Plan around availability, station skills and overlapping shifts.",
       category: "Manager",
       station: "Shift planning",
-      keywords: ["manager", "schedule", "rota", "shift", "availability"],
+      keywords: ["manager", "schedule", "rota", "shift", "availability", "planning"],
       roles: ["manager"],
       xp: 130,
       level: "Manager",
       time: "11 min",
       sections: [
-        { title: "Start with availability", text: "Use the team member's recorded availability as a planning constraint and speak to them when information is missing or unclear." },
-        { title: "Check collisions and station needs", text: "Avoid overlapping shifts and consider documented station capability when deciding where people are most useful." },
-        { title: "Publish clearly", text: "Use clear dates, start/end times, station assignments and break information so the team can understand the plan." }
+        {
+          title: "Start with availability",
+          text: "Use each team member's recorded availability as a planning constraint and speak to them when information is missing or unclear.",
+          takeaway: "Availability first, always.",
+        },
+        {
+          title: "Check collisions and station needs",
+          text: "Avoid overlapping shifts and consider documented station capability when deciding where people are most useful.",
+          takeaway: "No clashes, right skills.",
+        },
+        {
+          title: "Be fair and consistent",
+          text: "Share busy and quiet shifts fairly and respect agreed hours. A fair rota builds trust.",
+          takeaway: "Fair rotas keep good people.",
+        },
+        {
+          title: "Let McAssist do the checking",
+          text: "McAssist can check availability, existing shifts and clashes, then propose a plan for you to confirm before anything is published.",
+          takeaway: "Ask McAssist to check, you decide.",
+        },
+        {
+          title: "Publish clearly",
+          text: "Use clear dates, start and end times, station assignments and break information so the team can understand the plan.",
+          takeaway: "Clear shifts, fewer questions.",
+        },
       ],
+      practice: ["Plan a week using availability and verified stations", "Ask McAssist to check a plan for clashes", "Review the rota before publishing"],
       checklist: ["I checked availability", "I checked for overlapping shifts", "I considered verified stations", "I reviewed the shift before publishing"],
       quiz: [
-        { q: "What should you do with missing availability?", a: ["Assume anything", "Check with the Crew Member", "Ignore it"], correct: 1 },
-        { q: "What should happen before publishing a shift?", a: ["Check times, availability and conflicts", "Nothing", "Guess the station"], correct: 0 }
-      ]
-    }
+        { q: "What should you do with missing availability?", a: ["Assume anything", "Check with the Crew Member", "Ignore it"], correct: 1, explain: "Asking avoids scheduling someone when they can't work." },
+        { q: "What should happen before publishing a shift?", a: ["Check times, availability and conflicts", "Nothing", "Guess the station"], correct: 0, explain: "A quick check prevents clashes and last-minute changes." },
+        { q: "How can McAssist help with planning?", a: ["It checks availability and clashes and proposes a plan for you to confirm", "It publishes everything without asking", "It can't help"], correct: 0, explain: "McAssist does the checking. You stay in control of what's published." },
+        { q: "Why does a fair rota matter?", a: ["It builds trust and keeps good people", "It doesn't", "Only for managers"], correct: 0, explain: "Fairness keeps the team motivated and reliable." },
+      ],
+    },
+    {
+      id: "manager-team-learning",
+      icon: "🎯",
+      title: "Leading Team Learning",
+      tagline: "Spot training gaps early and grow a confident team.",
+      category: "Manager",
+      station: "Shift leadership",
+      keywords: ["manager", "training", "team progress", "coaching", "development", "priority modules"],
+      roles: ["manager"],
+      xp: 120,
+      level: "Manager",
+      time: "9 min",
+      sections: [
+        {
+          title: "Know where your team stands",
+          text: "Use the Team progress view in the learning hub to see completion, priority gaps and who is active.",
+          takeaway: "You can't close gaps you can't see.",
+        },
+        {
+          title: "Priority modules first",
+          text: "Make sure everyone has completed Food Safety & Hygiene and Allergens before anything else.",
+          takeaway: "Safety modules are non-negotiable.",
+        },
+        {
+          title: "Match learning to the rota",
+          text: "If someone is on a new station this week, nudge them to complete that station module before their shift.",
+          takeaway: "Learn it before you work it.",
+        },
+        {
+          title: "Nudge kindly",
+          text: "A friendly reminder with a clear reason works better than pressure. Recognise progress with McStars.",
+          takeaway: "Encourage, don't chase.",
+        },
+        {
+          title: "Pair with Crew Trainers",
+          text: "Modules build knowledge. Crew Trainers turn it into real skill through coaching and station verification.",
+          takeaway: "Modules plus coaching equals confidence.",
+        },
+      ],
+      practice: ["Open Team progress and check priority modules", "Send a friendly nudge to someone with a gap", "Award McStars for a completed module"],
+      checklist: ["I check Team progress regularly", "I prioritise safety modules", "I match learning to upcoming stations", "I recognise progress"],
+      quiz: [
+        { q: "Which modules should everyone complete first?", a: ["Food Safety & Hygiene and Allergens", "Manager modules", "Whichever is shortest"], correct: 0, explain: "Priority safety modules protect customers and the team." },
+        { q: "Someone is on Drive-thru for the first time on Friday. What's a smart nudge?", a: ["Ask them to complete the Drive-thru module before Friday", "Say nothing", "Take them off the rota"], correct: 0, explain: "Learning the station just before working it builds confidence." },
+        { q: "What's the most effective reminder?", a: ["A friendly nudge with a clear reason", "Public criticism", "Repeated pressure"], correct: 0, explain: "Encouragement works better than pressure and keeps morale high." },
+        { q: "What turns module knowledge into real skill?", a: ["Coaching and station verification with a Crew Trainer", "Doing the quiz again", "Nothing"], correct: 0, explain: "Real skill is built through coached practice and verified on shift." },
+      ],
+    },
   ],
   get(id) {
     return this.modules.find((m) => m.id === id) || this.modules[0];
-  }
+  },
 };

@@ -41,6 +41,15 @@
   "outputDirectory": "public",
   "headers": [
     {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json; charset=utf-8"
+        }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         {
@@ -64,6 +73,9 @@
     },
     "api/mcassist.js": {
       "maxDuration": 60
+    },
+    "api/waste.js": {
+      "maxDuration": 20
     }
   }
 }

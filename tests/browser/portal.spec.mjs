@@ -40,9 +40,12 @@ for (const preview of [false, true]) {
     await activate(
       nav.getByRole("link", { name: /My learning|Learn/, exact: true }),
     );
+    // The signed-in fixture has only First Shift done, so the priority Food
+    // Safety module is next. The preview sample has its own progress.
     await activate(page.getByRole("link", { name: /Start learning/ }));
-    await expect(page).toHaveURL(/id=food-safety/);
-    if (preview) await expect(page).toHaveURL(/preview=crew/);
+    await expect(page).toHaveURL(
+      preview ? /module\.html\?id=[a-z-]+&preview=crew/ : /id=food-safety/,
+    );
   });
 }
 const profile = {
@@ -143,29 +146,34 @@ test("training filters survive live progress updates and show current completion
   await expect(
     page.getByRole("heading", { name: "Your learning", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".learning-row")).toHaveCount(6);
+  await expect(page.locator(".tr-module")).toHaveCount(6);
   await page.getByRole("button", { name: "Show more modules" }).click();
-  await expect(page.locator(".learning-row")).toHaveCount(12);
+  await expect(page.locator(".tr-module")).toHaveCount(12);
   await page.getByRole("searchbox", { name: "Search modules" }).fill("grill");
-  await expect(page.locator(".learning-row")).toHaveCount(1);
+  await expect(page.locator(".tr-module")).toHaveCount(1);
   await page.evaluate(() => {
     window.__qa.progress["grill-station"] = { completed: true };
     window.__qa.progress["retired-module"] = { completed: true };
     window.__qa.emit("progress");
     window.__qa.emit("shifts");
   });
-  await expect(page.getByRole("searchbox")).toHaveValue("grill");
-  await expect(page.locator(".learning-progress-number")).toHaveText("2 / 16");
-  await expect(page.locator(".learning-row")).toContainText("Completed");
+  await expect(
+    page.getByRole("searchbox", { name: "Search modules" }),
+  ).toHaveValue("grill");
+  // 21 crew modules; the retired module id is ignored.
+  await expect(page.locator("#trCompletedCount")).toHaveText(
+    "2 of 21 modules",
+  );
+  await expect(page.locator(".tr-module")).toContainText("Completed");
   await page.getByRole("button", { name: "To do", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "No modules found" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Reset filters" }).click();
-  await expect(page.locator(".learning-row")).toHaveCount(6);
+  await expect(page.locator(".tr-module")).toHaveCount(6);
   await page.getByRole("combobox", { name: "Category" }).selectOption("Safety");
-  await expect(page.locator(".learning-row")).toHaveCount(2);
-  await expect(page.locator(".learning-row").first()).toContainText(
+  await expect(page.locator(".tr-module")).toHaveCount(3);
+  await expect(page.locator(".tr-module").first()).toContainText(
     "Food Safety",
   );
   expect(
@@ -184,10 +192,20 @@ test("preview lesson links preserve preview and the AI preview makes no API call
     if (r.url().includes("/api/ai-chat")) requests++;
   });
   await page.goto("/training.html?preview=crew");
-  await page.getByRole("link", { name: /Start learning/ }).click();
-  await expect(page).toHaveURL(/module.html\?id=food-safety&preview=crew/);
+  const start = page.getByRole("link", { name: /Start learning/ });
+  const id = new URLSearchParams(
+    (await start.getAttribute("href")).split("?")[1],
+  ).get("id");
+  await start.click();
+  await expect(page).toHaveURL(
+    new RegExp(`module\\.html\\?id=${id}&preview=crew`),
+  );
+  const title = await page.evaluate(
+    (id) => window.McModules.modules.find((m) => m.id === id).title,
+    id,
+  );
   await expect(
-    page.getByRole("heading", { name: "Food Safety & Hygiene", exact: true }),
+    page.getByRole("heading", { level: 1, name: title, exact: true }),
   ).toBeVisible();
   await page.goto("/main.html?view=assistant&preview=crew");
   await page.getByRole("button", { name: /My next shift/ }).click();
@@ -237,7 +255,7 @@ test("enhancement rendering settles without a self-triggering DOM loop", async (
 }) => {
   await signedInFixture(page);
   await page.goto("/training.html");
-  await expect(page.locator(".learning-row")).toHaveCount(6);
+  await expect(page.locator(".tr-module")).toHaveCount(6);
   await page.waitForTimeout(350);
   const mutations = await page.evaluate(
     () =>

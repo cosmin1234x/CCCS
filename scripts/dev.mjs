@@ -58,12 +58,18 @@ http
         return;
       }
       let body = "";
-      for await (const chunk of req) {
-        body += chunk;
-        if (body.length > 1_000_000) {
-          res.writeHead(413).end();
-          return;
+      try {
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 1_000_000) {
+            res.writeHead(413).end();
+            return;
+          }
         }
+      } catch {
+        // The client went away mid-request (ECONNRESET): nothing to answer,
+        // and it must not crash the dev server for everyone else.
+        return;
       }
       try {
         req.body =

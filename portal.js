@@ -1,4 +1,7 @@
-import "./portal-enhancements.js";
+import {
+  loadData as loadPortalData,
+  api as portalApi,
+} from "./portal-enhancements.js";
 import {
   managerRole,
   isoDate,
@@ -9,8 +12,25 @@ import {
   availabilityAllows,
   durationLabel,
   escapeHTML as esc,
+  weekOffsetOf,
 } from "./portal-core.js";
 import { renderPage } from "./portal-pages.js";
+import { bindPage, updateBell, isPageBusy } from "./pages-ui.js";
+import { clampOffset } from "./pages-views.js";
+import {
+  buildPreviewData,
+  loadPreviewState,
+  savePreviewState,
+} from "./preview-data.js";
+import {
+  showToast,
+  setButtonState,
+  shake,
+  leaveTo,
+  openDialog,
+  closeDialog,
+  authErrorMessage,
+} from "./motion.js";
 const $ = (id) => document.getElementById(id);
 const icons = {
   home: "M3 10 12 3l9 7v11h-6v-7H9v7H3Z",
@@ -35,6 +55,17 @@ const icons = {
     "M4 8h12v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Zm12 1h2a3 3 0 0 1 0 6h-2M7 2v3m5-3v3M2 23h18",
   waste:
     "M4 7h16M9 7V4h6v3m-9 0 1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6m4-6v6",
+  grid: "M4 4h6.5v6.5H4ZM13.5 4H20v6.5h-6.5ZM4 13.5h6.5V20H4Zm9.5 0H20V20h-6.5Z",
+  planner:
+    "M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2m7 9v5m-2.5-2.5h5",
+  user: "M19 21a7 7 0 0 0-14 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10",
+  eye: "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6",
+  eyeOff:
+    "m3 3 18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.7 17.7 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2",
+  info: "M12 11v5m0-8.5v.5M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0",
+  mail: "M3 5h18v14H3V5Zm0 0 9 7 9-7",
+  clipboard:
+    "M9 4h6v3H9V4Zm6 1h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3m0 8 2 2 4-4",
 };
 const icon = (name) =>
   `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="${icons[name] || icons.star}"/></svg>`;
@@ -82,22 +113,33 @@ const state = {
   busy: false,
   dataError: "",
   loaded: false,
+  // Server-assembled extras: verifications, role requests, recognition and
+  // team learning progress (from /api/portal-data or the preview sample).
+  extras: {
+    loaded: false,
+    verifications: [],
+    roleRequests: [],
+    recognition: [],
+    teamProgress: {},
+  },
+  // Per-page UI state kept across live re-renders.
+  ui: { scheduleMode: "team", teamQuery: "", teamRole: "" },
 };
+// Deep links: ?week=<offset> and ?date=<YYYY-MM-DD> open that week/day.
+if (/^\d{4}-\d{2}-\d{2}$/.test(params.get("date") || "")) {
+  state.selected = params.get("date");
+  state.offset = clampOffset(weekOffsetOf(state.selected));
+} else if (params.has("week")) state.offset = clampOffset(params.get("week"));
+try {
+  state.ui.scheduleMode =
+    sessionStorage.getItem("mc_schedule_mode") === "mine" ? "mine" : "team";
+} catch {}
 let fb,
   auth,
   db,
   unsubscribers = [];
 function persistPreview() {
-  if (preview)
-    sessionStorage.setItem(
-      "mc_preview_" + preview,
-      JSON.stringify({
-        user: state.user,
-        shifts: state.shifts,
-        team: state.team,
-        progress: state.progress,
-      }),
-    );
+  if (preview) savePreviewState(preview, state);
 }
 const modules = window.McModules.modules;
 const currency = (value) =>
@@ -128,20 +170,137 @@ const url = (target = "home", extra = {}) => {
   const query = p.toString();
   return `/${paths[target] || "main"}.html${query ? "?" + query : ""}`;
 };
-function toast(text) {
-  $("toast").textContent = text;
-  $("toast").classList.add("show");
-  setTimeout(() => $("toast").classList.remove("show"), 3500);
+// Stacked, animated toasts (motion.js). type: "success" | "error" | "info";
+// left out, it is guessed from the wording.
+function toast(text, type) {
+  showToast(text, type);
 }
 const pill = (text, type = "") =>
   `<span class="pill ${type}">${esc(text)}</span>`;
 const heading = (title, sub) =>
   `<div class="page-heading"><div class="eyebrow muted" style="margin-bottom:9px">YOUR EVERYDAY, A LITTLE EASIER</div><h1>${title}</h1><p>${sub}</p></div>`;
 const empty = (text) => `<div class="empty">${text}</div>`;
-const navLink = (target, label, i) =>
-  `<a href="${url(target)}" class="${page === target || (target === "training" && page === "module") ? "active" : ""}" ${page === target ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span></a>`;
+// ---- Navigation model (design area) --------------------------------------
+// One list drives the sidebar (full + tablet rail), the phone tab bar and the
+// phone "More" sheet, so every device reaches every destination.
+const roleKey = () => {
+  if (managerRole(state.user?.role)) return "manager";
+  const r = String(state.user?.role || "")
+    .toLowerCase()
+    .replace(/[\s_-]/g, "");
+  return r === "crewtrainer" || r === "trainer" ? "crewTrainer" : "crew";
+};
+const roleName = (role = roleKey()) =>
+  ({ manager: "Manager", crewTrainer: "Crew Trainer", crew: "Crew Member" })[
+    role
+  ];
+const verifyLabel = (role = roleKey()) =>
+  role === "crewTrainer"
+    ? "Verify crew"
+    : role === "manager"
+      ? "Verifications"
+      : "My verifications";
+// verification.html has no portal page of its own, so work it out from the path.
+const currentNav = () =>
+  path === "verification"
+    ? "verification"
+    : page === "module"
+      ? "training"
+      : page;
+const navHref = (target) =>
+  target === "verification"
+    ? "/verification.html" + (preview ? "?preview=" + preview : "")
+    : url(target);
+function navItems() {
+  const manager = roleKey() === "manager";
+  return [
+    { target: "home", label: "Home", short: "Home", icon: "home", tab: true },
+    { target: "schedule", label: "My shifts", short: "Shifts", icon: "calendar", tab: true },
+    { target: "training", label: "My learning", short: "Learn", icon: "book", tab: true },
+    { target: "rewards", label: "My McStars", short: "McStars", icon: "star", note: "Recognition" },
+    ...(manager
+      ? [
+          { target: "team", label: "My team", short: "Team", icon: "team", note: "People and roles" },
+          { target: "manage", label: "Shift planner", short: "Planner", icon: "planner", note: "Publish shifts" },
+        ]
+      : []),
+    { target: "verification", label: verifyLabel(), short: "Verify", icon: "shield", note: "Station sign-offs" },
+    { target: "waste", label: "Waste", short: "Waste", icon: "waste", note: "Daily waste sheet" },
+    { target: "assistant", label: "McAssist", short: "McAssist", icon: "spark", tab: true },
+  ];
+}
+const sheetExtras = [
+  { target: "availability", label: "My availability", short: "Availability", icon: "clock", note: "When you can work" },
+];
+// variant: "side" (sidebar / tablet rail), "tab" (phone bar), "sheet" (More).
+const navLink = (item, variant = "side", index = 0) => {
+  const active = currentNav() === item.target;
+  const attrs = `href="${navHref(item.target)}" data-nav="${item.target}" class="${active ? "active" : ""}"${active ? ' aria-current="page"' : ""}`;
+  if (variant === "tab")
+    return `<a ${attrs}><span class="tab-icon" data-ind-target>${icon(item.icon)}</span><span>${esc(item.short)}</span></a>`;
+  if (variant === "sheet")
+    return `<a ${attrs} style="--i:${index}"><span class="tile-icon">${icon(item.icon)}</span><span class="grow"><span class="nav-text">${esc(item.label)}</span><small>${esc(item.note || "")}</small></span></a>`;
+  return `<a ${attrs}>${icon(item.icon)}<span class="nav-text">${esc(item.label)}</span><span class="nav-short" aria-hidden="true">${esc(item.short)}</span></a>`;
+};
 const brand = () =>
-  `<a class="brand" href="${url()}"><img src="/favicon.svg" alt=""><div><div class="wordmark">McTraining<span style="color:#b48100">.</span></div><small>THE CREW HUB</small></div></a>`;
+  `<a class="brand" href="${url()}" aria-label="McTraining home"><img src="/favicon.svg" alt="" width="42" height="42"><div><div class="wordmark">McTraining<span>.</span></div><small>THE CREW HUB</small></div></a>`;
+const initialsOf = (name) =>
+  String(name || "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((n) => n[0].toUpperCase())
+    .slice(0, 2)
+    .join("") || "?";
+function shellMarkup() {
+  const u = state.user;
+  const items = navItems();
+  const current = currentNav();
+  const sheetItems = [...items.filter((i) => !i.tab), ...sheetExtras];
+  const moreActive = sheetItems.some((i) => i.target === current);
+  const store = u.storeName || u.storeId || "";
+  const roleLine = `${roleName()}${store ? " · " + esc(store) : ""}`;
+  const title =
+    {
+      home: "Home",
+      schedule: "My shifts",
+      training: "My learning",
+      manage: "Shift planner",
+      team: "My team",
+      rewards: "My McStars",
+      availability: "My availability",
+      assistant: "McAssist",
+      waste: "Waste",
+      verification: verifyLabel(),
+    }[current] || "Home";
+  const other = preview === "crew" ? "manager" : "crew";
+  const banner = preview
+    ? `<div class="preview-banner" role="region" aria-label="Sample preview"><span class="preview-dot" aria-hidden="true"></span><span class="preview-text"><b>Sample ${preview} preview</b><span class="preview-extra"> · Changes stay in this tab</span></span><button id="switchPreview" type="button">Try ${other} view</button><a href="/">Sign in<span class="preview-extra"> to your account</span></a></div>`
+    : "";
+  return `<div class="app-shell" data-page="${current}"><aside class="sidebar" aria-label="Workspace sidebar">${brand()}<nav class="side-nav" aria-label="Main navigation"><p class="nav-label">YOUR WORKSPACE</p>${items.map((i) => navLink(i, "side")).join("")}</nav><div class="side-help">${icon("coffee")}<h4 style="margin-top:10px">Good shifts start here.</h4><p>A little preparation. A great team. You've got this.</p><a class="text-btn" href="${url("training")}">Learn something new ${icon("arrow")}</a></div><div class="side-profile between"><div class="row"><span class="avatar">${esc(initialsOf(u.name))}</span><div class="grow"><b>${esc(u.name)}</b><small class="js-role-line">${roleLine}</small></div></div><button class="icon-btn ghost" id="logout" type="button" aria-label="Sign out">${icon("logout")}</button></div></aside><main class="workspace">${banner}<header class="topbar"><div class="mobile-brand">${brand()}</div><div class="breadcrumb"><span>My workspace</span><span class="crumb-sep" aria-hidden="true">/</span><b>${esc(title)}</b></div><div class="topbar-actions"><span class="top-date">${new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span><span class="pill store-pill">${esc(store)}</span><button class="icon-btn" id="notifications" type="button" aria-label="View updates">${icon("bell")}</button><button class="avatar" id="profileButton" type="button" aria-label="My profile">${esc(initialsOf(u.name).slice(0, 1))}</button></div></header>${state.dataError ? `<div class="data-warning" role="alert">${esc(state.dataError)} <button class="text-btn" id="retryData">Try again</button></div>` : ""}<div class="layout"><section class="content" id="content"></section><aside class="rail" aria-label="Assistant and tips"><section class="assistant-card" id="assistant"><div class="assistant-head between"><div class="row"><div class="assistant-icon">${icon("spark")}</div><div><h3>McAssist</h3><small>A helping hand, always.</small></div></div>${pill(preview ? "Preview" : "AI assistant", preview ? "" : "green")}</div><div id="chat" class="chat" role="log" aria-live="polite"></div><div class="suggestions"><button data-prompt="Help me prepare for my next shift">Shift prep +</button><button data-prompt="Give me a quick customer service practice scenario">Practise with me</button></div><form id="chatForm" class="chat-form"><input id="chatInput" aria-label="Message McAssist" placeholder="Ask McAssist anything…" maxlength="2000" required autocomplete="off"><button class="btn" aria-label="Send message" type="submit">${icon("send")}</button></form><p class="ai-note">For store procedures, always check your official guidance.</p></section><section class="card notice-card">${icon("shield")}<h3>Small things. Big difference.</h3><p>Before your shift, check your station, find your shift lead and take a moment to get ready.</p><a class="text-btn" href="${url("training")}">Your first-shift essentials ${icon("arrow")}</a></section><section class="card rail-tip"><div class="row">${icon("star")}<div><h4>Better, together.</h4><p class="muted">Every great shift is a team effort.</p></div></div></section></aside></div><footer class="footer"><span>Made for your everyday. McTraining crew hub.</span><span>Independent team tool · Not an official McDonald's product</span></footer></main><nav class="mobile-nav" aria-label="Mobile navigation">${items
+    .filter((i) => i.tab)
+    .map((i) => navLink(i, "tab"))
+    .join(
+      "",
+    )}<button class="mobile-more${moreActive ? " active" : ""}" id="moreButton" type="button" data-nav="more" aria-haspopup="dialog" aria-controls="moreSheet" aria-expanded="false"><span class="tab-icon" data-ind-target>${icon("grid")}</span><span>More</span>${moreActive ? '<span class="more-dot" aria-hidden="true"></span>' : ""}</button></nav><dialog class="sheet" id="moreSheet" aria-labelledby="moreSheetTitle"><div class="sheet-handle" data-sheet-drag aria-hidden="true"></div><div class="sheet-head" data-sheet-drag><h2 id="moreSheetTitle">More</h2><button class="icon-btn ghost" type="button" data-close-dialog aria-label="Close menu">${icon("close")}</button></div><div class="sheet-profile"><span class="avatar">${esc(initialsOf(u.name))}</span><div class="grow"><b>${esc(u.name)}</b><small class="js-role-line">${roleLine}</small></div></div><nav class="sheet-nav" aria-label="More destinations">${sheetItems.map((i, n) => navLink(i, "sheet", n)).join("")}</nav><div class="sheet-actions"><button class="btn light" type="button" id="sheetProfile">${icon("user")} My profile</button><button class="btn dark" type="button" id="sheetLogout">${icon("logout")} Sign out</button></div></dialog></div>`;
+}
+// Phone "More" sheet: every destination that is not a bottom tab.
+function bindShellChrome() {
+  const sheet = $("moreSheet"),
+    more = $("moreButton");
+  if (!sheet || !more) return;
+  more.addEventListener("click", () => {
+    openDialog(sheet);
+    more.setAttribute("aria-expanded", "true");
+  });
+  sheet.addEventListener("close", () =>
+    more.setAttribute("aria-expanded", "false"),
+  );
+  $("sheetProfile")?.addEventListener("click", async () => {
+    await closeDialog(sheet);
+    $("profileButton")?.click();
+  });
+  $("sheetLogout")?.addEventListener("click", () => $("logout")?.click());
+}
 const myShifts = () =>
   state.shifts
     .filter((s) => s.userId === state.user.id)
@@ -155,14 +314,8 @@ function shell() {
       );
     } catch {}
   }
-  $("app").innerHTML =
-    `${preview ? `<div class="preview-banner" role="region" aria-label="Sample preview">Sample ${preview} preview · Changes stay in this tab <button id="switchPreview">Try ${preview === "crew" ? "manager" : "crew"} view</button><a href="/" style="margin-left:14px;text-decoration:underline">Sign in to your account</a></div>` : ""}<aside class="sidebar" aria-label="Workspace sidebar">${brand()}<nav class="side-nav" aria-label="Main navigation"><p class="nav-label">YOUR WORKSPACE</p>${navLink("home", "Home", "home")}${navLink("schedule", "My shifts", "calendar")}${navLink("training", "My learning", "book")}${navLink("rewards", "My McStars", "star")}${isManager() ? `${navLink("team", "My team", "team")}${navLink("manage", "Shift planner", "calendar")}` : ""}${navLink("waste", "Waste", "waste")}${navLink("assistant", "McAssist", "spark")}</nav><div class="side-help">${icon("coffee")}<h4 style="margin-top:10px">Good shifts start here.</h4><p>A little preparation. A great team. You've got this.</p><a class="text-btn" href="${url("training")}">Learn something new ${icon("arrow")}</a></div><div class="side-profile between"><div class="row"><span class="avatar">${esc(
-      u.name
-        .split(" ")
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join(""),
-    )}</span><div><b>${esc(u.name)}</b><small>${isManager() ? "Manager" : "Crew member"} · ${esc(u.storeId)}</small></div></div><button class="icon-btn" id="logout" aria-label="Sign out">${icon("logout")}</button></div></aside><main class="workspace"><header class="topbar between"><div class="mobile-brand">${brand()}</div><div class="breadcrumb">My workspace <span style="margin:0 12px">/</span> <b>${{ home: "Home", schedule: "My shifts", training: "My learning", manage: "Shift planner", team: "My team", module: "My learning", rewards: "My McStars", availability: "My availability", assistant: "McAssist", waste: "Waste" }[page]}</b></div><div class="row"><span class="top-date">${new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</span><span class="pill store-pill">${esc(u.storeName || u.storeId)}</span><button class="icon-btn" id="notifications" aria-label="View updates">${icon("bell")}</button><button class="avatar" id="profileButton" aria-label="My profile" style="border:0">${esc(u.name[0])}</button></div></header>${state.dataError ? `<div class="data-warning" role="alert">${esc(state.dataError)} <button class="text-btn" id="retryData">Try again</button></div>` : ""}<div class="layout"><section class="content" id="content"></section><aside class="rail" aria-label="Assistant and tips"><section class="assistant-card" id="assistant"><div class="assistant-head between"><div class="row"><div class="assistant-icon">${icon("spark")}</div><div><h3>McAssist</h3><small>A helping hand, always.</small></div></div>${pill(preview ? "Preview" : "AI assistant", preview ? "" : "green")}</div><div id="chat" class="chat" role="log" aria-live="polite"></div><div class="suggestions"><button data-prompt="Help me prepare for my next shift">Shift prep +</button><button data-prompt="Give me a quick customer service practice scenario">Practise with me</button></div><form id="chatForm" class="chat-form"><input id="chatInput" aria-label="Message McAssist" placeholder="Ask McAssist anything…" maxlength="2000" required autocomplete="off"><button class="btn" aria-label="Send message" type="submit">${icon("send")}</button></form><p class="ai-note">For store procedures, always check your official guidance.</p></section><section class="card notice-card">${icon("shield")}<h3>Small things. Big difference.</h3><p>Before your shift, check your station, find your shift lead and take a moment to get ready.</p><a class="text-btn" href="${url("training")}">Your first-shift essentials ${icon("arrow")}</a></section><section class="card" style="padding:20px 22px"><div class="row">${icon("star")}<div><h4>Better, together.</h4><p class="muted" style="font-size:11px;margin-top:4px">Every great shift is a team effort.</p></div></div></section></aside></div><footer class="footer"><span>Made for your everyday. McTraining crew hub.</span><span>Independent team tool · Not an official McDonald's product</span></footer></main><nav class="mobile-nav" aria-label="Mobile navigation">${navLink("home", "Home", "home")}${navLink("schedule", "Shifts", "calendar")}${navLink("training", "Learn", "book")}${navLink("assistant", "McAssist", "spark")}${navLink(isManager() ? "team" : "availability", isManager() ? "Team" : "Availability", isManager() ? "team" : "clock")}</nav>`;
+  $("app").innerHTML = shellMarkup();
+  bindShellChrome();
   $("switchPreview")?.addEventListener("click", () => {
     const p = new URL(location.href);
     p.searchParams.set("preview", preview === "crew" ? "manager" : "crew");
@@ -207,15 +360,12 @@ function shell() {
   renderChat();
   renderContent();
 }
-function renderContent() {
-  // Enhanced pages own their DOM. Live snapshots must not destroy chat or forms.
-  if ($("content").dataset.enhancedPage) {
-    window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
-    return;
-  }
-  $("content").innerHTML = renderPage(page, {
+function pageContext() {
+  return {
     state,
+    page,
     params,
+    preview,
     modules,
     icon,
     pill,
@@ -226,95 +376,113 @@ function renderContent() {
     dateLabel,
     isManager,
     myShifts,
+    toast: (text) => toast(text),
+    render: requestRender,
+    persist: persistPreview,
+    firebase: () => ({ fb, db }),
+    api: portalApi,
+    refreshExtras,
+  };
+}
+// Several live snapshots can land together: coalesce them into one render.
+let renderQueued = false;
+function requestRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  const run = () => {
+    renderQueued = false;
+    renderContent();
+  };
+  if (typeof requestAnimationFrame === "function" && !document.hidden)
+    requestAnimationFrame(run);
+  else setTimeout(run, 0);
+}
+// Keep focus, caret and horizontal scroll positions across re-renders so a
+// live update never interrupts someone typing or scrolling the rota.
+function captureView(content) {
+  const active = document.activeElement;
+  const view = { scroll: {} };
+  if (active && active.id && content.contains(active)) {
+    view.focus = active.id;
+    try {
+      view.selection = [active.selectionStart, active.selectionEnd];
+    } catch {}
+  }
+  content.querySelectorAll("[data-keep-scroll]").forEach((el) => {
+    view.scroll[el.dataset.keepScroll] = el.scrollLeft;
   });
+  return view;
+}
+function restoreView(content, view) {
+  content.querySelectorAll("[data-keep-scroll]").forEach((el) => {
+    const left = view.scroll[el.dataset.keepScroll];
+    if (left) el.scrollLeft = left;
+  });
+  if (!view.focus) return;
+  const el = document.getElementById(view.focus);
+  if (!el || !content.contains(el)) return;
+  el.focus({ preventScroll: true });
+  if (view.selection?.[0] != null) {
+    try {
+      el.setSelectionRange(view.selection[0], view.selection[1]);
+    } catch {}
+  }
+}
+function renderContent() {
+  const content = $("content");
+  if (!content || !state.user) return;
+  // Enhanced pages own their DOM. Live snapshots must not destroy chat or forms.
+  if (content.dataset.enhancedPage) {
+    updateBell(pageContext());
+    window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
+    return;
+  }
+  // Unsaved edits (e.g. availability) are never replaced by a live update.
+  if (isPageBusy(page, state) && content.childElementCount) {
+    updateBell(pageContext());
+    return;
+  }
+  const view = captureView(content);
+  const ctx = pageContext();
+  content.innerHTML = renderPage(page, ctx);
   bindContent();
+  bindPage(page, ctx);
+  restoreView(content, view);
+  updateBell(ctx);
   window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
 }
+// Centred card on tablet/desktop, bottom sheet on phones (see portal.css).
 function showModal(title, html) {
-  $("modal").innerHTML =
-    `<button class="icon-btn dialog-close" id="closeModal" aria-label="Close dialog">${icon("close")}</button><h2 style="padding-right:40px">${title}</h2>${html}`;
-  $("closeModal").onclick = () => $("modal").close();
-  $("modal").showModal();
+  const modal = $("modal");
+  modal.removeAttribute("data-closing");
+  modal.setAttribute("aria-labelledby", "modalTitle");
+  modal.addEventListener(
+    "close",
+    () => modal.removeAttribute("aria-labelledby"),
+    { once: true },
+  );
+  modal.innerHTML = `<div class="sheet-handle" data-sheet-drag aria-hidden="true"></div><button class="icon-btn ghost dialog-close" id="closeModal" type="button" aria-label="Close dialog">${icon("close")}</button><h2 id="modalTitle" style="padding-right:48px">${title}</h2>${html}`;
+  $("closeModal").onclick = () => closeDialog(modal);
+  openDialog(modal);
 }
 function bindContent() {
-  document.querySelectorAll("[data-week]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        state.offset = Number(b.dataset.week);
-        state.selected = weekDates(state.offset)[0];
-        renderContent();
-      }),
-  );
-  document.querySelectorAll("[data-day]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        state.selected = b.dataset.day;
-        renderContent();
-      }),
-  );
+  // Page interactions live in pages-ui.js (bindPage). This keeps the legacy
+  // McAssist prompt buttons working. Learning lives in training-ui.js.
   document.querySelectorAll("[data-ask]").forEach(
     (b) =>
       (b.onclick = () => {
+        if (!$("chatInput") || !$("chatForm")) return;
         $("chatInput").value = b.dataset.ask;
         $("chatForm").requestSubmit();
-        $("assistant").scrollIntoView({ behavior: "smooth" });
-      }),
-  );
-  $("availabilityForm")?.addEventListener("submit", saveAvailability);
-  $("shiftForm")?.addEventListener("submit", saveShift);
-  $("moduleForm")?.addEventListener("submit", finishModule);
-  document.querySelectorAll("[data-person]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const u = state.team.find((u) => u.id === b.dataset.person);
-        showModal(
-          esc(u.name),
-          `<p>${managerRole(u.role) ? "Manager" : "Crew member"} · ${Number(u.stars) || 0} McStars</p><h3 style="margin-top:22px">Availability</h3>${
-            Object.entries(u.availability || {})
-              .map(
-                ([d, a]) =>
-                  `<p class="form-note">${esc(d)}: ${esc(Array.isArray(a) ? a.map((w) => w.start + "–" + w.end).join(", ") || "Unavailable" : a.available ? a.start + "–" + a.end : "Unavailable")}</p>`,
-              )
-              .join("") ||
-            '<p class="form-note">Availability not set yet. Check with this team member before assigning shifts.</p>'
-          }<a class="btn" href="${url("manage")}">Plan a shift</a>`,
-        );
-      }),
-  );
-  document.querySelectorAll("[data-delete]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        const s = state.shifts.find((s) => s.id === b.dataset.delete);
-        showModal(
-          "Remove this shift?",
-          `<p>${esc(s.userName)} · ${dateLabel(s.date)} · ${esc(s.start)}–${esc(s.end)}</p><p class="form-note">This removes the shift from the shared rota.</p><button class="btn danger" id="confirmDelete">Remove shift</button>`,
-        );
-        $("confirmDelete").onclick = async () => {
-          try {
-            $("confirmDelete").disabled = true;
-            if (preview)
-              state.shifts = state.shifts.filter((x) => x.id !== s.id);
-            else
-              await fb.deleteDoc(
-                fb.doc(db, "stores", state.user.storeId, "Shifts", s.id),
-              );
-            state.shifts = state.shifts.filter((x) => x.id !== s.id);
-            persistPreview();
-            $("modal").close();
-            renderContent();
-            toast("Shift removed.");
-          } catch {
-            toast("Could not remove the shift. Please try again.");
-            $("confirmDelete").disabled = false;
-          }
-        };
+        $("assistant")?.scrollIntoView({ behavior: "smooth" });
       }),
   );
 }
 async function formAction(form, resultId, action, success) {
   const button = form.querySelector("[type=submit]");
-  button.disabled = true;
-  $(resultId).innerHTML = "";
+  if (button?.disabled) return false;
+  if (button) button.disabled = true;
+  if ($(resultId)) $(resultId).innerHTML = "";
   try {
     await action();
     if ($(resultId))
@@ -328,127 +496,8 @@ async function formAction(form, resultId, action, success) {
         `<div class="error">${esc(e.code === "permission-denied" ? "Your account could not save this change. Ask your manager to check access." : e.message || "Could not save. Try again.")}</div>`;
     return false;
   } finally {
-    button.disabled = false;
+    if (button) button.disabled = false;
   }
-}
-async function saveAvailability(e) {
-  e.preventDefault();
-  const form = e.currentTarget,
-    data = new FormData(form),
-    availability = {};
-  for (const d of ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]) {
-    availability[d] = {
-      available: data.has(d),
-      start: data.get(d + "Start"),
-      end: data.get(d + "End"),
-    };
-    if (
-      availability[d].available &&
-      availability[d].start === availability[d].end
-    ) {
-      $("availabilityResult").innerHTML =
-        '<div class="error">Start and end times must be different.</div>';
-      return;
-    }
-  }
-  await formAction(
-    form,
-    "availabilityResult",
-    async () => {
-      if (!preview)
-        await fb.updateDoc(fb.doc(db, "users", state.user.id), {
-          availability,
-        });
-      state.user.availability = availability;
-    },
-    preview
-      ? "Availability updated in this preview."
-      : "Availability saved for your manager.",
-  );
-}
-async function saveShift(e) {
-  e.preventDefault();
-  const form = e.currentTarget,
-    data = new FormData(form),
-    person = state.team.find((u) => u.id === data.get("member"));
-  const saved = await formAction(
-    form,
-    "shiftResult",
-    async () => {
-      if (!person) throw Error("Choose a crew member.");
-      const s = {
-        userId: person.id,
-        userName: person.name,
-        role: person.role || "crew",
-        date: data.get("date"),
-        start: data.get("start"),
-        end: data.get("end"),
-        station: data.get("station"),
-        breakMinutes: Number(data.get("breakMinutes")),
-        createdBy: state.user.id,
-      };
-      const duration = shiftMinutes({ ...s, breakMinutes: 0 });
-      if (!duration || duration > 720)
-        throw Error(
-          "Choose a shift longer than zero and no longer than 12 hours.",
-        );
-      if (s.breakMinutes >= duration)
-        throw Error("The break must be shorter than the shift.");
-      if (state.shifts.some((x) => x.userId === s.userId && overlap(x, s)))
-        throw Error("This team member already has an overlapping shift.");
-      if (!availabilityAllows(person.availability, s))
-        throw Error("The shift falls outside this team member’s availability.");
-      if (preview) state.shifts.push({ ...s, id: crypto.randomUUID() });
-      else {
-        const created = await fb.addDoc(
-          fb.collection(db, "stores", state.user.storeId, "Shifts"),
-          { ...s, createdAt: fb.serverTimestamp() },
-        );
-        if (!state.shifts.some((x) => x.id === created.id))
-          state.shifts.push({ ...s, id: created.id });
-      }
-    },
-    preview
-      ? "Shift added to this preview."
-      : "Shift published to the team rota.",
-  );
-  if (saved) {
-    renderContent();
-    $("shiftResult").innerHTML =
-      '<div class="success">' +
-      (preview
-        ? "Shift added to this preview."
-        : "Shift published to the team rota.") +
-      "</div>";
-  }
-}
-async function finishModule(e) {
-  e.preventDefault();
-  const form = e.currentTarget,
-    m = modules.find((m) => m.id === params.get("id")),
-    data = new FormData(form);
-  if (m.quiz.some((q, i) => Number(data.get("quiz" + i)) !== q.correct)) {
-    $("quizResult").innerHTML =
-      '<div class="error">Not quite yet. Revisit the notes above and give the questions another go.</div>';
-    return;
-  }
-  await formAction(
-    form,
-    "quizResult",
-    async () => {
-      const progress = { completed: true, xp: m.xp, completedAt: Date.now() };
-      if (!preview)
-        await fb.setDoc(
-          fb.doc(db, "users", state.user.id, "portalTraining", m.id),
-          progress,
-        );
-      state.progress[m.id] = progress;
-      if ($("moduleStatus")) $("moduleStatus").textContent = "Completed";
-    },
-    preview
-      ? "Nicely done! Module completed in this preview."
-      : "Nicely done! Your learning progress is saved.",
-  );
 }
 function renderChat() {
   const messages = state.chat.length
@@ -552,149 +601,139 @@ async function firebase() {
   db = base.db;
   fb = { ...a, ...f };
 }
+// Sign in / sign up (design area). Field ids and names are stable: name,
+// email, password, storeId, authForm, authResult, resetPassword.
 function authPage(signup = false) {
-  $("app").innerHTML =
-    `<main class="auth-layout"><section class="auth-art">${brand()}<div><div class="eyebrow" style="margin-top:35px">YOUR TEAM. YOUR DAY. YOUR WAY.</div><h1>A good shift<br>starts here.</h1><p>Your schedule, your learning, and a helping hand. Everything you need to feel ready for your day.</p><div class="auth-shift"><div class="between"><b style="font-size:12px;color:#7b806d">A little more clarity</b>${icon("calendar")}</div><h3>More ready. Less rushed.</h3><p style="font-size:12px;color:#6d745e">Know your shift. Grow your skills.<br>Make every day a little better.</p></div></div><div class="auth-bottom">Made for managers. Made for crew. Made for you.</div></section><section class="auth-form-wrap"><div class="auth-form"><span class="pill yellow" style="margin-bottom:22px">${icon("home")} Your everyday crew hub</span><h2>${signup ? "Join your crew hub." : "Hey, welcome back."}</h2><p>${signup ? "A fresh start to better working days." : "Ready for your next good shift? Let’s get you in."}</p><form id="authForm">${signup ? '<div class="field"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="80" placeholder="First and last name"></div>' : ""}<div class="field"><label for="email">Email address</label><input type="email" id="email" name="email" autocomplete="email" placeholder="you@example.com" required></div><div class="field"><label for="password">Password</label><input type="password" id="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" placeholder="${signup ? "At least 8 characters" : "Enter your password"}" minlength="${signup ? 8 : 1}" required></div>${signup ? '<div class="field"><label for="storeId">Store ID</label><input id="storeId" name="storeId" placeholder="Ask your manager for your store ID" required pattern="[A-Za-z0-9_-]+" maxlength="80"></div><p class="form-note">New accounts join as crew members. Manager access is assigned by your administrator.</p>' : '<div style="text-align:right;margin:-8px 0 18px"><button class="text-btn" type="button" id="resetPassword">Forgot password?</button></div>'}<div id="authResult" role="status"></div><button class="btn dark full" type="submit">${signup ? "Create my account" : "Sign in"} ${icon("arrow")}</button></form><div class="auth-divider">${signup ? "ALREADY PART OF THE TEAM?" : "NEW AROUND HERE?"}</div><p class="auth-foot">${signup ? '<a href="/">Sign in to your account</a>' : '<a href="/signup.html">Create your crew account</a>'}</p><p class="auth-foot" style="margin-top:24px"><a href="/main.html?preview=crew">Take a look around</a> · No account needed</p><p class="auth-foot" style="font-size:10px;margin-top:30px">Independent team tool. Not an official McDonald’s product.</p></div></section></main>`;
+  const tomorrow = new Date(Date.now() + 86400000);
+  const day = (options) => tomorrow.toLocaleDateString("en-GB", options);
+  $("app").innerHTML = `<main class="auth-layout"><section class="auth-art" aria-label="About McTraining"><div class="auth-shapes" aria-hidden="true"><span></span><span></span><span></span></div><div style="--d:0">${brand()}</div><div class="auth-hero" style="--d:1"><div class="eyebrow">Your team. Your day. Your way.</div><h1>A good shift<br>starts here.</h1><p class="auth-lead">Your schedule, your learning, and a helping hand. Everything you need to feel ready for your day.</p></div><div class="auth-stage" style="--d:3" aria-hidden="true"><div class="auth-shift"><div class="auth-shift-top"><span>Your next shift</span><span class="pill green">Scheduled</span></div><div class="auth-shift-main"><div class="date-tile"><span>${day({ weekday: "short" })}</span><b>${day({ day: "numeric" })}</b><span>${day({ month: "short" })}</span></div><div><h3>16:30 – 23:00</h3><p>Front Counter · 6h 00m paid time</p></div></div></div><div class="auth-chip"><span class="chip-icon">${icon("check")}</span><span>Food Safety<small>Module completed</small></span></div></div><div class="auth-bottom" style="--d:4">Made for managers. Made for crew. Made for you.</div></section><section class="auth-form-wrap"><div class="auth-form"><span class="pill yellow" style="--d:0">${icon("home")} Your everyday crew hub</span><h2 style="--d:1">${signup ? "Join your crew hub." : "Hey, welcome back."}</h2><p style="--d:2">${signup ? "A fresh start to better working days." : "Ready for your next good shift? Let’s get you in."}</p><form id="authForm">${signup ? '<div class="field" style="--d:3"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="80" placeholder="First and last name"></div>' : ""}<div class="field" style="--d:${signup ? 4 : 3}"><label for="email">Email address</label><input type="email" id="email" name="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" required></div><div class="field" style="--d:${signup ? 5 : 4}"><label for="password">Password</label><div class="input-affix"><input type="password" id="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" placeholder="${signup ? "At least 8 characters" : "Enter your password"}" minlength="${signup ? 8 : 1}" required aria-describedby="capsHint"><button class="affix-btn" type="button" id="togglePassword" aria-label="Show password" aria-pressed="false" aria-controls="password">${icon("eye")}</button></div><p class="caps-hint" id="capsHint" hidden>${icon("info")} Caps Lock is on</p></div>${signup ? '<div class="field" style="--d:6"><label for="storeId">Store ID</label><input id="storeId" name="storeId" placeholder="Ask your manager for your store ID" required pattern="[A-Za-z0-9_-]+" maxlength="80" autocapitalize="off" spellcheck="false"></div><p class="form-note" style="--d:7">New accounts join as crew members. Manager access is assigned by your administrator.</p>' : '<div class="forgot-row" style="--d:5"><button class="text-btn" type="button" id="resetPassword">Forgot password?</button></div>'}<div id="authResult" role="status" aria-live="polite"></div><button class="btn dark full" type="submit" style="--d:${signup ? 8 : 6}">${signup ? "Create my account" : "Sign in"} ${icon("arrow")}</button></form><div class="auth-divider" style="--d:7">${signup ? "ALREADY PART OF THE TEAM?" : "NEW AROUND HERE?"}</div><div class="auth-alt" style="--d:8">${signup ? '<a class="btn light" href="/">Sign in to your account</a>' : '<a class="btn light" href="/signup.html">Create your crew account</a>'}<a class="btn soft preview-link" href="/main.html?preview=crew">${icon("spark")}Take a look around</a></div><p class="auth-foot" style="--d:9">No account needed · <a href="/main.html?preview=manager">Preview the manager view</a></p><p class="auth-legal" style="--d:10">Independent team tool. Not an official McDonald’s product.</p></div></section></main>`;
+  const layout = document.querySelector(".auth-layout");
+  setTimeout(() => layout.setAttribute("data-settled", ""), 2200);
+  const password = $("password"),
+    toggle = $("togglePassword"),
+    capsHint = $("capsHint");
+  toggle.onclick = () => {
+    const show = password.type === "password";
+    password.type = show ? "text" : "password";
+    toggle.setAttribute("aria-pressed", String(show));
+    toggle.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    toggle.innerHTML = icon(show ? "eyeOff" : "eye");
+    password.focus({ preventScroll: true });
+  };
+  const caps = (event) => {
+    if (typeof event.getModifierState === "function")
+      capsHint.hidden = !event.getModifierState("CapsLock");
+  };
+  password.addEventListener("keydown", caps);
+  password.addEventListener("keyup", caps);
+  password.addEventListener("blur", () => (capsHint.hidden = true));
+  // Sign-up submits are replaced by enhanceSignup (role picker) in
+  // portal-enhancements.js, which uses the same button states.
   $("authForm").onsubmit = async (e) => {
     e.preventDefault();
     const form = e.currentTarget,
-      data = new FormData(form);
-    await formAction(
-      form,
-      "authResult",
-      async () => {
-        if (!fb) await firebase();
-        if (signup) {
-          const c = await fb.createUserWithEmailAndPassword(
-            auth,
-            data.get("email"),
-            data.get("password"),
-          );
-          await fb.updateProfile(c.user, { displayName: data.get("name") });
-          await fb.setDoc(fb.doc(db, "users", c.user.uid), {
-            name: data.get("name"),
-            email: c.user.email,
-            role: "crew",
-            storeId: data.get("storeId"),
-            stars: 0,
-            createdAt: fb.serverTimestamp(),
-          });
-        } else
-          await fb.signInWithEmailAndPassword(
-            auth,
-            data.get("email"),
-            data.get("password"),
-          );
+      data = new FormData(form),
+      button = form.querySelector("[type=submit]"),
+      result = $("authResult");
+    result.innerHTML = "";
+    setButtonState(button, "loading");
+    try {
+      if (!fb) await firebase();
+      if (signup) {
+        const c = await fb.createUserWithEmailAndPassword(
+          auth,
+          data.get("email"),
+          data.get("password"),
+        );
+        await fb.updateProfile(c.user, { displayName: data.get("name") });
+        await fb.setDoc(fb.doc(db, "users", c.user.uid), {
+          name: data.get("name"),
+          email: c.user.email,
+          role: "crew",
+          storeId: data.get("storeId"),
+          stars: 0,
+          createdAt: fb.serverTimestamp(),
+        });
+      } else
+        await fb.signInWithEmailAndPassword(
+          auth,
+          data.get("email"),
+          data.get("password"),
+        );
+      try {
         localStorage.removeItem("mc_force_logout");
-        location.href = "/main.html";
-      },
-      "Signed in. Opening your crew hub…",
-    );
+      } catch {}
+      setButtonState(button, "success");
+      result.innerHTML = `<div class="success">${signup ? "Account created." : "Signed in."} Opening your crew hub…</div>`;
+      setTimeout(
+        () => leaveTo("/main.html", document.querySelector(".auth-layout")),
+        520,
+      );
+    } catch (error) {
+      setButtonState(button, "idle");
+      result.innerHTML = `<div class="error">${esc(authErrorMessage(error))}</div>`;
+      shake(form);
+    }
   };
-  $("resetPassword")?.addEventListener("click", async () => {
-    const email = $("email").value;
-    if (!email || !$("email").checkValidity())
-      return toast("Enter your email address first.");
+  $("resetPassword")?.addEventListener("click", async (event) => {
+    const email = $("email").value.trim();
+    if (!email || !$("email").checkValidity()) {
+      $("authResult").innerHTML =
+        '<div class="error">Enter your email address first, then tap “Forgot password?”.</div>';
+      shake($("email").closest(".field"));
+      $("email").focus();
+      return;
+    }
+    const button = event.currentTarget;
+    button.disabled = true;
     try {
       if (!fb) await firebase();
       await fb.sendPasswordResetEmail(auth, email);
       $("authResult").innerHTML =
         '<div class="success">If this address has an account, a password reset email is on its way.</div>';
-    } catch {
-      $("authResult").innerHTML =
-        '<div class="error">Could not send the reset email. Please try again.</div>';
+    } catch (error) {
+      const known = ["auth/invalid-email", "auth/network-request-failed"];
+      $("authResult").innerHTML = `<div class="error">${esc(known.includes(error?.code) ? authErrorMessage(error) : "Could not send the reset email. Please try again.")}</div>`;
+    } finally {
+      button.disabled = false;
     }
   });
   window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
 }
 function setupPreview() {
-  const dates = weekDates();
-  state.user = {
-    id: "preview-self",
-    name: "Cosmin Blidaru",
-    role: preview,
-    storeId: "1170",
-    storeName: "1170 · Hayle",
-    hourlyRate: 12.55,
-    stars: 12,
-    badge: "Team player",
-    availability: {
-      mon: { available: true, start: "09:00", end: "23:00" },
-      tue: { available: true, start: "09:00", end: "23:00" },
-      wed: { available: false },
-      thu: { available: true, start: "09:00", end: "23:00" },
-      fri: { available: true, start: "09:00", end: "23:00" },
-      sat: { available: true, start: "09:00", end: "23:00" },
-    },
-  };
-  state.team = [
-    state.user,
-    { id: "preview-amelia", name: "Amelia Wilson", role: "crew", stars: 7 },
-    { id: "preview-ryan", name: "Ryan Davies", role: "crew", stars: 5 },
-    { id: "preview-maya", name: "Maya Patel", role: "crew", stars: 9 },
-  ];
-  state.shifts = [
-    {
-      id: "p1",
-      date: dates[0],
-      start: "16:30",
-      end: "01:00",
-      breakMinutes: 30,
-      userId: "preview-self",
-      userName: "Cosmin Blidaru",
-      station: "Front Counter",
-    },
-    {
-      id: "p2",
-      date: dates[2],
-      start: "10:00",
-      end: "18:00",
-      breakMinutes: 30,
-      userId: "preview-self",
-      userName: "Cosmin Blidaru",
-      station: "Kitchen",
-    },
-    {
-      id: "p3",
-      date: dates[4],
-      start: "14:00",
-      end: "22:00",
-      breakMinutes: 30,
-      userId: "preview-self",
-      userName: "Cosmin Blidaru",
-      station: "Drive-thru",
-    },
-    {
-      id: "p4",
-      date: dates[5],
-      start: "16:30",
-      end: "01:00",
-      breakMinutes: 30,
-      userId: "preview-self",
-      userName: "Cosmin Blidaru",
-      station: "Front Counter",
-    },
-    {
-      id: "p5",
-      date: isoDate(),
-      start: "09:00",
-      end: "17:00",
-      breakMinutes: 30,
-      userId: "preview-amelia",
-      userName: "Amelia Wilson",
-      station: "Fries",
-    },
-  ];
-  state.progress = { "first-shift": { completed: true, xp: 80 } };
-  try {
-    const saved = JSON.parse(
-      sessionStorage.getItem("mc_preview_" + preview) || "null",
-    );
-    if (saved?.user?.id === "preview-self") Object.assign(state, saved);
-  } catch {}
+  // A rich sample restaurant that lives only in this tab (sessionStorage).
+  const sample = loadPreviewState(preview) || buildPreviewData(preview);
+  state.user = sample.user;
+  state.team = sample.team || [];
+  // Keep the team entry and the signed-in profile as the same object so edits
+  // (availability, McStars) show up everywhere at once.
+  const selfIndex = state.team.findIndex((m) => m.id === state.user.id);
+  if (selfIndex >= 0) state.team[selfIndex] = state.user;
+  state.shifts = sample.shifts || [];
+  state.progress = sample.progress || {};
+  state.extras = { ...state.extras, ...(sample.extras || {}), loaded: true };
   state.loaded = true;
   state.progressLoaded = true;
+  state.teamLoaded = true;
+  persistPreview();
   shell();
+}
+function showDataWarning(message) {
+  state.dataError = message;
+  let warning = document.querySelector(".data-warning");
+  if (!warning) {
+    warning = document.createElement("div");
+    warning.className = "data-warning";
+    warning.setAttribute("role", "alert");
+    document.querySelector(".topbar")?.after(warning);
+  }
+  warning.textContent = message + " ";
+  const retry = document.createElement("button");
+  retry.className = "text-btn";
+  retry.type = "button";
+  retry.textContent = "Try again";
+  retry.onclick = () => location.reload();
+  warning.appendChild(retry);
 }
 function subscribe() {
   unsubscribers.forEach((fn) => fn());
@@ -703,36 +742,30 @@ function subscribe() {
     store = state.user.storeId;
   const fail = (error) => {
     state.loaded = true;
-    state.dataError =
-      error.code === "permission-denied"
+    console.warn("Live data listener failed", error?.code || error);
+    showDataWarning(
+      error?.code === "permission-denied"
         ? "Some restaurant data could not be loaded because this account does not have permission. Ask your manager to check your access."
-        : "Your restaurant data could not be loaded. Check your connection and try again.";
-    let warning = document.querySelector(".data-warning");
-    if (!warning) {
-      warning = document.createElement("div");
-      warning.className = "data-warning";
-      warning.setAttribute("role", "alert");
-      document.querySelector(".topbar")?.after(warning);
-    }
-    warning.textContent = state.dataError + " ";
-    const retry = document.createElement("button");
-    retry.className = "text-btn";
-    retry.textContent = "Try again";
-    retry.onclick = () => location.reload();
-    warning.appendChild(retry);
+        : "Your restaurant data could not be loaded. Check your connection and try again.",
+    );
+    requestRender();
   };
   const shifts = fb.collection(db, "stores", store, "Shifts");
+  // Managers see the store rota from five weeks back (enough for "Copy last
+  // week" and history) instead of every shift ever published. Crew see only
+  // their own shifts, which the security rules require.
   const shiftQuery = isManager()
-    ? shifts
+    ? fb.query(shifts, fb.where("date", ">=", weekDates(-5)[0]))
     : fb.query(shifts, fb.where("userId", "==", uid));
   unsubscribers.push(
     fb.onSnapshot(
       shiftQuery,
       (s) => {
-        state.shifts = s.docs.map((d) => ({ ...d.data(), id: d.id }));
+        state.shifts = s.docs
+          .map((d) => ({ ...d.data(), id: d.id }))
+          .filter((x) => x.date && x.start && x.end);
         state.loaded = true;
-        if (page !== "manage" && page !== "module" && page !== "availability")
-          renderContent();
+        requestRender();
       },
       fail,
     ),
@@ -745,14 +778,38 @@ function subscribe() {
           s.docs.map((d) => [d.id, d.data()]),
         );
         state.progressLoaded = true;
-        if (page === "home" || page === "training") renderContent();
         if (page === "module" && $("moduleStatus"))
           $("moduleStatus").textContent = state.progress[params.get("id")]
             ?.completed
             ? "Completed"
             : "In progress";
+        if (page !== "module") requestRender();
       },
       fail,
+    ),
+  );
+  // Your own profile stays live: McStars, badge, pay rate and availability
+  // changes (from a manager or McAssist) appear without a reload.
+  unsubscribers.push(
+    fb.onSnapshot(
+      fb.doc(db, "users", uid),
+      (snap) => {
+        if (typeof snap?.exists !== "function" || !snap.exists()) return;
+        const next = { ...snap.data(), id: uid };
+        next.name = next.name || state.user.name;
+        if (
+          String(next.role || "") !== String(state.user.role || "") ||
+          next.storeId !== store ||
+          String(next.status || "").toLowerCase() === "inactive"
+        ) {
+          // Role or store changed: rebuild navigation and listeners.
+          location.reload();
+          return;
+        }
+        state.user = Object.assign(state.user, next);
+        requestRender();
+      },
+      () => {},
     ),
   );
   if (isManager())
@@ -761,13 +818,54 @@ function subscribe() {
         fb.query(fb.collection(db, "users"), fb.where("storeId", "==", store)),
         (s) => {
           state.team = s.docs.map((d) => ({ ...d.data(), id: d.id }));
-          if (page === "team" || page === "home") renderContent();
-          if (page === "manage" && !$("member")?.value) renderContent();
+          state.teamLoaded = true;
+          requestRender();
         },
         fail,
       ),
     );
 }
+// Verifications, role requests, recognition and team learning come from the
+// server (/api/portal-data, with a browser fallback). Refreshed on load, when
+// the tab becomes visible again and after actions that change them.
+let extrasAt = 0,
+  extrasKey = "";
+function applyExtras(data) {
+  if (preview || !state.user || !data) return;
+  extrasAt = Date.now();
+  const next = {
+    loaded: true,
+    verifications: data.verifications || [],
+    roleRequests: data.roleRequests || [],
+    recognition: data.recognition || [],
+    teamProgress: data.teamProgress || {},
+  };
+  const key = JSON.stringify(next);
+  if (key === extrasKey) return;
+  extrasKey = key;
+  state.extras = next;
+  requestRender();
+}
+async function refreshExtras(force = false) {
+  if (preview || !state.user) return;
+  try {
+    applyExtras(await loadPortalData(force));
+  } catch (error) {
+    console.warn("Could not refresh portal extras", error);
+  }
+}
+// Any fresh load (for example after McAssist changed something) updates the
+// pages too; cached reads do not fire this event, so there is no render loop.
+window.addEventListener("portal:data", (event) => applyExtras(event.detail));
+document.addEventListener("visibilitychange", () => {
+  if (
+    document.visibilityState === "visible" &&
+    state.user &&
+    !preview &&
+    Date.now() - extrasAt > 60000
+  )
+    refreshExtras(true);
+});
 async function boot() {
   if (preview) {
     setupPreview();
@@ -779,11 +877,14 @@ async function boot() {
   }
   try {
     await firebase();
+    let started = false;
     fb.onAuthStateChanged(auth, async (user) => {
       if (!user) {
         location.replace("/");
         return;
       }
+      if (started && state.user?.id === user.uid) return;
+      started = true;
       try {
         const snap = await fb.getDoc(fb.doc(db, "users", user.uid));
         if (!snap.exists())
@@ -796,9 +897,15 @@ async function boot() {
           throw Error(
             "Your profile needs a store ID. Please ask your manager to update it.",
           );
+        if (String(state.user.status || "").toLowerCase() === "inactive")
+          throw Error(
+            "Your account has been deactivated. Speak to your manager if you think this is a mistake.",
+          );
         shell();
         subscribe();
+        refreshExtras();
       } catch (e) {
+        started = false;
         $("app").innerHTML =
           `<main class="boot"><section class="card" style="max-width:500px;margin:20px"><h2>Let’s get your account ready.</h2><p class="form-note">${esc(e.message)}</p><button class="btn" id="accountLogout">Back to sign in</button></section></main>`;
         $("accountLogout").onclick = async () => {
