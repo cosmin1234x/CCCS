@@ -200,6 +200,11 @@ function shell() {
   renderContent();
 }
 function renderContent() {
+  // Enhanced pages own their DOM. Live snapshots must not destroy chat or forms.
+  if ($("content").dataset.enhancedPage) {
+    window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
+    return;
+  }
   $("content").innerHTML = renderPage(page, {
     state,
     params,
@@ -215,6 +220,7 @@ function renderContent() {
     myShifts,
   });
   bindContent();
+  window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
 }
 function showModal(title, html) {
   $("modal").innerHTML =
@@ -591,6 +597,7 @@ function authPage(signup = false) {
         '<div class="error">Could not send the reset email. Please try again.</div>';
     }
   });
+  window.dispatchEvent(new CustomEvent("portal:render", { detail: state }));
 }
 function setupPreview() {
   const dates = weekDates();
@@ -678,6 +685,7 @@ function setupPreview() {
     if (saved?.user?.id === "preview-self") Object.assign(state, saved);
   } catch {}
   state.loaded = true;
+  state.progressLoaded = true;
   shell();
 }
 function subscribe() {
@@ -691,7 +699,19 @@ function subscribe() {
       error.code === "permission-denied"
         ? "Some restaurant data could not be loaded because this account does not have permission. Ask your manager to check your access."
         : "Your restaurant data could not be loaded. Check your connection and try again.";
-    shell();
+    let warning = document.querySelector(".data-warning");
+    if (!warning) {
+      warning = document.createElement("div");
+      warning.className = "data-warning";
+      warning.setAttribute("role", "alert");
+      document.querySelector(".topbar")?.after(warning);
+    }
+    warning.textContent = state.dataError + " ";
+    const retry = document.createElement("button");
+    retry.className = "text-btn";
+    retry.textContent = "Try again";
+    retry.onclick = () => location.reload();
+    warning.appendChild(retry);
   };
   const shifts = fb.collection(db, "stores", store, "Shifts");
   const shiftQuery = isManager()
@@ -716,6 +736,7 @@ function subscribe() {
         state.progress = Object.fromEntries(
           s.docs.map((d) => [d.id, d.data()]),
         );
+        state.progressLoaded = true;
         if (page === "home" || page === "training") renderContent();
         if (page === "module" && $("moduleStatus"))
           $("moduleStatus").textContent = state.progress[params.get("id")]

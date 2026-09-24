@@ -14,3 +14,5 @@ jobs:
       - run: node --check portal-enhancements.js
       - run: node --check portal.js
       - run: npm run build
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:browser

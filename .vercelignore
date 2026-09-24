@@ -4,3 +4,6 @@ seed-*
 tests
 .git
 work
+test-results
+playwright-report
+playwright.config.mjs
