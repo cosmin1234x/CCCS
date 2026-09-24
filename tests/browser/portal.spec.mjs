@@ -1,4 +1,50 @@
 import { test, expect } from "@playwright/test";
+
+for (const preview of [false, true]) {
+  test(`older Safari navigation preserves destinations (${preview ? "preview" : "signed in"})`, async ({
+    page,
+    isMobile,
+  }) => {
+    const activate = (locator) => (isMobile ? locator.tap() : locator.click());
+    await signedInFixture(page);
+    // iPadOS 16 and earlier do not expose URLSearchParams.size. Device
+    // emulation alone still uses the installed, modern WebKit engine.
+    await page.addInitScript(() => {
+      delete URLSearchParams.prototype.size;
+    });
+    await page.goto("/main.html" + (preview ? "?preview=crew" : ""));
+    const nav = page
+      .getByRole("navigation", { name: /Main navigation|Mobile navigation/ })
+      .filter({ visible: true });
+    const assistant = nav.getByRole("link", { name: "McAssist", exact: true });
+    await expect(assistant).toHaveAttribute(
+      "href",
+      "/main.html?view=assistant" + (preview ? "&preview=crew" : ""),
+    );
+    await activate(assistant);
+    await expect(page).toHaveURL(/view=assistant/);
+    await expect(
+      page.getByRole("textbox", { name: "Message McAssist" }),
+    ).toBeVisible();
+    await page
+      .getByRole("textbox", { name: "Message McAssist" })
+      .fill("Help with my shift");
+    await activate(
+      page.getByRole("button", { name: "Send message", exact: true }),
+    );
+    await expect(page.locator("#chat")).toContainText(
+      preview
+        ? "No changes were made."
+        : "Your next shift is not published yet.",
+    );
+    await activate(
+      nav.getByRole("link", { name: /My learning|Learn/, exact: true }),
+    );
+    await activate(page.getByRole("link", { name: /Start learning/ }));
+    await expect(page).toHaveURL(/id=food-safety/);
+    if (preview) await expect(page).toHaveURL(/preview=crew/);
+  });
+}
 const profile = {
   id: "qa-crew",
   name: "Alex QA",
