@@ -41,9 +41,13 @@ profile panel scrolls inside itself on a short screen".
   www.gstatic.com and cdn.jsdelivr.net, so the Firebase SDK and fonts were served locally from the npm packages). The
   iPad/iPhone projects were emulated in Chromium. **Re-run the real suite (WebKit) on a machine that has it**, and check
   the profile panel on a physical iPad.
-- Known failures that also fail on `main` in that environment: `waste.spec.mjs` "press and hold keeps counting" (the
-  hold is released by `pointerout` when the entrance animation slides the button under a still mouse; see
-  `waste-page.js` `pointerout` handler) and "preview mode works offline…" (depends on the time of day).
+- Full run, all four projects: 527 passed, 10 skipped, 7 failed. After the fixes that followed, the only failures
+  left are ones that fail on `main` in the same environment too:
+  - `waste.spec.mjs` "preview mode works offline…" (all projects; the sample history depends on the time of day).
+  - `waste.spec.mjs` "press and hold keeps counting" (intermittent; the hold is released by `pointerout` when the
+    entrance animation slides the button under a still mouse, see the `pointerout` handler in `waste-page.js`).
+  - `portal.spec.mjs` "preview lesson links…" (intermittent; it reads `window.McModules` as soon as the URL changes,
+    before the new page's scripts have run).
 
 ## What is left
 

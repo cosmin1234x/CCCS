@@ -368,6 +368,8 @@ test.describe("preview mode", () => {
     await expect(page.locator(".pg-page")).toBeVisible();
     await page.locator("#profileButton").click();
     await expect(sheet(page).getByRole("heading", { name: "Your profile" })).toBeVisible();
+    // Measure the panel once its opening animation (a small scale) is over.
+    await sheet(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
     const box = (selector) =>
       page.evaluate((selector) => {
         const r = [...document.querySelectorAll(selector)].pop().getBoundingClientRect();
