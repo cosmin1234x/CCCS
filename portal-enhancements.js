@@ -5,6 +5,9 @@ import {
   signOut,
   updateProfile,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { renderTraining, renderModule } from "./training-ui.js";
+import { renderAssistant } from "./mcassist-ui.js";
+import { renderWaste } from "./waste-page.js";
 import {
   collection,
   doc,
@@ -582,416 +585,60 @@ function enhanceSignup() {
   };
 }
 
-function moduleVisibleForRole(module, role) {
-  if (!Array.isArray(module.roles) || !module.roles.length) return true;
-  return module.roles.includes(normaliseRole(role));
-}
-
-function renderTraining(data) {
-  if (!isTrainingRoute()) return;
-  const content = $("content");
-  if (!content) return;
-  if (content.dataset.enhancedPage === "training") {
-    V2.updateLearning?.(data);
-    return;
-  }
-  content.dataset.enhancedPage = "training";
-  const allModules = (window.McModules?.modules || []).filter((m) =>
-    moduleVisibleForRole(m, data.profile.role),
-  );
-  const categories = [
-    ...new Set(allModules.map((m) => m.category || "Essentials")),
-  ];
-  const moduleUrl = (m) =>
-    "/module.html?id=" +
-    encodeURIComponent(m.id) +
-    (preview ? "&preview=" + encodeURIComponent(preview) : "");
-  content.innerHTML =
-    '<div class="learning-page">' +
-    '<header class="learning-heading"><div><div class="eyebrow">A LITTLE LEARNING. EVERY SHIFT.</div><h1>Your learning</h1><p>Build confidence, one skill at a time.</p></div><a class="learning-signoffs" href="' +
-    pageFor("verification") +
-    '">Station sign-offs <span aria-hidden="true">↗</span></a></header>' +
-    '<section class="learning-next" id="learningNext" aria-label="Your next step"></section>' +
-    '<section class="learning-library" aria-labelledby="libraryTitle"><div class="learning-library-head"><h2 id="libraryTitle">Your modules</h2><span id="learningCount" role="status"></span></div>' +
-    '<div class="learning-filters"><label class="learning-search"><span class="sr-only">Search modules</span><input id="v2TrainingSearch" type="search" placeholder="Search a skill or station…" autocomplete="off"></label><label><span class="sr-only">Category</span><select id="learningCategory"><option value="">All categories</option>' +
-    categories.map((c) => "<option>" + esc(c) + "</option>").join("") +
-    "</select></label></div>" +
-    '<div class="learning-status" aria-label="Filter by progress"><button type="button" data-status="all" aria-pressed="true">All modules</button><button type="button" data-status="todo" aria-pressed="false">To do</button><button type="button" data-status="done" aria-pressed="false">Completed</button></div>' +
-    '<div id="v2LearningGrid" class="learning-list"></div><div class="learning-more"><button id="learningMore" class="btn light" type="button">Show more modules</button></div></section>' +
-    '<p class="learning-footnote">Learning is a starting point. Practise with your Crew Trainer and follow your restaurant’s current guidance.</p></div>';
-  let activeStatus = "all",
-    limit = 6,
-    currentData = data;
-  const search = $("v2TrainingSearch"),
-    category = $("learningCategory");
-  const draw = () => {
-    const done = (m) => Boolean(currentData.progress?.[m.id]?.completed);
-    const completed = allModules.filter(done).length;
-    const percent = allModules.length
-      ? Math.round((completed / allModules.length) * 100)
-      : 0;
-    const next = allModules.find((m) => !done(m));
-    $("learningNext").innerHTML =
-      '<div class="learning-next-copy"><div class="eyebrow">' +
-      (next ? "UP NEXT" : "NICE WORK") +
-      "</div><h2>" +
-      esc(next?.title || "You’re all caught up.") +
-      "</h2><p>" +
-      esc(
-        next?.tagline || "Keep your skills fresh. Revisit any module below.",
-      ) +
-      "</p>" +
-      (next
-        ? '<a class="btn dark" href="' +
-          moduleUrl(next) +
-          '">Start learning <span aria-hidden="true">→</span></a><span class="learning-duration">' +
-          esc(next.time) +
-          "</span>"
-        : "") +
-      '</div><div class="learning-progress"><span class="learning-progress-number">' +
-      completed +
-      "<small> / " +
-      allModules.length +
-      '</small></span><b>modules completed</b><div class="progress" role="progressbar" aria-label="Learning progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' +
-      percent +
-      '"><span style="width:' +
-      percent +
-      '%"></span></div><span>' +
-      (percent === 100
-        ? "Ready for your next challenge"
-        : "Every step counts") +
-      "</span></div>";
-    const q = search.value.trim().toLowerCase();
-    const filtered = allModules.filter(
-      (m) =>
-        (!category.value || (m.category || "Essentials") === category.value) &&
-        (activeStatus === "all" || done(m) === (activeStatus === "done")) &&
-        [m.title, m.tagline, m.category, m.station, ...(m.keywords || [])]
-          .join(" ")
-          .toLowerCase()
-          .includes(q),
-    );
-    $("learningCount").textContent =
-      filtered.length + (filtered.length === 1 ? " module" : " modules");
-    $("v2LearningGrid").innerHTML = filtered.length
-      ? filtered
-          .slice(0, limit)
-          .map(
-            (m) =>
-              '<a class="learning-row" href="' +
-              moduleUrl(m) +
-              '"><span class="learning-icon" aria-hidden="true">' +
-              esc(m.icon || "✦") +
-              '</span><span class="learning-row-copy"><small>' +
-              esc(m.category || "Essentials") +
-              "</small><strong>" +
-              esc(m.title) +
-              "</strong><span>" +
-              esc(m.tagline) +
-              '</span><span class="learning-row-meta">' +
-              esc(m.time) +
-              " · " +
-              (done(m) ? "Completed ✓" : esc(m.level || "Ready to start")) +
-              '</span></span><span class="learning-row-arrow" aria-hidden="true">↗</span></a>',
-          )
-          .join("")
-      : '<div class="learning-empty"><h3>No modules found</h3><p>Try another keyword or reset your filters.</p><button class="btn light" id="learningReset" type="button">Reset filters</button></div>';
-    $("learningMore").hidden = filtered.length <= limit;
-    $("learningReset")?.addEventListener("click", () => {
-      search.value = "";
-      category.value = "";
-      activeStatus = "all";
-      limit = 6;
-      updateButtons();
-      draw();
-      search.focus();
-    });
-  };
-  const updateButtons = () =>
-    content
-      .querySelectorAll("[data-status]")
-      .forEach((b) =>
-        b.setAttribute(
-          "aria-pressed",
-          String(b.dataset.status === activeStatus),
-        ),
-      );
-  search.addEventListener("input", () => {
-    limit = 6;
-    draw();
-  });
-  category.addEventListener("change", () => {
-    limit = 6;
-    draw();
-  });
-  content.querySelectorAll("[data-status]").forEach((b) =>
-    b.addEventListener("click", () => {
-      activeStatus = b.dataset.status;
-      limit = 6;
-      updateButtons();
-      draw();
-    }),
-  );
-  $("learningMore").addEventListener("click", () => {
-    const previous = limit;
-    limit += 6;
-    draw();
-    $("v2LearningGrid").children[previous]?.focus();
-  });
-  V2.updateLearning = (fresh) => {
-    currentData = fresh;
-    draw();
-  };
-  draw();
-}
-
-function getStoredChat(uid) {
-  if (V2.chatCache.has(uid)) return V2.chatCache.get(uid);
-  try {
-    const stored = JSON.parse(
-      sessionStorage.getItem("mc_v2_chat_" + uid) || "[]",
-    );
-    return Array.isArray(stored)
-      ? stored
-          .filter(
-            (item) =>
-              item &&
-              typeof item.content === "string" &&
-              ["user", "assistant"].includes(item.role),
-          )
-          .slice(-30)
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveStoredChat(uid, items) {
-  V2.chatCache.set(uid, items.slice(-30));
-  try {
-    sessionStorage.setItem(
-      "mc_v2_chat_" + uid,
-      JSON.stringify(items.slice(-30)),
-    );
-  } catch {
-    /* Storage can be unavailable in private browsing. */
-  }
-}
-
-function renderV2Chat(profile) {
-  const chat = $("chat");
-  if (!chat) return;
-  const submit = $("chatForm")?.querySelector('button[type="submit"]');
-  if (submit) submit.disabled = V2.chatBusy;
-  chat.setAttribute("aria-busy", String(V2.chatBusy));
-  const items = getStoredChat(profile.id);
-  const messages = items.length
-    ? items
-    : [
-        {
-          role: "assistant",
-          content:
-            "Hey " +
-            String(profile.name || "there").split(" ")[0] +
-            " 👋 Ask me about your live shifts, learning, availability, or anything your role allows me to change.",
-        },
-      ];
-  chat.innerHTML =
-    messages
-      .map(
-        (item) =>
-          '<div><div class="chat-label" style="' +
-          (item.role === "user" ? "text-align:right" : "") +
-          '">' +
-          (item.role === "user" ? "YOU" : "MCASSIST") +
-          '</div><div class="message ' +
-          (item.role === "user" ? "user" : "") +
-          '">' +
-          esc(item.content) +
-          "</div></div>",
-      )
-      .join("") +
-    (V2.chatBusy ? '<div class="message">Working on it…</div>' : "");
-  chat.scrollTop = chat.scrollHeight;
-}
-
-function handleUiAction(action) {
-  if (!action) return;
-  if (action.type === "openVerification" && action.id) {
-    V2.data = null;
-    setTimeout(() => {
-      location.href = "/verification.html?id=" + encodeURIComponent(action.id);
-    }, 550);
-    return;
-  }
-  if (action.type === "openPage" && action.page) {
-    V2.data = null;
-    setTimeout(() => {
-      location.href = pageFor(action.page);
-    }, 550);
-  }
-}
-
-async function sendV2Chat(data, message) {
-  const profile = data.profile;
-  const items = getStoredChat(profile.id);
-  items.push({ role: "user", content: message });
-  saveStoredChat(profile.id, items);
-  V2.chatBusy = true;
-  renderV2Chat(profile);
-
-  try {
-    const response = preview
-      ? {
-          reply:
-            "You’re exploring the preview. Sign in to ask McAssist about your real shifts, get learning help, or update your availability. No changes were made.",
-        }
-      : await api("/api/ai-chat", {
-          method: "POST",
-          body: JSON.stringify({
-            message,
-            history: items.slice(0, -1).slice(-10),
-            appContext: { page: "assistant" },
-          }),
-        });
-    items.push({ role: "assistant", content: response.reply || "Done." });
-    if (response.dataChanged) {
+// Shared helpers handed to the feature modules (training-ui.js,
+// mcassist-ui.js, waste-page.js). Keep this the only coupling point.
+function createKit() {
+  return {
+    $,
+    esc,
+    api,
+    preview,
+    params,
+    path,
+    pageFor,
+    roleLabel,
+    normaliseRole,
+    initials,
+    formatDate,
+    loadData,
+    invalidateData() {
       V2.data = null;
       V2.dataAt = 0;
-    }
-    saveStoredChat(profile.id, items);
-    handleUiAction(response.uiAction);
-  } catch (error) {
-    items.push({
-      role: "assistant",
-      content: error.message || "McAssist could not complete that.",
-    });
-    saveStoredChat(profile.id, items);
-  } finally {
-    V2.chatBusy = false;
-    renderV2Chat(profile);
-  }
+    },
+    portalState: () => V2.portalState,
+    saveProgress,
+    toast(text) {
+      const el = $("toast");
+      if (!el) return;
+      el.textContent = text;
+      el.classList.add("show");
+      clearTimeout(V2.toastTimer);
+      V2.toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
+    },
+  };
 }
 
-function renderAssistant(data) {
-  if (!isAssistantRoute()) return;
-  const content = $("content");
-  const assistant = $("assistant");
-  if (!content || !assistant || content.dataset.enhancedPage === "assistant")
+// Learning progress lives in users/{uid}/portalTraining/{moduleId}. Preview
+// mode keeps progress in this tab only.
+async function saveProgress(moduleId, progress) {
+  if (preview) {
+    const key = "mc_preview_" + preview;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(key) || "null") || {};
+      saved.progress = { ...(saved.progress || {}), [moduleId]: progress };
+      sessionStorage.setItem(key, JSON.stringify(saved));
+    } catch {}
+    if (V2.portalState?.progress) V2.portalState.progress[moduleId] = progress;
     return;
-  content.dataset.enhancedPage = "assistant";
-
-  const role = data.profile.role;
-  const firstCrew =
-    data.team?.find((person) => normaliseRole(person.role) === "crew")?.name ||
-    "Alex";
-  const commands = [
-    ["My next shift", "What is my next shift and station?"],
-    ["Update availability", "Set my Friday availability to 16:00-23:00"],
-    ["Learn a station", "Teach me the chicken station basics"],
-  ];
-  if (role === "crewTrainer")
-    commands.push(["Start verification", "Verify " + firstCrew + " on fries"]);
-  if (role === "manager") {
-    commands.push([
-      "Plan a shift",
-      "Plan a shift for " +
-        firstCrew +
-        " tomorrow from 16:00 to 23:00 on Fries with a 30 minute break",
-    ]);
-    commands.push([
-      "Set hourly rate",
-      "Set " + firstCrew + " hourly rate to £13.55",
-    ]);
-    commands.push([
-      "Promote member",
-      "Promote " + firstCrew + " to Crew Trainer",
-    ]);
-    commands.push([
-      "Multi-action",
-      "Set " +
-        firstCrew +
-        " hourly rate to £13.55, add a note saying strong progress, and give them 3 McStars",
-    ]);
-    commands.push([
-      "Team check",
-      "Who is working tomorrow and what stations are they on?",
-    ]);
   }
-
-  content.innerHTML =
-    '<div class="v2-assistant-page">' +
-    '<section class="v2-assistant-hero">' +
-    '<div class="eyebrow">YOUR SHIFT COMPANION</div>' +
-    "<h1>A little help for your day.</h1>" +
-    "<p>Get ready for your shift, learn a station, or organise your working week.</p>" +
-    '<div class="v2-assistant-capabilities">' +
-    "<span>✓ Live shifts</span><span>✓ Learning</span><span>✓ Availability</span>" +
-    (data.permissions?.canVerify ? "<span>✓ Crew verification</span>" : "") +
-    (data.permissions?.canPlanShifts
-      ? "<span>✓ Shift planning</span><span>✓ Pay rates</span><span>✓ Roles</span><span>✓ Profiles</span><span>✓ McStars</span>"
-      : "") +
-    "</div>" +
-    "</section>" +
-    '<div class="v2-assistant-shell"><div id="v2AssistantMount"></div>' +
-    '<aside class="v2-command-panel"><div class="v2-data-badge">' +
-    (preview ? "Preview · sample data" : esc(roleLabel(role)) + " access") +
-    '</div><h3 style="margin-top:14px">Start a conversation</h3><p>Choose a suggestion, edit it, then send when you’re ready.</p><div class="v2-command-list">' +
-    commands
-      .map(
-        (item) =>
-          '<button class="v2-command" type="button" data-v2-command="' +
-          esc(item[1]) +
-          '"><b>' +
-          esc(item[0]) +
-          "</b>" +
-          esc(item[1]) +
-          "</button>",
-      )
-      .join("") +
-    "</div></aside>" +
-    "</div>" +
-    "</div>";
-
-  $("v2AssistantMount").appendChild(assistant);
-  assistant.querySelector(".assistant-head small").textContent =
-    roleLabel(role) + " access";
-  const aiNote = assistant.querySelector(".ai-note");
-  if (aiNote)
-    aiNote.textContent =
-      role === "manager"
-        ? "Manager changes are saved to your team’s records. Check names, dates and amounts before sending."
-        : "McAssist can only perform actions allowed by your approved role. Exact store procedures still come from official restaurant guidance.";
-
-  const form = $("chatForm");
-  const input = $("chatInput");
-  if (form && input) {
-    form.onsubmit = async (event) => {
-      event.preventDefault();
-      if (V2.chatBusy) return;
-      const message = input.value.trim();
-      if (!message) return;
-      input.value = "";
-      await sendV2Chat(data, message);
-    };
-  }
-
-  assistant.querySelectorAll("[data-prompt]").forEach((button) => {
-    button.onclick = () => {
-      input.value = button.dataset.prompt;
-      input.focus();
-    };
+  const user = await waitForUser();
+  if (!user) throw new Error("Sign in to save your learning progress.");
+  await setDoc(doc(db, "users", user.uid, "portalTraining", moduleId), progress, {
+    merge: true,
   });
-
-  content.querySelectorAll("[data-v2-command]").forEach((button) => {
-    button.addEventListener("click", () => {
-      input.value = button.dataset.v2Command;
-      input.focus();
-    });
-  });
-
-  renderV2Chat(data.profile);
+  if (V2.portalState?.progress) V2.portalState.progress[moduleId] = progress;
 }
+
 
 function statusLabel(v) {
   return v.status === "verified" ? "Verified" : "Needs signatures";
@@ -1393,8 +1040,11 @@ async function enhanceLoggedIn() {
   const data = await loadData();
   if (V2.portalState?.progressLoaded) data.progress = V2.portalState.progress;
   applyRoleUI(data);
-  renderTraining(data);
-  renderAssistant(data);
+  const kit = createKit();
+  if (isTrainingRoute()) renderTraining(data, kit);
+  if (path === "module.html") renderModule(data, kit);
+  if (isAssistantRoute()) renderAssistant(data, kit);
+  if (path === "waste.html") await renderWaste(data, kit);
   await renderVerification(data);
   appendManagerRoleRequests(data);
 }

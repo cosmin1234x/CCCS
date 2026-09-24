@@ -129,6 +129,9 @@ export function renderPage(page, c) {
     `${heading("Your good work deserves a star.", "A little recognition for the effort you bring to your team.")}<section class="card reward-hero"><div class="between"><div><div class="eyebrow">YOUR MCSTARS</div><div class="reward-number">${Number(state.user.stars) || 0} <span style="color:#cf9200">★</span></div><p class="muted" style="font-size:13px">${esc(state.user.badge || "Every contribution counts.")}</p></div><span style="font-size:80px">🌟</span></div></section><section class="card" style="margin-top:22px"><h3>There’s more than one way to shine.</h3><div class="reward-grid"><div>${icon("team")}<b>Help your team</b></div><div>${icon("book")}<b>Keep learning</b></div><div>${icon("star")}<b>Make someone’s day</b></div></div><p class="form-note" style="margin-top:22px">Recognition is recorded by your manager. Ask your shift lead about the rewards available at your restaurant.</p></section>`;
   const assistant = () =>
     `${heading("A little help, right when you need it.", "Meet McAssist, your companion for learning and everyday shift questions.")}<section class="card"><h3>What’s on your mind?</h3><p class="form-note">Get help preparing for a shift, practise a customer conversation, or break down a learning topic.</p><div class="stack" style="margin-top:20px">${["Help me prepare for my next shift", "Practise handling a customer complaint with me", "How can I support a new crew member?"].map((s) => `<button class="btn light" data-ask="${esc(s)}">${icon("spark")}${s}</button>`).join("")}</div><p class="form-note">McAssist gives guidance. Changes to shifts are made through the shift planner.</p></section>`;
+  // The waste counter is rendered by waste-page.js once the page loads.
+  const waste = () =>
+    `<div class="page-loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><p>Opening the waste counter…</p></div>`;
   return {
     home,
     schedule,
@@ -139,5 +142,6 @@ export function renderPage(page, c) {
     manage,
     rewards,
     assistant,
+    waste,
   }[page]();
 }

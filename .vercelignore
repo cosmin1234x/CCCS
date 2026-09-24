@@ -7,3 +7,4 @@ work
 test-results
 playwright-report
 playwright.config.mjs
+.out
