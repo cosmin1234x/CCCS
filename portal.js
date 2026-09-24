@@ -118,7 +118,10 @@ const url = (target = "home", extra = {}) => {
   const p = new URLSearchParams(extra);
   if (!paths[target]) p.set("view", target);
   if (preview) p.set("preview", preview);
-  return `/${paths[target] || "main"}.html${p.size ? "?" + p : ""}`;
+  // URLSearchParams.size is unavailable on older iPads. Serialise instead,
+  // otherwise view=assistant (and module IDs/preview mode) silently disappear.
+  const query = p.toString();
+  return `/${paths[target] || "main"}.html${query ? "?" + query : ""}`;
 };
 function toast(text) {
   $("toast").textContent = text;
