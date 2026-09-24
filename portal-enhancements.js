@@ -22,24 +22,32 @@ const V2 = {
   enhancing: false,
   listenerInstalled: false,
   chatBusy: false,
+  chatCache: new Map(),
 };
 
 const $ = (id) => document.getElementById(id);
 const esc = (value) =>
-  String(value ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[c]);
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c],
+  );
 
 const params = new URLSearchParams(location.search);
 const preview = params.get("preview");
-const path = location.pathname.split("/").pop() || "main.html";
+const route = location.pathname.split("/").pop() || "main.html";
+const path = route.includes(".") ? route : route + ".html";
 
 function normaliseRole(role) {
-  const value = String(role || "").toLowerCase().replace(/[\s_-]/g, "");
+  const value = String(role || "")
+    .toLowerCase()
+    .replace(/[\s_-]/g, "");
   if (["manager", "shiftcreator", "admin"].includes(value)) return "manager";
   if (["crewtrainer", "trainer"].includes(value)) return "crewTrainer";
   return "crew";
@@ -47,22 +55,30 @@ function normaliseRole(role) {
 
 function roleLabel(role) {
   const value = normaliseRole(role);
-  return value === "manager" ? "Manager" : value === "crewTrainer" ? "Crew Trainer" : "Crew Member";
+  return value === "manager"
+    ? "Manager"
+    : value === "crewTrainer"
+      ? "Crew Trainer"
+      : "Crew Member";
 }
 
 function initials(name) {
-  return String(name || "?")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "?";
+  return (
+    String(name || "?")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "?"
+  );
 }
 
 function formatDate(value) {
   if (!value) return "—";
   try {
-    return new Date(value + (String(value).length === 10 ? "T12:00:00" : "")).toLocaleDateString("en-GB", {
+    return new Date(
+      value + (String(value).length === 10 ? "T12:00:00" : ""),
+    ).toLocaleDateString("en-GB", {
       weekday: "short",
       day: "numeric",
       month: "short",
@@ -86,17 +102,32 @@ async function api(pathname, options = {}) {
   const user = await waitForUser();
   if (!user) throw new Error("Sign in to continue.");
   const token = await user.getIdToken();
-  const response = await fetch(pathname, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + token,
-      ...(options.headers || {}),
-    },
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || data.reply || "Request failed.");
-  return data;
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    pathname === "/api/ai-chat" ? 45000 : 12000,
+  );
+  try {
+    const response = await fetch(pathname, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+        ...(options.headers || {}),
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(data.error || data.reply || "Request failed.");
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError")
+      throw new Error("The connection took too long. Please try again.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function clientFallbackData() {
@@ -107,17 +138,23 @@ async function clientFallbackData() {
   const profile = { id: user.uid, ...profileSnap.data() };
   profile.role = normaliseRole(profile.role);
   profile.roleLabel = roleLabel(profile.role);
-  profile.verifiedStations = Array.isArray(profile.verifiedStations) ? profile.verifiedStations : [];
+  profile.verifiedStations = Array.isArray(profile.verifiedStations)
+    ? profile.verifiedStations
+    : [];
 
   const team = [];
   if (["manager", "crewTrainer"].includes(profile.role)) {
     try {
-      const snap = await getDocs(query(collection(db, "users"), where("storeId", "==", profile.storeId)));
+      const snap = await getDocs(
+        query(collection(db, "users"), where("storeId", "==", profile.storeId)),
+      );
       snap.forEach((d) => {
         const value = { id: d.id, ...d.data() };
         value.role = normaliseRole(value.role);
         value.roleLabel = roleLabel(value.role);
-        value.verifiedStations = Array.isArray(value.verifiedStations) ? value.verifiedStations : [];
+        value.verifiedStations = Array.isArray(value.verifiedStations)
+          ? value.verifiedStations
+          : [];
         team.push(value);
       });
     } catch {}
@@ -153,17 +190,36 @@ function previewData() {
       verifiedStations: ["Fries", "Front Counter"],
       notes: "Ready for the next station.",
     },
-    team: role === "manager"
-      ? [
-          { id: "preview-a", name: "Amelia Wilson", role: "crew", roleLabel: "Crew Member", stars: 7, verifiedStations: ["Fries"] },
-          { id: "preview-b", name: "Ryan Davies", role: "crew", roleLabel: "Crew Member", stars: 5, verifiedStations: [] },
-        ]
-      : [],
+    team:
+      role === "manager"
+        ? [
+            {
+              id: "preview-a",
+              name: "Amelia Wilson",
+              role: "crew",
+              roleLabel: "Crew Member",
+              stars: 7,
+              verifiedStations: ["Fries"],
+            },
+            {
+              id: "preview-b",
+              name: "Ryan Davies",
+              role: "crew",
+              roleLabel: "Crew Member",
+              stars: 5,
+              verifiedStations: [],
+            },
+          ]
+        : [],
     shifts: [],
     progress: { "first-shift": { completed: true } },
     verifications: [],
     roleRequests: [],
-    permissions: { canPlanShifts: role === "manager", canVerify: false, canSeeTeam: role === "manager" },
+    permissions: {
+      canPlanShifts: role === "manager",
+      canVerify: false,
+      canSeeTeam: role === "manager",
+    },
   };
 }
 
@@ -173,7 +229,10 @@ async function loadData(force = false) {
   try {
     V2.data = await api("/api/portal-data");
   } catch (error) {
-    console.warn("V2 portal-data API unavailable, using browser data fallback", error);
+    console.warn(
+      "V2 portal-data API unavailable, using browser data fallback",
+      error,
+    );
     V2.data = await clientFallbackData();
   }
   V2.dataAt = Date.now();
@@ -193,7 +252,11 @@ function pageFor(name) {
     verification: "/verification.html",
   };
   let url = map[name] || "/main.html";
-  if (preview) url += (url.includes("?") ? "&" : "?") + "preview=" + encodeURIComponent(preview);
+  if (preview)
+    url +=
+      (url.includes("?") ? "&" : "?") +
+      "preview=" +
+      encodeURIComponent(preview);
   return url;
 }
 
@@ -210,7 +273,9 @@ function isVerificationRoute() {
 }
 
 function setActiveNav(href) {
-  document.querySelectorAll(".side-nav a").forEach((a) => a.classList.remove("active"));
+  document
+    .querySelectorAll(".side-nav a")
+    .forEach((a) => a.classList.remove("active"));
   const target = document.querySelector('.side-nav a[href="' + href + '"]');
   target?.classList.add("active");
 }
@@ -225,17 +290,22 @@ function applyRoleUI(data) {
 
   const sideNav = document.querySelector(".side-nav");
   if (sideNav && !sideNav.querySelector(".v2-nav-link")) {
-    const assistant = [...sideNav.querySelectorAll("a")].find((a) => a.textContent.includes("McAssist"));
+    const assistant = [...sideNav.querySelectorAll("a")].find((a) =>
+      a.textContent.includes("McAssist"),
+    );
     const link = document.createElement("a");
     link.className = "v2-nav-link";
     link.href = pageFor("verification");
-    const verifyLabel = role === "crewTrainer"
-      ? "Verify crew"
-      : role === "manager"
-        ? "Verifications"
-        : "My verifications";
+    const verifyLabel =
+      role === "crewTrainer"
+        ? "Verify crew"
+        : role === "manager"
+          ? "Verifications"
+          : "My verifications";
     link.innerHTML =
-      '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8 3v7c0 5-8 9-8 9s-8-4-8-9V6l8-3Zm-4 9 3 3 5-5"/></svg><span>' + esc(verifyLabel) + '</span>';
+      '<svg class="icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8 3v7c0 5-8 9-8 9s-8-4-8-9V6l8-3Zm-4 9 3 3 5-5"/></svg><span>' +
+      esc(verifyLabel) +
+      "</span>";
     sideNav.insertBefore(link, assistant || null);
   }
 
@@ -279,25 +349,39 @@ function nextShiftFor(profile, data) {
       const d = new Date(s.date + "T" + s.start + ":00");
       return d >= now;
     })
-    .sort((a, b) => String(a.date + a.start).localeCompare(String(b.date + b.start)))[0];
-  return next ? formatDate(next.date) + " " + next.start + "–" + next.end : "No upcoming shift loaded";
+    .sort((a, b) =>
+      String(a.date + a.start).localeCompare(String(b.date + b.start)),
+    )[0];
+  return next
+    ? formatDate(next.date) + " " + next.start + "–" + next.end
+    : "No upcoming shift loaded";
 }
 
 function trainingStatus(profile, data) {
   if (profile.id !== data.profile.id) {
     const count = (profile.verifiedStations || []).length;
-    return count ? count + " station" + (count === 1 ? "" : "s") + " verified" : "No station verifications yet";
+    return count
+      ? count + " station" + (count === 1 ? "" : "s") + " verified"
+      : "No station verifications yet";
   }
   const modules = window.McModules?.modules || [];
-  const done = Object.values(data.progress || {}).filter((p) => p?.completed).length;
-  return modules.length ? done + " of " + modules.length + " learning modules completed" : "Learning ready";
+  const done = Object.values(data.progress || {}).filter(
+    (p) => p?.completed,
+  ).length;
+  return modules.length
+    ? done + " of " + modules.length + " learning modules completed"
+    : "Learning ready";
 }
 
 function showProfile(profile, data) {
   const modal = $("modal");
   if (!modal) return;
   modal.classList.add("v2-profile-dialog");
-  modal.addEventListener("close", () => modal.classList.remove("v2-profile-dialog"), { once: true });
+  modal.addEventListener(
+    "close",
+    () => modal.classList.remove("v2-profile-dialog"),
+    { once: true },
+  );
   const stations = (profile.verifiedStations || []).length
     ? profile.verifiedStations.join(", ")
     : "No stations yet";
@@ -305,9 +389,16 @@ function showProfile(profile, data) {
     profile.id === data.profile.id &&
     profile.roleRequestStatus === "pending" &&
     profile.requestedRole
-      ? '<span class="role-chip pending">Pending ' + esc(roleLabel(profile.requestedRole)) + " approval</span>"
+      ? '<span class="role-chip pending">Pending ' +
+        esc(roleLabel(profile.requestedRole)) +
+        " approval</span>"
       : "";
-  const roleClass = profile.role === "manager" ? "manager" : profile.role === "crewTrainer" ? "trainer" : "";
+  const roleClass =
+    profile.role === "manager"
+      ? "manager"
+      : profile.role === "crewTrainer"
+        ? "trainer"
+        : "";
   const canStartVerify =
     data.permissions?.canVerify &&
     profile.id !== data.profile.id &&
@@ -315,30 +406,58 @@ function showProfile(profile, data) {
   const actions =
     '<div class="v2-profile-actions">' +
     (canStartVerify
-      ? '<a class="btn" href="' + pageFor("verification") + "?crewId=" + encodeURIComponent(profile.id) + '">Verify station</a>'
+      ? '<a class="btn" href="' +
+        pageFor("verification") +
+        "?crewId=" +
+        encodeURIComponent(profile.id) +
+        '">Verify station</a>'
       : "") +
     (profile.id === data.profile.id
-      ? '<a class="btn light" href="' + pageFor("availability") + '">Availability</a><button class="btn dark" id="v2ProfileLogout" type="button">Sign out</button>'
+      ? '<a class="btn light" href="' +
+        pageFor("availability") +
+        '">Availability</a><button class="btn dark" id="v2ProfileLogout" type="button">Sign out</button>'
       : "") +
     "</div>";
 
   modal.innerHTML =
     '<section class="v2-profile-card">' +
-      '<button class="v2-profile-close" id="v2ProfileClose" aria-label="Close">×</button>' +
-      '<div class="v2-profile-avatar">' + esc(initials(profile.name).slice(0, 1)) + "</div>" +
-      "<h2>" + esc(profile.name || "Crew member") + "</h2>" +
-      '<div class="v2-profile-sub">' + esc(roleLabel(profile.role)) + "</div>" +
-      '<div class="v2-profile-store">' + esc(profile.storeName || ("Store " + (profile.storeId || "—"))) + "</div>" +
-      '<div style="margin-top:8px">' + pending + "</div>" +
-      '<div class="v2-profile-table">' +
-        '<div class="v2-profile-row"><span>Training status</span><span>' + esc(trainingStatus(profile, data)) + "</span></div>" +
-        '<div class="v2-profile-row"><span>Badge</span><span>' + esc(profile.badge || "No badge set") + "</span></div>" +
-        '<div class="v2-profile-row"><span>McStars</span><span>☆ ' + esc(Number(profile.stars) || 0) + "</span></div>" +
-        '<div class="v2-profile-row"><span>Next shift</span><span>' + esc(nextShiftFor(profile, data)) + "</span></div>" +
-        '<div class="v2-profile-row"><span>Stations</span><span>' + esc(stations) + "</span></div>" +
-      "</div>" +
-      '<div class="v2-profile-notes"><label>Notes</label><textarea readonly>' + esc(profile.notes || "No notes yet.") + "</textarea></div>" +
-      actions +
+    '<button class="v2-profile-close" id="v2ProfileClose" aria-label="Close">×</button>' +
+    '<div class="v2-profile-avatar">' +
+    esc(initials(profile.name).slice(0, 1)) +
+    "</div>" +
+    "<h2>" +
+    esc(profile.name || "Crew member") +
+    "</h2>" +
+    '<div class="v2-profile-sub">' +
+    esc(roleLabel(profile.role)) +
+    "</div>" +
+    '<div class="v2-profile-store">' +
+    esc(profile.storeName || "Store " + (profile.storeId || "—")) +
+    "</div>" +
+    '<div style="margin-top:8px">' +
+    pending +
+    "</div>" +
+    '<div class="v2-profile-table">' +
+    '<div class="v2-profile-row"><span>Training status</span><span>' +
+    esc(trainingStatus(profile, data)) +
+    "</span></div>" +
+    '<div class="v2-profile-row"><span>Badge</span><span>' +
+    esc(profile.badge || "No badge set") +
+    "</span></div>" +
+    '<div class="v2-profile-row"><span>McStars</span><span>☆ ' +
+    esc(Number(profile.stars) || 0) +
+    "</span></div>" +
+    '<div class="v2-profile-row"><span>Next shift</span><span>' +
+    esc(nextShiftFor(profile, data)) +
+    "</span></div>" +
+    '<div class="v2-profile-row"><span>Stations</span><span>' +
+    esc(stations) +
+    "</span></div>" +
+    "</div>" +
+    '<div class="v2-profile-notes"><label>Notes</label><textarea readonly>' +
+    esc(profile.notes || "No notes yet.") +
+    "</textarea></div>" +
+    actions +
     "</section>";
 
   $("v2ProfileClose").onclick = () => modal.close();
@@ -357,7 +476,9 @@ function installTeamProfileCapture() {
     (event) => {
       const button = event.target.closest("[data-person]");
       if (!button || !V2.data?.team?.length) return;
-      const person = V2.data.team.find((item) => item.id === button.dataset.person);
+      const person = V2.data.team.find(
+        (item) => item.id === button.dataset.person,
+      );
       if (!person) return;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -384,11 +505,11 @@ function enhanceSignup() {
   const picker = document.createElement("div");
   picker.className = "v2-role-picker";
   picker.innerHTML =
-    '<label>What is your role?</label>' +
+    "<label>What is your role?</label>" +
     '<div class="v2-role-options">' +
-      '<label class="v2-role-option"><input type="radio" name="v2Role" value="crew" checked><span>👤<b>Crew Member</b>My shifts and learning</span></label>' +
-      '<label class="v2-role-option"><input type="radio" name="v2Role" value="crewTrainer"><span>🛡️<b>Crew Trainer</b>Training and verification</span></label>' +
-      '<label class="v2-role-option"><input type="radio" name="v2Role" value="manager"><span>📋<b>Manager</b>Team and shift planning</span></label>' +
+    '<label class="v2-role-option"><input type="radio" name="v2Role" value="crew" checked><span>👤<b>Crew Member</b>My shifts and learning</span></label>' +
+    '<label class="v2-role-option"><input type="radio" name="v2Role" value="crewTrainer"><span>🛡️<b>Crew Trainer</b>Training and verification</span></label>' +
+    '<label class="v2-role-option"><input type="radio" name="v2Role" value="manager"><span>📋<b>Manager</b>Team and shift planning</span></label>' +
     "</div>" +
     '<p class="v2-role-note">Crew Trainer and Manager access is stored as a role request and must be approved by a Manager. This stops anyone creating an account and giving themselves elevated access.</p>';
   storeField.after(picker);
@@ -408,7 +529,9 @@ function enhanceSignup() {
         String(data.get("email") || ""),
         String(data.get("password") || ""),
       );
-      await updateProfile(credential.user, { displayName: String(data.get("name") || "") });
+      await updateProfile(credential.user, {
+        displayName: String(data.get("name") || ""),
+      });
 
       const baseProfile = {
         name: String(data.get("name") || "").trim(),
@@ -440,14 +563,19 @@ function enhanceSignup() {
           '<div class="success">' +
           (selectedRole === "crew"
             ? "Account created. Opening your crew hub…"
-            : roleLabel(selectedRole) + " requested. You can use Crew access until a Manager approves it.") +
+            : roleLabel(selectedRole) +
+              " requested. You can use Crew access until a Manager approves it.") +
           "</div>";
       }
       setTimeout(() => {
         location.href = "/main.html";
       }, 650);
     } catch (error) {
-      if (result) result.innerHTML = '<div class="error">' + esc(error.message || "Could not create account.") + "</div>";
+      if (result)
+        result.innerHTML =
+          '<div class="error">' +
+          esc(error.message || "Could not create account.") +
+          "</div>";
     } finally {
       button.disabled = false;
     }
@@ -462,111 +590,227 @@ function moduleVisibleForRole(module, role) {
 function renderTraining(data) {
   if (!isTrainingRoute()) return;
   const content = $("content");
-  if (!content || content.dataset.v2Training === "1") return;
-  content.dataset.v2Training = "1";
-
+  if (!content) return;
+  if (content.dataset.enhancedPage === "training") {
+    V2.updateLearning?.(data);
+    return;
+  }
+  content.dataset.enhancedPage = "training";
   const allModules = (window.McModules?.modules || []).filter((m) =>
     moduleVisibleForRole(m, data.profile.role),
   );
-  const categories = ["All", ...new Set(allModules.map((m) => m.category || "Essentials"))];
-  const complete = Object.values(data.progress || {}).filter((p) => p?.completed).length;
-  const percent = allModules.length ? Math.round((complete / allModules.length) * 100) : 0;
-
+  const categories = [
+    ...new Set(allModules.map((m) => m.category || "Essentials")),
+  ];
+  const moduleUrl = (m) =>
+    "/module.html?id=" +
+    encodeURIComponent(m.id) +
+    (preview ? "&preview=" + encodeURIComponent(preview) : "");
   content.innerHTML =
-    '<section class="v2-training-head">' +
-      '<div><div class="eyebrow">LEARN BY STATION</div><h1>Find what you need. Fast.</h1><p>Short, station-based learning without endless scrolling. Use search or pick a category, then open one focused module at a time.</p></div>' +
-      '<div class="v2-training-progress"><strong>' + complete + "/" + allModules.length + '</strong><small>Modules completed · ' + percent + '%</small><div class="progress"><span style="width:' + percent + '%"></span></div></div>' +
-    "</section>" +
-    '<div class="v2-station-strip">' +
-      [
-        ["🍟", "Fries"],
-        ["🔥", "Grill"],
-        ["🍗", "Chicken"],
-        ["🚗", "Drive-thru"],
-        ["🧾", "Front counter"],
-      ].map((item) => '<button class="v2-station-chip" type="button" data-station-search="' + esc(item[1]) + '"><span>' + item[0] + "</span><b>" + esc(item[1]) + "</b></button>").join("") +
-    "</div>" +
-    '<section class="v2-training-toolbar">' +
-      '<div class="v2-training-search"><input id="v2TrainingSearch" type="search" placeholder="Search grill, chicken, allergens, drive-thru…" autocomplete="off"></div>' +
-      '<div class="v2-category-tabs" id="v2CategoryTabs">' +
-        categories.map((category, i) => '<button type="button" data-category="' + esc(category) + '" class="' + (i === 0 ? "active" : "") + '">' + esc(category) + "</button>").join("") +
-      "</div>" +
-    "</section>" +
-    '<div class="v2-learning-grid" id="v2LearningGrid"></div>';
-
-  let activeCategory = "All";
-  const search = $("v2TrainingSearch");
-  const grid = $("v2LearningGrid");
-
+    '<div class="learning-page">' +
+    '<header class="learning-heading"><div><div class="eyebrow">A LITTLE LEARNING. EVERY SHIFT.</div><h1>Your learning</h1><p>Build confidence, one skill at a time.</p></div><a class="learning-signoffs" href="' +
+    pageFor("verification") +
+    '">Station sign-offs <span aria-hidden="true">↗</span></a></header>' +
+    '<section class="learning-next" id="learningNext" aria-label="Your next step"></section>' +
+    '<section class="learning-library" aria-labelledby="libraryTitle"><div class="learning-library-head"><h2 id="libraryTitle">Your modules</h2><span id="learningCount" role="status"></span></div>' +
+    '<div class="learning-filters"><label class="learning-search"><span class="sr-only">Search modules</span><input id="v2TrainingSearch" type="search" placeholder="Search a skill or station…" autocomplete="off"></label><label><span class="sr-only">Category</span><select id="learningCategory"><option value="">All categories</option>' +
+    categories.map((c) => "<option>" + esc(c) + "</option>").join("") +
+    "</select></label></div>" +
+    '<div class="learning-status" aria-label="Filter by progress"><button type="button" data-status="all" aria-pressed="true">All modules</button><button type="button" data-status="todo" aria-pressed="false">To do</button><button type="button" data-status="done" aria-pressed="false">Completed</button></div>' +
+    '<div id="v2LearningGrid" class="learning-list"></div><div class="learning-more"><button id="learningMore" class="btn light" type="button">Show more modules</button></div></section>' +
+    '<p class="learning-footnote">Learning is a starting point. Practise with your Crew Trainer and follow your restaurant’s current guidance.</p></div>';
+  let activeStatus = "all",
+    limit = 6,
+    currentData = data;
+  const search = $("v2TrainingSearch"),
+    category = $("learningCategory");
   const draw = () => {
-    const q = String(search?.value || "").trim().toLowerCase();
-    const filtered = allModules.filter((m) => {
-      const catMatch = activeCategory === "All" || (m.category || "Essentials") === activeCategory;
-      const text = [m.title, m.tagline, m.category, m.station, ...(m.keywords || [])].join(" ").toLowerCase();
-      return catMatch && (!q || text.includes(q));
+    const done = (m) => Boolean(currentData.progress?.[m.id]?.completed);
+    const completed = allModules.filter(done).length;
+    const percent = allModules.length
+      ? Math.round((completed / allModules.length) * 100)
+      : 0;
+    const next = allModules.find((m) => !done(m));
+    $("learningNext").innerHTML =
+      '<div class="learning-next-copy"><div class="eyebrow">' +
+      (next ? "UP NEXT" : "NICE WORK") +
+      "</div><h2>" +
+      esc(next?.title || "You’re all caught up.") +
+      "</h2><p>" +
+      esc(
+        next?.tagline || "Keep your skills fresh. Revisit any module below.",
+      ) +
+      "</p>" +
+      (next
+        ? '<a class="btn dark" href="' +
+          moduleUrl(next) +
+          '">Start learning <span aria-hidden="true">→</span></a><span class="learning-duration">' +
+          esc(next.time) +
+          "</span>"
+        : "") +
+      '</div><div class="learning-progress"><span class="learning-progress-number">' +
+      completed +
+      "<small> / " +
+      allModules.length +
+      '</small></span><b>modules completed</b><div class="progress" role="progressbar" aria-label="Learning progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' +
+      percent +
+      '"><span style="width:' +
+      percent +
+      '%"></span></div><span>' +
+      (percent === 100
+        ? "Ready for your next challenge"
+        : "Every step counts") +
+      "</span></div>";
+    const q = search.value.trim().toLowerCase();
+    const filtered = allModules.filter(
+      (m) =>
+        (!category.value || (m.category || "Essentials") === category.value) &&
+        (activeStatus === "all" || done(m) === (activeStatus === "done")) &&
+        [m.title, m.tagline, m.category, m.station, ...(m.keywords || [])]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+    );
+    $("learningCount").textContent =
+      filtered.length + (filtered.length === 1 ? " module" : " modules");
+    $("v2LearningGrid").innerHTML = filtered.length
+      ? filtered
+          .slice(0, limit)
+          .map(
+            (m) =>
+              '<a class="learning-row" href="' +
+              moduleUrl(m) +
+              '"><span class="learning-icon" aria-hidden="true">' +
+              esc(m.icon || "✦") +
+              '</span><span class="learning-row-copy"><small>' +
+              esc(m.category || "Essentials") +
+              "</small><strong>" +
+              esc(m.title) +
+              "</strong><span>" +
+              esc(m.tagline) +
+              '</span><span class="learning-row-meta">' +
+              esc(m.time) +
+              " · " +
+              (done(m) ? "Completed ✓" : esc(m.level || "Ready to start")) +
+              '</span></span><span class="learning-row-arrow" aria-hidden="true">↗</span></a>',
+          )
+          .join("")
+      : '<div class="learning-empty"><h3>No modules found</h3><p>Try another keyword or reset your filters.</p><button class="btn light" id="learningReset" type="button">Reset filters</button></div>';
+    $("learningMore").hidden = filtered.length <= limit;
+    $("learningReset")?.addEventListener("click", () => {
+      search.value = "";
+      category.value = "";
+      activeStatus = "all";
+      limit = 6;
+      updateButtons();
+      draw();
+      search.focus();
     });
-
-    grid.innerHTML = filtered.length
-      ? filtered.map((m) => {
-          const done = Boolean(data.progress?.[m.id]?.completed);
-          return (
-            '<article class="v2-module-card">' +
-              '<div class="v2-module-top"><span class="v2-module-icon">' + esc(m.icon) + '</span><span class="v2-module-category">' + esc(m.category || "Essentials") + "</span></div>" +
-              "<h3>" + esc(m.title) + "</h3>" +
-              "<p>" + esc(m.tagline) + "</p>" +
-              '<div class="v2-module-meta"><span>' + esc(m.time) + " · " + esc(m.xp) + ' XP</span><span class="pill ' + (done ? "green" : "") + '">' + (done ? "Completed" : esc(m.level)) + "</span></div>" +
-              '<div class="v2-module-actions"><a class="btn ' + (done ? "light" : "soft") + '" href="/module.html?id=' + encodeURIComponent(m.id) + '">' + (done ? "Review" : "Open module") + "</a></div>" +
-            "</article>"
-          );
-        }).join("")
-      : '<div class="v2-empty-search"><b>No modules found.</b><br>Try a different station or keyword.</div>';
   };
-
-  search?.addEventListener("input", draw);
-  $("v2CategoryTabs")?.querySelectorAll("button").forEach((button) => {
-    button.addEventListener("click", () => {
-      activeCategory = button.dataset.category;
-      $("v2CategoryTabs").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === button));
-      draw();
-    });
+  const updateButtons = () =>
+    content
+      .querySelectorAll("[data-status]")
+      .forEach((b) =>
+        b.setAttribute(
+          "aria-pressed",
+          String(b.dataset.status === activeStatus),
+        ),
+      );
+  search.addEventListener("input", () => {
+    limit = 6;
+    draw();
   });
-  content.querySelectorAll("[data-station-search]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (search) search.value = button.dataset.stationSearch;
-      activeCategory = "All";
-      $("v2CategoryTabs")?.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.category === "All"));
-      draw();
-      search?.focus();
-    });
+  category.addEventListener("change", () => {
+    limit = 6;
+    draw();
   });
+  content.querySelectorAll("[data-status]").forEach((b) =>
+    b.addEventListener("click", () => {
+      activeStatus = b.dataset.status;
+      limit = 6;
+      updateButtons();
+      draw();
+    }),
+  );
+  $("learningMore").addEventListener("click", () => {
+    const previous = limit;
+    limit += 6;
+    draw();
+    $("v2LearningGrid").children[previous]?.focus();
+  });
+  V2.updateLearning = (fresh) => {
+    currentData = fresh;
+    draw();
+  };
   draw();
 }
 
 function getStoredChat(uid) {
+  if (V2.chatCache.has(uid)) return V2.chatCache.get(uid);
   try {
-    return JSON.parse(sessionStorage.getItem("mc_v2_chat_" + uid) || "[]");
+    const stored = JSON.parse(
+      sessionStorage.getItem("mc_v2_chat_" + uid) || "[]",
+    );
+    return Array.isArray(stored)
+      ? stored
+          .filter(
+            (item) =>
+              item &&
+              typeof item.content === "string" &&
+              ["user", "assistant"].includes(item.role),
+          )
+          .slice(-30)
+      : [];
   } catch {
     return [];
   }
 }
 
 function saveStoredChat(uid, items) {
-  sessionStorage.setItem("mc_v2_chat_" + uid, JSON.stringify(items.slice(-30)));
+  V2.chatCache.set(uid, items.slice(-30));
+  try {
+    sessionStorage.setItem(
+      "mc_v2_chat_" + uid,
+      JSON.stringify(items.slice(-30)),
+    );
+  } catch {
+    /* Storage can be unavailable in private browsing. */
+  }
 }
 
 function renderV2Chat(profile) {
   const chat = $("chat");
   if (!chat) return;
+  const submit = $("chatForm")?.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = V2.chatBusy;
+  chat.setAttribute("aria-busy", String(V2.chatBusy));
   const items = getStoredChat(profile.id);
   const messages = items.length
     ? items
-    : [{ role: "assistant", content: "Hey " + String(profile.name || "there").split(" ")[0] + " 👋 Ask me about your live shifts, learning, availability, or anything your role allows me to change." }];
+    : [
+        {
+          role: "assistant",
+          content:
+            "Hey " +
+            String(profile.name || "there").split(" ")[0] +
+            " 👋 Ask me about your live shifts, learning, availability, or anything your role allows me to change.",
+        },
+      ];
   chat.innerHTML =
-    messages.map((item) =>
-      '<div><div class="chat-label" style="' + (item.role === "user" ? "text-align:right" : "") + '">' +
-        (item.role === "user" ? "YOU" : "MCASSIST") +
-      '</div><div class="message ' + (item.role === "user" ? "user" : "") + '">' + esc(item.content) + "</div></div>",
-    ).join("") +
+    messages
+      .map(
+        (item) =>
+          '<div><div class="chat-label" style="' +
+          (item.role === "user" ? "text-align:right" : "") +
+          '">' +
+          (item.role === "user" ? "YOU" : "MCASSIST") +
+          '</div><div class="message ' +
+          (item.role === "user" ? "user" : "") +
+          '">' +
+          esc(item.content) +
+          "</div></div>",
+      )
+      .join("") +
     (V2.chatBusy ? '<div class="message">Working on it…</div>' : "");
   chat.scrollTop = chat.scrollHeight;
 }
@@ -597,14 +841,19 @@ async function sendV2Chat(data, message) {
   renderV2Chat(profile);
 
   try {
-    const response = await api("/api/ai-chat", {
-      method: "POST",
-      body: JSON.stringify({
-        message,
-        history: items.slice(-10),
-        appContext: { page: "assistant" },
-      }),
-    });
+    const response = preview
+      ? {
+          reply:
+            "You’re exploring the preview. Sign in to ask McAssist about your real shifts, get learning help, or update your availability. No changes were made.",
+        }
+      : await api("/api/ai-chat", {
+          method: "POST",
+          body: JSON.stringify({
+            message,
+            history: items.slice(0, -1).slice(-10),
+            appContext: { page: "assistant" },
+          }),
+        });
     items.push({ role: "assistant", content: response.reply || "Done." });
     if (response.dataChanged) {
       V2.data = null;
@@ -613,7 +862,10 @@ async function sendV2Chat(data, message) {
     saveStoredChat(profile.id, items);
     handleUiAction(response.uiAction);
   } catch (error) {
-    items.push({ role: "assistant", content: error.message || "McAssist could not complete that." });
+    items.push({
+      role: "assistant",
+      content: error.message || "McAssist could not complete that.",
+    });
     saveStoredChat(profile.id, items);
   } finally {
     V2.chatBusy = false;
@@ -625,50 +877,91 @@ function renderAssistant(data) {
   if (!isAssistantRoute()) return;
   const content = $("content");
   const assistant = $("assistant");
-  if (!content || !assistant || content.dataset.v2Assistant === "1") return;
-  content.dataset.v2Assistant = "1";
+  if (!content || !assistant || content.dataset.enhancedPage === "assistant")
+    return;
+  content.dataset.enhancedPage = "assistant";
 
   const role = data.profile.role;
-  const firstCrew = data.team?.find((person) => normaliseRole(person.role) === "crew")?.name || "Alex";
+  const firstCrew =
+    data.team?.find((person) => normaliseRole(person.role) === "crew")?.name ||
+    "Alex";
   const commands = [
     ["My next shift", "What is my next shift and station?"],
     ["Update availability", "Set my Friday availability to 16:00-23:00"],
     ["Learn a station", "Teach me the chicken station basics"],
   ];
-  if (role === "crewTrainer") commands.push(["Start verification", "Verify " + firstCrew + " on fries"]);
+  if (role === "crewTrainer")
+    commands.push(["Start verification", "Verify " + firstCrew + " on fries"]);
   if (role === "manager") {
-    commands.push(["Plan a shift", "Plan a shift for " + firstCrew + " tomorrow from 16:00 to 23:00 on Fries with a 30 minute break"]);
-    commands.push(["Set hourly rate", "Set " + firstCrew + " hourly rate to £13.55"]);
-    commands.push(["Promote member", "Promote " + firstCrew + " to Crew Trainer"]);
-    commands.push(["Multi-action", "Set " + firstCrew + " hourly rate to £13.55, add a note saying strong progress, and give them 3 McStars"]);
-    commands.push(["Team check", "Who is working tomorrow and what stations are they on?"]);
+    commands.push([
+      "Plan a shift",
+      "Plan a shift for " +
+        firstCrew +
+        " tomorrow from 16:00 to 23:00 on Fries with a 30 minute break",
+    ]);
+    commands.push([
+      "Set hourly rate",
+      "Set " + firstCrew + " hourly rate to £13.55",
+    ]);
+    commands.push([
+      "Promote member",
+      "Promote " + firstCrew + " to Crew Trainer",
+    ]);
+    commands.push([
+      "Multi-action",
+      "Set " +
+        firstCrew +
+        " hourly rate to £13.55, add a note saying strong progress, and give them 3 McStars",
+    ]);
+    commands.push([
+      "Team check",
+      "Who is working tomorrow and what stations are they on?",
+    ]);
   }
 
   content.innerHTML =
     '<div class="v2-assistant-page">' +
-      '<section class="v2-assistant-hero">' +
-        '<div class="eyebrow">MCASSIST · LIVE CREW DATA</div>' +
-        "<h1>Ask it. Do it. Keep moving.</h1>" +
-        "<p>McAssist now uses your approved role and live Firestore data. It can read what you are allowed to see and perform only the actions your role is allowed to do.</p>" +
-        '<div class="v2-assistant-capabilities">' +
-          '<span>✓ Live shifts</span><span>✓ Learning</span><span>✓ Availability</span>' +
-          (data.permissions?.canVerify ? "<span>✓ Crew verification</span>" : "") +
-          (data.permissions?.canPlanShifts ? "<span>✓ Shift planning</span><span>✓ Pay rates</span><span>✓ Roles</span><span>✓ Profiles</span><span>✓ McStars</span>" : "") +
-        "</div>" +
-      "</section>" +
-      '<div class="v2-assistant-shell"><div id="v2AssistantMount"></div>' +
-        '<aside class="v2-command-panel"><div class="v2-data-badge">Firestore connected</div><h3 style="margin-top:14px">Try a command</h3><p>Commands use the same role rules as the rest of the crew hub.</p><div class="v2-command-list">' +
-          commands.map((item) => '<button class="v2-command" type="button" data-v2-command="' + esc(item[1]) + '"><b>' + esc(item[0]) + "</b>" + esc(item[1]) + "</button>").join("") +
-        "</div></aside>" +
-      "</div>" +
+    '<section class="v2-assistant-hero">' +
+    '<div class="eyebrow">YOUR SHIFT COMPANION</div>' +
+    "<h1>A little help for your day.</h1>" +
+    "<p>Get ready for your shift, learn a station, or organise your working week.</p>" +
+    '<div class="v2-assistant-capabilities">' +
+    "<span>✓ Live shifts</span><span>✓ Learning</span><span>✓ Availability</span>" +
+    (data.permissions?.canVerify ? "<span>✓ Crew verification</span>" : "") +
+    (data.permissions?.canPlanShifts
+      ? "<span>✓ Shift planning</span><span>✓ Pay rates</span><span>✓ Roles</span><span>✓ Profiles</span><span>✓ McStars</span>"
+      : "") +
+    "</div>" +
+    "</section>" +
+    '<div class="v2-assistant-shell"><div id="v2AssistantMount"></div>' +
+    '<aside class="v2-command-panel"><div class="v2-data-badge">' +
+    (preview ? "Preview · sample data" : esc(roleLabel(role)) + " access") +
+    '</div><h3 style="margin-top:14px">Start a conversation</h3><p>Choose a suggestion, edit it, then send when you’re ready.</p><div class="v2-command-list">' +
+    commands
+      .map(
+        (item) =>
+          '<button class="v2-command" type="button" data-v2-command="' +
+          esc(item[1]) +
+          '"><b>' +
+          esc(item[0]) +
+          "</b>" +
+          esc(item[1]) +
+          "</button>",
+      )
+      .join("") +
+    "</div></aside>" +
+    "</div>" +
     "</div>";
 
   $("v2AssistantMount").appendChild(assistant);
-  assistant.querySelector(".assistant-head small").textContent = roleLabel(role) + " access";
+  assistant.querySelector(".assistant-head small").textContent =
+    roleLabel(role) + " access";
   const aiNote = assistant.querySelector(".ai-note");
-  if (aiNote) aiNote.textContent = role === "manager"
-    ? "Manager actions write directly to Firestore through validated server tools and are recorded in the McAssist audit log."
-    : "McAssist can only perform actions allowed by your approved role. Exact store procedures still come from official restaurant guidance.";
+  if (aiNote)
+    aiNote.textContent =
+      role === "manager"
+        ? "Manager changes are saved to your team’s records. Check names, dates and amounts before sending."
+        : "McAssist can only perform actions allowed by your approved role. Exact store procedures still come from official restaurant guidance.";
 
   const form = $("chatForm");
   const input = $("chatInput");
@@ -686,14 +979,14 @@ function renderAssistant(data) {
   assistant.querySelectorAll("[data-prompt]").forEach((button) => {
     button.onclick = () => {
       input.value = button.dataset.prompt;
-      form.requestSubmit();
+      input.focus();
     };
   });
 
   content.querySelectorAll("[data-v2-command]").forEach((button) => {
     button.addEventListener("click", () => {
       input.value = button.dataset.v2Command;
-      form.requestSubmit();
+      input.focus();
     });
   });
 
@@ -706,11 +999,26 @@ function statusLabel(v) {
 
 function renderVerificationList(container, verifications) {
   container.innerHTML = verifications.length
-    ? verifications.map((v) =>
-        '<a class="v2-verification-row" href="/verification.html?id=' + encodeURIComponent(v.id) + '">' +
-          '<div class="v2-module-icon">✓</div><div class="grow"><b>' + esc(v.crewName || "Crew member") + '</b><small>' + esc(v.station || "Station") + " · Trainer: " + esc(v.trainerName || "—") + '</small></div><span class="v2-verify-status ' + (v.status === "verified" ? "done" : "") + '">' + esc(statusLabel(v)) + "</span>" +
-        "</a>",
-      ).join("")
+    ? verifications
+        .map(
+          (v) =>
+            '<a class="v2-verification-row" href="/verification.html?id=' +
+            encodeURIComponent(v.id) +
+            '">' +
+            '<div class="v2-module-icon">✓</div><div class="grow"><b>' +
+            esc(v.crewName || "Crew member") +
+            "</b><small>" +
+            esc(v.station || "Station") +
+            " · Trainer: " +
+            esc(v.trainerName || "—") +
+            '</small></div><span class="v2-verify-status ' +
+            (v.status === "verified" ? "done" : "") +
+            '">' +
+            esc(statusLabel(v)) +
+            "</span>" +
+            "</a>",
+        )
+        .join("")
     : '<div class="empty">Nothing here yet.</div>';
 }
 
@@ -722,24 +1030,55 @@ async function renderVerificationQueue(data) {
   const pending = verifications.filter((v) => v.status !== "verified");
   const complete = verifications.filter((v) => v.status === "verified");
 
-  const trainerForm =
-    data.permissions?.canVerify
-      ? '<section class="v2-verify-card"><h3>Start a verification</h3><p>Choose a Crew Member and station. The verification stays pending until both of you sign.</p><form id="v2StartVerification" style="margin-top:14px"><div class="field"><label>Crew Member</label><select name="crewId" required><option value="">Choose Crew Member</option>' +
-        (data.team || []).filter((p) => normaliseRole(p.role) === "crew" && p.id !== data.profile.id).map((p) => '<option value="' + esc(p.id) + '">' + esc(p.name) + "</option>").join("") +
-        '</select></div><div class="field"><label>Station</label><select name="station" required>' +
-        ["Fries", "Grill", "Chicken & Fryer", "Front Counter", "Drive-thru", "Drinks & McCafé", "Kitchen Assembly", "Breakfast", "Dining Area"].map((s) => "<option>" + esc(s) + "</option>").join("") +
-        '</select></div><div id="v2VerifyResult"></div><button class="btn" type="submit">Open verification</button></form></section>'
-      : '<section class="v2-verify-card"><h3>Your station sign-offs</h3><p>Open a pending verification when your Crew Trainer asks you to sign. Both signatures are required.</p><div class="v2-verify-list" id="v2OwnPending"></div></section>';
+  const trainerForm = data.permissions?.canVerify
+    ? '<section class="v2-verify-card"><h3>Start a verification</h3><p>Choose a Crew Member and station. The verification stays pending until both of you sign.</p><form id="v2StartVerification" style="margin-top:14px"><div class="field"><label>Crew Member</label><select name="crewId" required><option value="">Choose Crew Member</option>' +
+      (data.team || [])
+        .filter(
+          (p) => normaliseRole(p.role) === "crew" && p.id !== data.profile.id,
+        )
+        .map(
+          (p) =>
+            '<option value="' + esc(p.id) + '">' + esc(p.name) + "</option>",
+        )
+        .join("") +
+      '</select></div><div class="field"><label>Station</label><select name="station" required>' +
+      [
+        "Fries",
+        "Grill",
+        "Chicken & Fryer",
+        "Front Counter",
+        "Drive-thru",
+        "Drinks & McCafé",
+        "Kitchen Assembly",
+        "Breakfast",
+        "Dining Area",
+      ]
+        .map((s) => "<option>" + esc(s) + "</option>")
+        .join("") +
+      '</select></div><div id="v2VerifyResult"></div><button class="btn" type="submit">Open verification</button></form></section>'
+    : '<section class="v2-verify-card"><h3>Your station sign-offs</h3><p>Open a pending verification when your Crew Trainer asks you to sign. Both signatures are required.</p><div class="v2-verify-list" id="v2OwnPending"></div></section>';
 
   content.innerHTML =
     '<section class="v2-verify-hero"><div><div class="eyebrow">STATION VERIFICATION</div><h1>' +
-      (role === "crewTrainer" ? "Train. Check. Sign off." : role === "manager" ? "Station verification overview." : "Your sign-offs.") +
-      '</h1><p>Verification is separate from completing a learning module. It confirms a real station check with two signatures: the Crew Trainer and the Crew Member.</p></div><span class="pill">' + esc(roleLabel(role)) + "</span></section>" +
+    (role === "crewTrainer"
+      ? "Train. Check. Sign off."
+      : role === "manager"
+        ? "Station verification overview."
+        : "Your sign-offs.") +
+    '</h1><p>Verification is separate from completing a learning module. It confirms a real station check with two signatures: the Crew Trainer and the Crew Member.</p></div><span class="pill">' +
+    esc(roleLabel(role)) +
+    "</span></section>" +
     '<div class="v2-verify-grid">' +
-      trainerForm +
-      '<section class="v2-verify-card"><h3>Waiting for signatures</h3><p>' + pending.length + " pending verification" + (pending.length === 1 ? "" : "s") + '.</p><div class="v2-verify-list" id="v2PendingList"></div></section>' +
+    trainerForm +
+    '<section class="v2-verify-card"><h3>Waiting for signatures</h3><p>' +
+    pending.length +
+    " pending verification" +
+    (pending.length === 1 ? "" : "s") +
+    '.</p><div class="v2-verify-list" id="v2PendingList"></div></section>' +
     "</div>" +
-    '<section class="v2-verify-card" style="margin-top:16px"><div class="between"><div><h3>Verified stations</h3><p>Completed two-signature checks.</p></div><span class="pill green">' + complete.length + ' verified</span></div><div class="v2-verify-list" id="v2CompletedList"></div></section>';
+    '<section class="v2-verify-card" style="margin-top:16px"><div class="between"><div><h3>Verified stations</h3><p>Completed two-signature checks.</p></div><span class="pill green">' +
+    complete.length +
+    ' verified</span></div><div class="v2-verify-list" id="v2CompletedList"></div></section>';
 
   renderVerificationList($("v2PendingList"), pending);
   renderVerificationList($("v2CompletedList"), complete);
@@ -766,9 +1105,11 @@ async function renderVerificationQueue(data) {
         }),
       });
       V2.data = null;
-      location.href = "/verification.html?id=" + encodeURIComponent(result.verification.id);
+      location.href =
+        "/verification.html?id=" + encodeURIComponent(result.verification.id);
     } catch (error) {
-      $("v2VerifyResult").innerHTML = '<div class="error">' + esc(error.message) + "</div>";
+      $("v2VerifyResult").innerHTML =
+        '<div class="error">' + esc(error.message) + "</div>";
     } finally {
       button.disabled = false;
     }
@@ -834,19 +1175,37 @@ function setupSignaturePad(canvas) {
 function signatureBox(title, subtitle, signature, canSign, party) {
   if (signature) {
     return (
-      '<section class="v2-sign-box signed"><span class="pill green">Signed</span><h3 style="margin-top:10px">' + esc(title) + '</h3><p>' + esc(signature.name || signature.typedName || subtitle) + " has signed this verification.</p>" +
-      (signature.signatureData ? '<img class="v2-signature-preview" alt="Saved signature" src="' + esc(signature.signatureData) + '">' : "") +
+      '<section class="v2-sign-box signed"><span class="pill green">Signed</span><h3 style="margin-top:10px">' +
+      esc(title) +
+      "</h3><p>" +
+      esc(signature.name || signature.typedName || subtitle) +
+      " has signed this verification.</p>" +
+      (signature.signatureData
+        ? '<img class="v2-signature-preview" alt="Saved signature" src="' +
+          esc(signature.signatureData) +
+          '">'
+        : "") +
       "</section>"
     );
   }
   if (!canSign) {
-    return '<section class="v2-sign-box"><span class="pill">Waiting</span><h3 style="margin-top:10px">' + esc(title) + "</h3><p>" + esc(subtitle) + " still needs to sign.</p></section>";
+    return (
+      '<section class="v2-sign-box"><span class="pill">Waiting</span><h3 style="margin-top:10px">' +
+      esc(title) +
+      "</h3><p>" +
+      esc(subtitle) +
+      " still needs to sign.</p></section>"
+    );
   }
   return (
-    '<section class="v2-sign-box"><span class="pill yellow">Your signature</span><h3 style="margin-top:10px">' + esc(title) + "</h3><p>Sign below and type your name. This only signs your side of the verification.</p>" +
+    '<section class="v2-sign-box"><span class="pill yellow">Your signature</span><h3 style="margin-top:10px">' +
+    esc(title) +
+    "</h3><p>Sign below and type your name. This only signs your side of the verification.</p>" +
     '<canvas class="v2-signature-canvas" id="v2SignatureCanvas" aria-label="Signature pad"></canvas>' +
     '<div class="v2-sign-row"><input id="v2TypedName" placeholder="Type your full name" maxlength="100"><button type="button" class="btn light" id="v2ClearSignature">Clear</button></div>' +
-    '<button type="button" class="btn" id="v2SubmitSignature" data-party="' + esc(party) + '" style="margin-top:10px;width:100%">Sign verification</button><div id="v2SignResult"></div></section>'
+    '<button type="button" class="btn" id="v2SubmitSignature" data-party="' +
+    esc(party) +
+    '" style="margin-top:10px;width:100%">Sign verification</button><div id="v2SignResult"></div></section>'
   );
 }
 
@@ -855,29 +1214,65 @@ async function renderVerificationDetail(data, id) {
   if (!content) return;
   let verification;
   try {
-    const response = await api("/api/verification?id=" + encodeURIComponent(id));
+    const response = await api(
+      "/api/verification?id=" + encodeURIComponent(id),
+    );
     verification = response.verification;
   } catch (error) {
-    content.innerHTML = '<div class="error">' + esc(error.message) + '</div><a class="btn" href="/verification.html">Back to verification</a>';
+    content.innerHTML =
+      '<div class="error">' +
+      esc(error.message) +
+      '</div><a class="btn" href="/verification.html">Back to verification</a>';
     return;
   }
 
   const isCrew = data.profile.id === verification.crewId;
-  const isTrainer = data.profile.id === verification.trainerId && data.permissions?.canVerify;
+  const isTrainer =
+    data.profile.id === verification.trainerId && data.permissions?.canVerify;
   const done = verification.status === "verified";
 
   content.innerHTML =
     '<a class="text-btn" href="/verification.html">← Back to verification</a>' +
-    '<section class="v2-verify-hero" style="margin-top:16px"><div><div class="eyebrow">TWO-SIGNATURE CHECK</div><h1>' + esc(verification.station) + '</h1><p>' + esc(verification.crewName) + " · Trainer " + esc(verification.trainerName) + '</p></div><span class="v2-verify-status ' + (done ? "done" : "") + '">' + esc(statusLabel(verification)) + "</span></section>" +
+    '<section class="v2-verify-hero" style="margin-top:16px"><div><div class="eyebrow">TWO-SIGNATURE CHECK</div><h1>' +
+    esc(verification.station) +
+    "</h1><p>" +
+    esc(verification.crewName) +
+    " · Trainer " +
+    esc(verification.trainerName) +
+    '</p></div><span class="v2-verify-status ' +
+    (done ? "done" : "") +
+    '">' +
+    esc(statusLabel(verification)) +
+    "</span></section>" +
     '<section class="v2-verify-card"><div class="v2-verification-summary">' +
-      '<div><small>Crew Member</small><b>' + esc(verification.crewName) + "</b></div>" +
-      '<div><small>Crew Trainer</small><b>' + esc(verification.trainerName) + "</b></div>" +
-      '<div><small>Station</small><b>' + esc(verification.station) + "</b></div>" +
-      '<div><small>Status</small><b>' + esc(statusLabel(verification)) + "</b></div>" +
+    "<div><small>Crew Member</small><b>" +
+    esc(verification.crewName) +
+    "</b></div>" +
+    "<div><small>Crew Trainer</small><b>" +
+    esc(verification.trainerName) +
+    "</b></div>" +
+    "<div><small>Station</small><b>" +
+    esc(verification.station) +
+    "</b></div>" +
+    "<div><small>Status</small><b>" +
+    esc(statusLabel(verification)) +
+    "</b></div>" +
     '</div><p style="margin-top:14px">The learning module is preparation. This sign-off records that a Crew Trainer and Crew Member have completed the station verification together. Signing does not replace your restaurant\'s official training process.</p></section>' +
     '<div class="v2-sign-layout">' +
-      signatureBox("Crew Member", verification.crewName, verification.crewSignature, isCrew && !verification.crewSignature && !done, "crew") +
-      signatureBox("Crew Trainer", verification.trainerName, verification.trainerSignature, isTrainer && !verification.trainerSignature && !done, "trainer") +
+    signatureBox(
+      "Crew Member",
+      verification.crewName,
+      verification.crewSignature,
+      isCrew && !verification.crewSignature && !done,
+      "crew",
+    ) +
+    signatureBox(
+      "Crew Trainer",
+      verification.trainerName,
+      verification.trainerSignature,
+      isTrainer && !verification.trainerSignature && !done,
+      "trainer",
+    ) +
     "</div>";
 
   const canvas = $("v2SignatureCanvas");
@@ -892,7 +1287,8 @@ async function renderVerificationDetail(data, id) {
       return;
     }
     if (!pad.hasInk()) {
-      result.innerHTML = '<div class="error">Add your signature in the box first.</div>';
+      result.innerHTML =
+        '<div class="error">Add your signature in the box first.</div>';
       return;
     }
     $("v2SubmitSignature").disabled = true;
@@ -906,7 +1302,8 @@ async function renderVerificationDetail(data, id) {
           signatureData: pad.toDataURL(),
         }),
       });
-      result.innerHTML = '<div class="success">' + esc(response.reply) + "</div>";
+      result.innerHTML =
+        '<div class="success">' + esc(response.reply) + "</div>";
       V2.data = null;
       setTimeout(() => location.reload(), 700);
     } catch (error) {
@@ -919,8 +1316,8 @@ async function renderVerificationDetail(data, id) {
 async function renderVerification(data) {
   if (!isVerificationRoute()) return;
   const content = $("content");
-  if (!content || content.dataset.v2Verification === "1") return;
-  content.dataset.v2Verification = "1";
+  if (!content || content.dataset.enhancedPage === "verification") return;
+  content.dataset.enhancedPage = "verification";
   const id = params.get("id");
   if (id) await renderVerificationDetail(data, id);
   else await renderVerificationQueue(data);
@@ -934,35 +1331,57 @@ function appendManagerRoleRequests(data) {
   const section = document.createElement("section");
   section.className = "card v2-manager-requests";
   section.innerHTML =
-    '<div class="between"><div><h3>Role requests</h3><p class="form-note">Approve Crew Trainer or Manager access for people in your store.</p></div><span class="pill">' + requests.length + " pending</span></div>" +
+    '<div class="between"><div><h3>Role requests</h3><p class="form-note">Approve Crew Trainer or Manager access for people in your store.</p></div><span class="pill">' +
+    requests.length +
+    " pending</span></div>" +
     (requests.length
-      ? requests.map((r) =>
-          '<div class="v2-request-row"><div class="avatar">' + esc(initials(r.name)) + '</div><div class="grow"><b>' + esc(r.name || r.email || "Crew member") + '</b><small>Requested ' + esc(roleLabel(r.requestedRole)) + '</small></div><button class="btn light" data-role-reject="' + esc(r.uid || r.id) + '">Reject</button><button class="btn" data-role-approve="' + esc(r.uid || r.id) + '">Approve</button></div>',
-        ).join("")
+      ? requests
+          .map(
+            (r) =>
+              '<div class="v2-request-row"><div class="avatar">' +
+              esc(initials(r.name)) +
+              '</div><div class="grow"><b>' +
+              esc(r.name || r.email || "Crew member") +
+              "</b><small>Requested " +
+              esc(roleLabel(r.requestedRole)) +
+              '</small></div><button class="btn light" data-role-reject="' +
+              esc(r.uid || r.id) +
+              '">Reject</button><button class="btn" data-role-approve="' +
+              esc(r.uid || r.id) +
+              '">Approve</button></div>',
+          )
+          .join("")
       : '<div class="empty">No role requests waiting.</div>');
   content.appendChild(section);
 
-  section.querySelectorAll("[data-role-approve],[data-role-reject]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      const approve = button.hasAttribute("data-role-approve");
-      const uid = button.getAttribute(approve ? "data-role-approve" : "data-role-reject");
-      try {
-        await api("/api/role-request", {
-          method: "POST",
-          body: JSON.stringify({ action: approve ? "approve" : "reject", uid }),
-        });
-        V2.data = null;
-        V2.dataAt = 0;
-        const fresh = await loadData(true);
-        section.remove();
-        appendManagerRoleRequests(fresh);
-      } catch (error) {
-        alert(error.message);
-        button.disabled = false;
-      }
+  section
+    .querySelectorAll("[data-role-approve],[data-role-reject]")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        const approve = button.hasAttribute("data-role-approve");
+        const uid = button.getAttribute(
+          approve ? "data-role-approve" : "data-role-reject",
+        );
+        try {
+          await api("/api/role-request", {
+            method: "POST",
+            body: JSON.stringify({
+              action: approve ? "approve" : "reject",
+              uid,
+            }),
+          });
+          V2.data = null;
+          V2.dataAt = 0;
+          const fresh = await loadData(true);
+          section.remove();
+          appendManagerRoleRequests(fresh);
+        } catch (error) {
+          alert(error.message);
+          button.disabled = false;
+        }
+      });
     });
-  });
 }
 
 async function enhanceLoggedIn() {
@@ -972,6 +1391,7 @@ async function enhanceLoggedIn() {
     document.getElementById("assistant")?.remove();
   }
   const data = await loadData();
+  if (V2.portalState?.progressLoaded) data.progress = V2.portalState.progress;
   applyRoleUI(data);
   renderTraining(data);
   renderAssistant(data);
@@ -980,7 +1400,10 @@ async function enhanceLoggedIn() {
 }
 
 async function enhance() {
-  if (V2.enhancing) return;
+  if (V2.enhancing) {
+    V2.pending = true;
+    return;
+  }
   V2.enhancing = true;
   try {
     enhanceSignup();
@@ -989,15 +1412,17 @@ async function enhance() {
     console.warn("McTraining V2 enhancement skipped", error);
   } finally {
     V2.enhancing = false;
+    if (V2.pending) {
+      V2.pending = false;
+      queueMicrotask(enhance);
+    }
   }
 }
 
-let timer;
-const observer = new MutationObserver(() => {
-  clearTimeout(timer);
-  timer = setTimeout(enhance, 40);
+// Explicit lifecycle notifications avoid reacting to our own DOM mutations.
+window.addEventListener("portal:render", (event) => {
+  V2.portalState = event.detail;
+  enhance();
 });
-observer.observe(document.documentElement, { childList: true, subtree: true });
-
 window.addEventListener("DOMContentLoaded", enhance);
 setTimeout(enhance, 0);

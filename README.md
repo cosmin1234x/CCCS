@@ -64,6 +64,10 @@ The repository includes `firestore.rules` as the intended security policy. Deplo
 
 ### Learning content
 
+The learning page shows one recommended next module, role-specific completion totals, category/search/progress filters and six modules at a time. Preview links stay in preview mode. Live data updates preserve learning filters and the McAssist conversation instead of replacing their DOM.
+
+Run `npm test` for API/domain tests. For browser regressions, run `npx playwright install chromium webkit`, then `npm run test:browser`. The suite covers desktop Chromium and iPad portrait, iPad landscape and iPhone WebKit, using isolated Firebase/API fixtures without writing to the live restaurant database. These are emulated browsers, not physical-device tests.
+
 The learning hub is searchable and grouped by Essentials, Safety, Kitchen, Service, Cleanliness, Operations, Crew Trainer and Manager. It includes key station topics such as Fries, Grill & Beef, Chicken & Fryer, Kitchen Assembly, Breakfast, Front Counter, Drive-thru, Drinks & McCafé and Dining Area. The modules intentionally avoid inventing proprietary cook cycles, exact temperatures or allergen guarantees; current official restaurant guidance and trainer/manager instructions take priority.
 
 
