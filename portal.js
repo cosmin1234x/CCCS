@@ -422,10 +422,12 @@ function restoreView(content, view) {
 // Signed in, the data arrives in pieces: shifts, learning, profile and team
 // snapshots, then the server extras. Painting (and replaying the entrance
 // animation) for each one made the page flicker several times on load. So
-// #content shows one skeleton until those first arrivals are in, or
-// FIRST_PAINT_MS has passed, and then paints once. Later updates repaint in
-// place: unchanged markup is left alone and changed markup is swapped without
-// the entrance animation (#content[data-live], see portal.css and pages.css).
+// the boot screen stays up until those first arrivals are in, or
+// FIRST_PAINT_MS has passed, and then the shell and the page appear together
+// with one entrance (a skeleton in between read as yet another flash).
+// Later updates repaint in place: unchanged markup is left alone and changed
+// markup is swapped without the entrance animation (#content[data-live], see
+// portal.css and pages.css).
 const FIRST_PAINT_MS = 1500;
 const firstPaint = { holding: false, waiting: new Set(), timer: 0 };
 function holdFirstPaint(sources) {
@@ -442,17 +444,13 @@ function releaseFirstPaint() {
   if (!firstPaint.holding) return;
   firstPaint.holding = false;
   clearTimeout(firstPaint.timer);
-  requestRender();
+  if (state.user && !$("content")) shell();
+  else requestRender();
 }
-// Pages drawn by a feature module (portal-enhancements.js) only get a
-// skeleton from renderPage. verification.html has no portal page at all.
+// verification.html has no portal page: its module (portal-enhancements.js)
+// draws it, so show a loading state instead of Home until it does.
 const moduleSkeleton = () =>
   `<div class="page-loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><p>Opening station sign-offs…</p></div>`;
-const coreSkeleton = () =>
-  `<div class="pg-page pg-skeleton" role="status" aria-live="polite"><span class="sr-only">Loading your crew hub…</span><span class="skeleton-title" aria-hidden="true"></span><span class="skeleton-card" aria-hidden="true"></span><div class="pg-skeleton-row" aria-hidden="true"><span class="skeleton-card"></span><span class="skeleton-card"></span></div><span class="skeleton-line" aria-hidden="true"></span><span class="skeleton-line short" aria-hidden="true"></span></div>`;
-const moduleOwned = () =>
-  path === "verification" ||
-  ["training", "module", "assistant", "waste"].includes(page);
 const pageMarkup = (ctx) =>
   path === "verification" ? moduleSkeleton() : renderPage(page, ctx);
 // The first paint's entrance animations (portal.css, pages.css) run for
@@ -467,16 +465,7 @@ function renderContent() {
   const byUser = userRender;
   userRender = false;
   const content = $("content");
-  if (!content || !state.user) return;
-  if (firstPaint.holding) {
-    if (!content.childElementCount) {
-      const html = moduleOwned() ? pageMarkup(pageContext()) : coreSkeleton();
-      content.innerHTML = html;
-      // A module page keeps its skeleton until the module takes over.
-      if (moduleOwned()) painted = { content, html, at: 0 };
-    }
-    return;
-  }
+  if (!content || !state.user || firstPaint.holding) return;
   // Enhanced pages own their DOM. Live snapshots must not destroy chat or forms.
   if (content.dataset.enhancedPage) {
     updateBell(pageContext());
@@ -1032,7 +1021,7 @@ async function startSession(user) {
     "extras",
     ...(isManager() ? ["team"] : []),
   ]);
-  shell();
+  // shell() runs when the first paint is released.
   subscribe();
   refreshExtras();
 }

@@ -527,13 +527,19 @@ function runCountUps(entering) {
 
 let enterTimer = 0;
 let entering = false;
+// When the entrance ends, [data-entered] takes over from [data-entering]:
+// dropping the entrance animation would otherwise hand the element back to
+// its own animation (.pg-page's pg-rise, the bar fills), which restarts and
+// fades the page in a second time (portal.css "Motion").
 function enterPage() {
   if (prefersReducedMotion()) return;
   entering = true;
+  root.removeAttribute("data-entered");
   root.setAttribute("data-entering", "");
   clearTimeout(enterTimer);
   enterTimer = setTimeout(() => {
     entering = false;
+    root.setAttribute("data-entered", "");
     root.removeAttribute("data-entering");
   }, 1300);
 }

@@ -2385,6 +2385,15 @@ html[data-entering] :is(.progress, .pg-bar, [role="progressbar"]) > span {
 html[data-entering] .rail > * {
   animation: rise 0.5s var(--ease-out) 0.2s backwards;
 }
+/* After the entrance (motion.js swaps [data-entering] for [data-entered]) the
+   entered elements keep still instead of restarting their own animation. */
+html[data-entered] .content > *,
+html[data-entered] .pg-kpis > *,
+html[data-entered] :is(.progress, .pg-bar, [role="progressbar"]) > span,
+html[data-entered] .pg-tl-bar,
+html[data-entered] .rail > * {
+  animation: none;
+}
 /* A live update repaints #content in place (portal.js sets [data-live] after
    the first paint): the entrance plays once, not again for every update. */
 html[data-entering] .content[data-live] > *,

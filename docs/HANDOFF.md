@@ -13,8 +13,12 @@
 1. **Load flicker** (signed in, the page "glitched ~3 times before it stabilised"). Cause: `#content` was re-rendered
    for every data arrival (shifts / learning / profile / team snapshots, then `/api/portal-data`), each replaying the
    entrance animations, plus a late web-font swap.
-   - `portal.js` holds the first paint: `#content` shows one skeleton until the first snapshots and the server extras
-     are in (`holdFirstPaint` / `arrived`), capped at `FIRST_PAINT_MS` (1.5 s), then paints once.
+   - `portal.js` holds the first paint: the boot screen stays up until the first snapshots and the server extras are
+     in (`holdFirstPaint` / `arrived`), capped at `FIRST_PAINT_MS` (1.5 s); then the shell and the page appear
+     together with one entrance. (A skeleton step in between read as another flash.)
+   - About 1.3 s after every page load the page faded in a second time (also on production): when motion.js dropped
+     `html[data-entering]`, `.pg-page` got its own `pg-rise` animation back and it restarted (bar fills too). motion.js
+     now swaps `[data-entering]` for `[data-entered]`, which keeps entered elements still (`portal.css` "Motion").
    - Later data updates whose markup is unchanged leave the DOM alone (`refreshPage` in `pages-ui.js` still refreshes an
      open shift editor / planner deep link). Changed markup repaints in place with `#content[data-live]`, which switches
      off the entrance animations (`portal.css` motion section, top of `pages.css`). A data update that lands during the

@@ -887,19 +887,24 @@ test.describe("signed in", () => {
     await expect(attention).toContainText("Taylor Brooks");
     await page.waitForTimeout(1500);
     const paints = () => page.evaluate(() => window.__paints);
-    // One skeleton, then the page.
-    expect(await paints()).toBe(2);
+    // The boot screen stays up until the data is in; then the page, once.
+    expect(await paints()).toBe(1);
+    // After the entrance nothing restarts (the page used to fade in again).
+    expect(await page.evaluate(() => document.documentElement.hasAttribute("data-entered"))).toBe(true);
+    expect(
+      await page.locator(".pg-page").evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe("none");
     // A snapshot that changes nothing on screen leaves the page alone.
     await page.evaluate(() => window.__qa.notify());
     await page.waitForTimeout(400);
-    expect(await paints()).toBe(2);
+    expect(await paints()).toBe(1);
     // A real change repaints in place, without the entrance animation.
     await page.evaluate(() => {
       window.__qa.docs["stores/qa-store/Shifts/live-2"] = { userId: "qa-crew", userName: "Sam Carter", date: "2026-09-24", start: "14:00", end: "22:00", station: "Fries", breakMinutes: 30 };
       window.__qa.notify();
     });
     await expect(page.locator(".pg-glance-col").first()).toContainText("Sam Carter");
-    expect(await paints()).toBe(3);
+    expect(await paints()).toBe(2);
     await expect(page.locator("#content")).toHaveAttribute("data-live", "");
     expect(
       await page.locator(".pg-page").evaluate((el) => getComputedStyle(el).animationName),
