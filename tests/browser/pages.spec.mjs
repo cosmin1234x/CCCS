@@ -359,6 +359,40 @@ test.describe("preview mode", () => {
     await noOverflow(page);
   });
 
+  test("the profile panel scrolls inside itself on a short screen", async ({ page }) => {
+    // iPad bug: the panel's body grew past the panel, spilled out below the
+    // Sign in / Sign out bar and could not be scrolled to its last links.
+    const { width } = page.viewportSize();
+    await page.setViewportSize({ width, height: 560 });
+    await page.goto("/main.html?preview=crew");
+    await expect(page.locator(".pg-page")).toBeVisible();
+    await page.locator("#profileButton").click();
+    await expect(sheet(page).getByRole("heading", { name: "Your profile" })).toBeVisible();
+    // Measure the panel once its opening animation (a small scale) is over.
+    await sheet(page).evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    const box = (selector) =>
+      page.evaluate((selector) => {
+        const r = [...document.querySelectorAll(selector)].pop().getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom };
+      }, selector);
+    const scroller = sheet(page);
+    await expect
+      .poll(() => scroller.evaluate((el) => el.scrollHeight > el.clientHeight + 20))
+      .toBe(true);
+    const panel = await box("#pgSheet");
+    expect(panel.bottom).toBeLessThanOrEqual(560 + 1);
+    await scroller.evaluate((el) => (el.scrollTop = el.scrollHeight));
+    const last = sheet(page).getByRole("link", { name: /My learning/ });
+    await expect(last).toBeInViewport();
+    const actions = await box("#pgSheet .pg-sheet-actions");
+    expect((await box("#pgSheet .pg-profile-link")).bottom).toBeLessThanOrEqual(actions.top + 1);
+    expect(actions.bottom).toBeLessThanOrEqual(panel.bottom + 1);
+    // The title stays in place while the panel scrolls.
+    expect((await box("#pgSheetTitle")).top).toBeGreaterThanOrEqual(panel.top);
+    await last.click();
+    await expect(page).toHaveURL(/training\.html\?preview=crew/);
+  });
+
   test("my pages settle without a self-triggering render loop", async ({ page }) => {
     for (const url of [
       "/main.html?preview=manager",
@@ -834,6 +868,94 @@ test.describe("signed in", () => {
     await expect(page).toHaveURL(/verification\.html\?id=ver-new/);
     expect(calls).toContainEqual(["verification", { action: "create", crewId: "qa-crew", station: "Chicken & Fryer" }]);
     await noOverflow(page);
+  });
+
+  test("the page paints once while its data arrives, then updates in place", async ({ page }) => {
+    // Every snapshot (shifts, learning, profile, team) and the server extras
+    // used to repaint #content and replay its entrance: a visible flicker.
+    await page.addInitScript(() => {
+      window.__paints = 0;
+      new MutationObserver((records) => {
+        for (const r of records)
+          if (r.target.id === "content" && r.addedNodes.length) window.__paints++;
+      }).observe(document, { childList: true, subtree: true });
+    });
+    await signedIn(page, "qa-manager");
+    await page.goto("/main.html");
+    const attention = page.locator(".pg-card", { hasText: "Needs your attention" });
+    await expect(attention).toContainText("Taylor Brooks");
+    await page.waitForTimeout(1500);
+    const paints = () => page.evaluate(() => window.__paints);
+    // The boot screen stays up until the data is in; then the page, once.
+    expect(await paints()).toBe(1);
+    // After the entrance nothing restarts (the page used to fade in again).
+    expect(await page.evaluate(() => document.documentElement.hasAttribute("data-entered"))).toBe(true);
+    expect(
+      await page.locator(".pg-page").evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe("none");
+    // A snapshot that changes nothing on screen leaves the page alone.
+    await page.evaluate(() => window.__qa.notify());
+    await page.waitForTimeout(400);
+    expect(await paints()).toBe(1);
+    // A real change repaints in place, without the entrance animation.
+    await page.evaluate(() => {
+      window.__qa.docs["stores/qa-store/Shifts/live-2"] = { userId: "qa-crew", userName: "Sam Carter", date: "2026-09-24", start: "14:00", end: "22:00", station: "Fries", breakMinutes: 30 };
+      window.__qa.notify();
+    });
+    await expect(page.locator(".pg-glance-col").first()).toContainText("Sam Carter");
+    expect(await paints()).toBe(2);
+    await expect(page.locator("#content")).toHaveAttribute("data-live", "");
+    expect(
+      await page.locator(".pg-page").evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe("none");
+  });
+
+  test("moving to another page paints it straight away, settled, from this tab's data", async ({ page }) => {
+    await signedIn(page, "qa-manager");
+    await page.goto("/main.html");
+    await expect(page.locator(".pg-card", { hasText: "Needs your attention" })).toContainText("Taylor Brooks");
+    await page.waitForTimeout(1600);
+    // Record the next page from its very first moment.
+    await page.addInitScript(() => {
+      window.__first = null;
+      new MutationObserver(() => {
+        const content = document.getElementById("content");
+        if (window.__first || !content?.firstElementChild) return;
+        window.__first = {
+          at: performance.now(),
+          entering: document.documentElement.hasAttribute("data-entering"),
+          entered: document.documentElement.hasAttribute("data-entered"),
+          html: content.innerHTML.length,
+        };
+      }).observe(document, { childList: true, subtree: true });
+    });
+    await page
+      .getByRole("navigation", { name: /Main navigation|Mobile navigation/ })
+      .filter({ visible: true })
+      .getByRole("link", { name: /My shifts|Shifts/ })
+      .click();
+    await expect(page).toHaveURL(/schedule\.html/);
+    await expect(page.locator(".pg-page")).toBeVisible();
+    const first = await page.evaluate(() => window.__first);
+    // Painted from the cache before Firebase and the server answered, with
+    // no entrance replay.
+    expect(first.entering).toBe(false);
+    expect(first.entered).toBe(true);
+    expect(await page.locator(".pg-page").evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+  });
+
+  test("the profile panel signs out and clears this tab's data", async ({ page }) => {
+    await signedIn(page, "qa-crew");
+    await page.route("**/", (r) =>
+      r.request().url().endsWith("/") ? r.fulfill({ contentType: "text/html", body: "<p>Signed out</p>" }) : r.continue(),
+    );
+    await page.goto("/main.html");
+    await expect(page.locator(".pg-page")).toBeVisible();
+    await page.waitForTimeout(800);
+    await page.locator("#profileButton").click();
+    await sheet(page).getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByText("Signed out")).toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem("mc_portal_state_v1"))).toBeNull();
   });
 
   test("manager home reads live shifts and server extras", async ({ page }) => {

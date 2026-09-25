@@ -288,9 +288,36 @@ function previewData() {
 // One request at a time: concurrent callers share the in-flight load. A
 // forced load (e.g. after McAssist changed something) never reuses a request
 // that started before the change.
+// The last server data of this tab (sessionStorage, cleared on sign-out) lets
+// a page opened from another page draw at once; portal.js refreshes it
+// straight after (V2.dataAt = 0 marks it stale).
+const DATA_CACHE = "mc_portal_data_v1";
+function cachedData() {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(DATA_CACHE) || "null");
+    const uid = V2.portalState?.user?.id;
+    if (cached?.data && uid && cached.uid === uid && Date.now() - cached.at < 30 * 60 * 1000)
+      return cached.data;
+  } catch {}
+  return null;
+}
+function saveData(data) {
+  try {
+    const uid = auth.currentUser?.uid;
+    if (uid) sessionStorage.setItem(DATA_CACHE, JSON.stringify({ uid, at: Date.now(), data }));
+  } catch {}
+}
 async function loadData(force = false) {
   if (preview) return previewData();
   if (!force && V2.data && Date.now() - V2.dataAt < 12000) return V2.data;
+  if (!force && !V2.data) {
+    const cached = cachedData();
+    if (cached) {
+      V2.data = cached;
+      V2.dataAt = 0;
+      return cached;
+    }
+  }
   if (V2.loading && force) {
     const stale = V2.loading;
     await stale.catch(() => {});
@@ -299,6 +326,7 @@ async function loadData(force = false) {
   V2.loading = (async () => {
     try {
       V2.data = await api("/api/portal-data");
+      saveData(V2.data);
     } catch (error) {
       console.warn(
         "Portal data API unavailable, using browser data fallback",
@@ -392,7 +420,19 @@ function applyRoleUI(data) {
     profileButton.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      showProfile(data.profile, data);
+      try {
+        showProfile(data.profile, data);
+        // With ?debug=1 on, the panel's state shows in the on-screen log.
+        const sheet = $("pgSheet");
+        if (sheet && $("mcDebug")) {
+          const r = sheet.getBoundingClientRect();
+          console.warn(`profile open=${sheet.open} top=${Math.round(r.top)} h=${Math.round(r.height)} display=${getComputedStyle(sheet).display}`);
+        }
+      } catch (error) {
+        // Never leave someone without a way to sign out.
+        console.warn("Could not open the profile panel", error);
+        showBasicProfile();
+      }
     };
   }
 
@@ -492,15 +532,35 @@ function showProfile(profile, data) {
       : '<button type="button" class="btn dark" id="v2ProfileLogout">Sign out</button>') +
     "</div></div>";
   const sheet = openSheet({ title: "Your profile", body, variant: "panel" });
-  sheet.querySelector("#v2ProfileLogout")?.addEventListener("click", async (event) => {
+  sheet.querySelector("#v2ProfileLogout")?.addEventListener("click", (event) => {
     event.currentTarget.disabled = true;
-    try {
-      await signOut(auth);
-    } finally {
-      localStorage.removeItem("mc_session_user");
-      location.href = "/";
-    }
+    signOutNow();
   });
+}
+
+async function signOutNow() {
+  try {
+    sessionStorage.removeItem("mc_portal_state_v1");
+    sessionStorage.removeItem(DATA_CACHE);
+  } catch {}
+  try {
+    if (!preview) await signOut(auth);
+  } catch (error) {
+    console.warn("Sign out failed", error);
+  } finally {
+    localStorage.removeItem("mc_session_user");
+    location.href = "/";
+  }
+}
+function showBasicProfile() {
+  const modal = $("modal");
+  if (!modal) return signOutNow();
+  modal.innerHTML =
+    '<h2>Your profile</h2><div class="stack"><a class="btn light" href="' +
+    pageFor("availability") +
+    '">My availability</a><button class="btn dark" type="button" id="basicLogout">Sign out</button><button class="btn light" type="button" data-close-dialog>Close</button></div>';
+  $("basicLogout").onclick = signOutNow;
+  if (!modal.open) modal.showModal();
 }
 
 function enhanceSignup() {

@@ -527,14 +527,39 @@ function runCountUps(entering) {
 
 let enterTimer = 0;
 let entering = false;
+// When the entrance ends, [data-entered] takes over from [data-entering]:
+// dropping the entrance animation would otherwise hand the element back to
+// its own animation (.pg-page's pg-rise, the bar fills), which restarts and
+// fades the page in a second time (portal.css "Motion").
+// The entrance plays for the first page of a visit only. Every destination
+// is a page load, so replaying it on each tap read as a flicker; later pages
+// start settled ([data-entered]).
+const ENTERED_KEY = "mc_entered_v1";
+function entranceAllowed() {
+  try {
+    return !sessionStorage.getItem(ENTERED_KEY);
+  } catch {
+    return true;
+  }
+}
+function settlePage() {
+  entering = false;
+  clearTimeout(enterTimer);
+  root.removeAttribute("data-entering");
+  root.setAttribute("data-entered", "");
+}
 function enterPage() {
   if (prefersReducedMotion()) return;
+  if (!entranceAllowed()) return settlePage();
   entering = true;
+  root.removeAttribute("data-entered");
   root.setAttribute("data-entering", "");
   clearTimeout(enterTimer);
   enterTimer = setTimeout(() => {
-    entering = false;
-    root.removeAttribute("data-entering");
+    settlePage();
+    try {
+      sessionStorage.setItem(ENTERED_KEY, "1");
+    } catch {}
   }, 1300);
 }
 

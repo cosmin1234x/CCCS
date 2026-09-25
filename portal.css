@@ -1271,8 +1271,10 @@ dialog .dialog-close {
   text-align: center;
   color: var(--muted);
 }
+/* Hidden for the first 0.6 s: moving between pages paints from the tab's
+   cache well within that, so the splash never flashes up in between. */
 #app > .boot {
-  animation: fade-in 0.4s 0.25s both;
+  animation: fade-in 0.4s 0.6s both;
 }
 .boot img {
   border-radius: 18px;
@@ -2384,6 +2386,32 @@ html[data-entering] :is(.progress, .pg-bar, [role="progressbar"]) > span {
 }
 html[data-entering] .rail > * {
   animation: rise 0.5s var(--ease-out) 0.2s backwards;
+}
+/* After the entrance (motion.js swaps [data-entering] for [data-entered]) the
+   entered elements keep still instead of restarting their own animation. */
+html[data-entered] .content > *,
+html[data-entered] .pg-kpis > *,
+html[data-entered] :is(.progress, .pg-bar, [role="progressbar"]) > span,
+html[data-entered] .pg-tl-bar,
+html[data-entered] .rail > * {
+  animation: none;
+}
+/* Feature-page placeholders stay invisible for a moment: with the tab's
+   cached data the real page replaces them first, so they never flash. */
+html:not([data-entering]) .content > :is(.tr-skeleton, .mca-skeleton, .page-loading) {
+  animation: fade-in 0.3s 0.45s both;
+}
+/* Pages opened later in a visit start settled (motion.js plays the entrance
+   once per visit): the feature pages' own entrances stay still too. */
+html[data-entered]:not([data-entering]) :is(.content :is(.tr-animate :is(.tr-hero, .tr-tabs, .tr-next, .tr-recs, .tr-badges, .tr-activity, .tr-ring-value, .tr-xpbar > span, .tr-bar > span), .tr-module.tr-in, .mca-page :is(.mca-hero, .mca-library, .mca-panel-page)), .topbar .pg-bell-dot) {
+  animation: none;
+}
+/* A live update repaints #content in place (portal.js sets [data-live] after
+   the first paint): the entrance plays once, not again for every update. */
+html[data-entering] .content[data-live] > *,
+html[data-entering] .content[data-live] .pg-kpis > *,
+html[data-entering] .content[data-live] :is(.progress, .pg-bar, [role="progressbar"]) > span {
+  animation: none;
 }
 @keyframes rise {
   from {

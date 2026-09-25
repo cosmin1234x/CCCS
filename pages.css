@@ -19,6 +19,12 @@
     transform: translateY(8px);
   }
 }
+/* Entrance effects play on the first paint only. Live updates repaint
+   #content in place (portal.js marks it [data-live]) without replaying them. */
+.content[data-live] :is(.pg-page, .pg-bar span, .pg-tl-bar, .pg-live-dot.on, .pg-reward-art span) {
+  animation: none;
+}
+
 .pg-icon {
   width: 20px;
   height: 20px;
@@ -2035,23 +2041,37 @@ button.pg-shift:active {
 }
 
 /* ------------------------------------------------------------ sheets -- */
+/* One scroller: the dialog itself, capped by --sheet-max (set per variant
+   below), exactly like every other dialog. The header and the action bar
+   stick to its edges. Nothing inside has its own height or overflow: nested
+   flexbox and nested scrollers misbehaved in WebKit on iPad (the body spilled
+   out below the action bar and could not be scrolled). */
 dialog.pg-sheet {
+  --sheet-max: min(90vh, 880px);
   padding: 0;
   width: min(620px, calc(100% - 32px));
-  max-height: min(90dvh, 880px);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  max-height: var(--sheet-max);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+}
+@supports (height: 1dvh) {
+  dialog.pg-sheet {
+    --sheet-max: min(90dvh, 880px);
+  }
 }
 dialog.pg-sheet:not([open]) {
   display: none;
 }
-.pg-sheet-inner {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: inherit;
-  flex: 1;
+.pg-sheet-top {
+  display: flow-root;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface, #fff);
+  border-bottom: 1px solid var(--line, #e7e8e0);
 }
 .pg-sheet-handle {
   display: none;
@@ -2062,7 +2082,6 @@ dialog.pg-sheet:not([open]) {
   justify-content: space-between;
   gap: 12px;
   padding: 22px 24px 14px;
-  border-bottom: 1px solid var(--line, #e7e8e0);
 }
 .pg-sheet-head h2:focus {
   outline: 0;
@@ -2079,11 +2098,6 @@ dialog.pg-sheet:not([open]) {
   margin: -4px -6px 0 0;
 }
 .pg-sheet-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
   padding: 18px 24px 24px;
 }
 .pg-sheet .btn {
@@ -2091,7 +2105,7 @@ dialog.pg-sheet:not([open]) {
 }
 .pg-sheet-actions {
   position: sticky;
-  bottom: -24px;
+  bottom: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2107,9 +2121,10 @@ dialog.pg-sheet:not([open]) {
 }
 @media (min-width: 761px) {
   dialog.pg-sheet--drawer {
+    --sheet-max: 100vh;
     margin: 0 0 0 auto;
+    height: 100vh;
     height: 100dvh;
-    max-height: 100dvh;
     width: min(500px, 92vw);
     max-width: 500px;
     border-radius: 26px 0 0 26px;
@@ -2120,10 +2135,19 @@ dialog.pg-sheet:not([open]) {
   dialog.pg-sheet--drawer[data-closing] {
     animation: pg-drawer-out 0.22s ease-in both;
   }
+  /* Everything below the top bar, keeping a 20px gap at the bottom. */
   dialog.pg-sheet--panel {
+    --sheet-max: min(820px, calc(100vh - var(--topbar-h, 72px) - 26px));
     margin: calc(var(--topbar-h, 72px) + 6px) max(20px, var(--pad-x, 20px)) auto auto;
     width: min(420px, calc(100% - 40px));
-    max-height: min(78dvh, 680px);
+  }
+  @supports (height: 1dvh) {
+    dialog.pg-sheet--drawer {
+      --sheet-max: 100dvh;
+    }
+    dialog.pg-sheet--panel {
+      --sheet-max: min(820px, calc(100dvh - var(--topbar-h, 72px) - 26px));
+    }
   }
   dialog.pg-sheet--panel[open] {
     animation: pg-panel-in 0.28s var(--ease-out, ease) both;
@@ -3663,10 +3687,15 @@ dialog.pg-sheet:not([open]) {
   }
   /* Sheets become bottom sheets on phones (design system) */
   dialog.pg-sheet {
+    --sheet-max: calc(100vh - 24px - var(--safe-top, 0px));
     width: 100%;
     max-width: 100%;
     padding: 0;
-    max-height: calc(100dvh - 24px - var(--safe-top, 0px));
+  }
+  @supports (height: 1dvh) {
+    dialog.pg-sheet {
+      --sheet-max: calc(100dvh - 24px - var(--safe-top, 0px));
+    }
   }
   .pg-sheet-handle {
     display: block;
@@ -3681,7 +3710,6 @@ dialog.pg-sheet:not([open]) {
   .pg-sheet-actions {
     margin: 16px -18px calc(-20px - var(--safe-bottom, 0px));
     padding: 12px 18px calc(12px + var(--safe-bottom, 0px));
-    bottom: calc(-20px - var(--safe-bottom, 0px));
   }
   .pg-sheet .btn {
     width: auto;
