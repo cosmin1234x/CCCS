@@ -37,6 +37,21 @@
 Regression tests: `pages.spec.mjs` "the page paints once while its data arrives, then updates in place" and "the
 profile panel scrolls inside itself on a short screen".
 
+3. **Owner re-test on the preview (25 Sep): "still flickers on iPad, profile doesn't open, can't sign out".** Vercel
+   logs showed a page load every ~3 s: every tab is a full page load, and each one went boot screen → Firebase → data
+   → page + entrance. Now:
+   - `portal.js` keeps the tab's last state in sessionStorage (`mc_portal_state_v1`, 30 min, cleared on sign-out /
+     auth change) and the next page paints from it before Firebase answers, then updates in place.
+     `portal-enhancements.js` does the same for the server data (`mc_portal_data_v1`), so feature pages draw at once.
+   - `motion.js` plays the entrance once per visit (`mc_entered_v1`); later pages start `[data-entered]` and the
+     feature pages' own entrances, the bell pop and placeholders stay still. The boot splash and feature placeholders
+     are invisible for their first ~0.5 s so fast loads never flash them.
+   - `#pgSheet` now scrolls on the dialog itself (like every other dialog), no nested scroller.
+   - The profile button falls back to a basic dialog with Sign out if the panel throws; sign-out always redirects
+     even if Firebase sign-out fails.
+   - `?debug=1` on any page shows an on-screen log (errors, warnings, load steps, the profile panel's state);
+     `?debug=0` turns it off. Use it on the iPad if anything still misbehaves.
+
 ## Test status (cloud container, 24 Sep)
 
 - `npm test`: 150 pass, 4 cancelled (`mcassist-v4.test.mjs:823`–`866`, "Promise resolution is still pending"). Same on

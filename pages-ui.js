@@ -88,13 +88,13 @@ export function openSheet({ title, body, variant = "modal", label = "" }) {
   dlg.removeAttribute("data-closing");
   dlg.className = `pg-sheet pg-sheet--${variant}`;
   dlg.setAttribute("aria-labelledby", "pgSheetTitle");
-  // .pg-sheet-inner is the only scroller; the top (handle + header) and the
-  // action bar stick to its edges (pages.css "sheets").
+  // The dialog is the only scroller; the top (handle + header) and the action
+  // bar stick to its edges (pages.css "sheets").
   dlg.innerHTML = `<div class="pg-sheet-inner"><div class="pg-sheet-top"><div class="sheet-handle pg-sheet-handle" data-sheet-drag aria-hidden="true"></div><header class="pg-sheet-head"><div><h2 id="pgSheetTitle" tabindex="-1">${title}</h2>${label ? `<p class="pg-muted">${label}</p>` : ""}</div><button type="button" class="pg-iconbtn" data-sheet-close aria-label="Close">${ic("close")}</button></header></div><div class="pg-sheet-body">${body}</div></div>`;
   dlg.querySelectorAll("[data-sheet-close]").forEach((b) => (b.onclick = closeSheet));
   if (!dlg.open) dlg.showModal();
   document.documentElement.classList.add("pg-locked");
-  dlg.querySelector(".pg-sheet-inner").scrollTop = 0;
+  dlg.scrollTop = 0;
   // Start screen readers and keyboards at the title rather than flashing a
   // focus ring on the close button.
   dlg.querySelector("#pgSheetTitle").focus({ preventScroll: true });

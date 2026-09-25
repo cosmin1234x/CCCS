@@ -2041,17 +2041,20 @@ button.pg-shift:active {
 }
 
 /* ------------------------------------------------------------ sheets -- */
-/* One scroller: .pg-sheet-inner, capped by --sheet-max (set per variant
-   below). The header and the action bar stick to its edges. The height never
-   comes from nested flexbox: WebKit on iPad did not treat that height as
-   definite, so the body grew past the panel, spilled out below the action bar
-   and could not be scrolled. */
+/* One scroller: the dialog itself, capped by --sheet-max (set per variant
+   below), exactly like every other dialog. The header and the action bar
+   stick to its edges. Nothing inside has its own height or overflow: nested
+   flexbox and nested scrollers misbehaved in WebKit on iPad (the body spilled
+   out below the action bar and could not be scrolled). */
 dialog.pg-sheet {
   --sheet-max: min(90vh, 880px);
   padding: 0;
   width: min(620px, calc(100% - 32px));
   max-height: var(--sheet-max);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: block;
 }
 @supports (height: 1dvh) {
@@ -2061,13 +2064,6 @@ dialog.pg-sheet {
 }
 dialog.pg-sheet:not([open]) {
   display: none;
-}
-.pg-sheet-inner {
-  max-height: var(--sheet-max);
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-radius: inherit;
 }
 .pg-sheet-top {
   display: flow-root;

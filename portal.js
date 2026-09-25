@@ -28,6 +28,51 @@ import {
   prefersReducedMotion,
 } from "./motion.js";
 const $ = (id) => document.getElementById(id);
+// ---- On-screen diagnostics (?debug=1, off again with ?debug=0) -------------
+// iPad Safari has no console to hand, so errors, warnings and the load steps
+// can be shown in a small panel. It stays on for the tab until turned off.
+const debug = (() => {
+  let on = false;
+  try {
+    const flag = new URLSearchParams(location.search).get("debug");
+    if (flag === "1") sessionStorage.setItem("mc_debug", "1");
+    if (flag === "0") sessionStorage.removeItem("mc_debug");
+    on = sessionStorage.getItem("mc_debug") === "1";
+  } catch {}
+  const lines = [];
+  let panel = null;
+  const t0 = performance.now();
+  const note = (text) => {
+    if (!on) return;
+    lines.push(`${String(Math.round(performance.now() - t0)).padStart(5)}ms ${text}`);
+    if (lines.length > 60) lines.shift();
+    if (!panel && document.body) {
+      panel = document.createElement("pre");
+      panel.id = "mcDebug";
+      panel.style.cssText =
+        "position:fixed;left:8px;bottom:8px;z-index:2147483647;max-width:min(560px,calc(100vw - 16px));max-height:40vh;overflow:auto;margin:0;padding:8px 10px;background:rgba(20,20,20,.88);color:#e8ffe0;font:11px/1.35 ui-monospace,Menlo,monospace;border-radius:10px;white-space:pre-wrap;pointer-events:auto";
+      document.body.appendChild(panel);
+    }
+    if (panel) {
+      if (!panel.isConnected) document.body.appendChild(panel);
+      panel.textContent = `${location.pathname} · ${navigator.userAgent.match(/(iPad|iPhone|Mac OS X [\d_]+|Version\/[\d.]+)/g)?.join(" ") || ""}\n` + lines.join("\n");
+    }
+  };
+  if (on) {
+    addEventListener("error", (e) => note(`ERROR ${e.message} @ ${String(e.filename).split("/").pop()}:${e.lineno}`));
+    addEventListener("unhandledrejection", (e) => note(`REJECTED ${e.reason?.message || e.reason}`));
+    const warn = console.warn.bind(console);
+    console.warn = (...args) => {
+      note("warn " + args.map((a) => a?.message || a?.code || String(a)).join(" "));
+      warn(...args);
+    };
+    addEventListener("portal:render", () => note("portal:render"));
+    addEventListener("portal:data", () => note("portal:data"));
+    addEventListener("pagehide", () => note("pagehide"));
+  }
+  return note;
+})();
+debug("boot");
 const icons = {
   home: "M3 10 12 3l9 7v11h-6v-7H9v7H3Z",
   calendar:
@@ -308,6 +353,7 @@ const myShifts = () =>
     .filter((s) => s.userId === state.user.id)
     .sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
 function shell() {
+  debug("shell");
   const u = state.user;
   $("app").innerHTML = shellMarkup();
   bindShellChrome();
@@ -317,9 +363,15 @@ function shell() {
     location.href = p;
   });
   $("logout")?.addEventListener("click", async () => {
-    if (!preview) await fb.signOut(auth);
-    localStorage.removeItem("mc_session_user");
-    location.href = "/";
+    clearStateCache();
+    try {
+      if (!preview) await fb?.signOut(auth);
+    } catch (error) {
+      console.warn("Sign out failed", error);
+    } finally {
+      localStorage.removeItem("mc_session_user");
+      location.href = "/";
+    }
   });
   $("profileButton").onclick = () => {
     showModal(
@@ -418,6 +470,64 @@ function restoreView(content, view) {
     } catch {}
   }
 }
+// ---- Page-to-page cache ---------------------------------------------------
+// Every destination is its own page load. Without this, each tap went back
+// to the boot screen, waited for Firebase and the data, then played the
+// entrance again: a flash on every navigation. The last state of this tab is
+// kept in sessionStorage (per tab, cleared on sign-out) and the next page
+// paints from it at once; the live listeners then update it in place.
+const STATE_CACHE = "mc_portal_state_v1";
+const STATE_CACHE_MAX_AGE = 30 * 60 * 1000;
+function readStateCache() {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(STATE_CACHE) || "null");
+    if (cached?.user?.id && cached.user.storeId && Date.now() - cached.at < STATE_CACHE_MAX_AGE)
+      return cached;
+  } catch {}
+  return null;
+}
+let cacheTimer = 0;
+function saveStateCache() {
+  if (preview || !state.user || firstPaint.holding) return;
+  clearTimeout(cacheTimer);
+  cacheTimer = setTimeout(() => {
+    try {
+      sessionStorage.setItem(
+        STATE_CACHE,
+        JSON.stringify({
+          at: Date.now(),
+          user: state.user,
+          shifts: state.shifts,
+          team: state.team,
+          progress: state.progress,
+          extras: state.extras,
+          loaded: state.loaded,
+          progressLoaded: state.progressLoaded,
+          teamLoaded: state.teamLoaded,
+        }),
+      );
+    } catch {}
+  }, 300);
+}
+function clearStateCache() {
+  try {
+    sessionStorage.removeItem(STATE_CACHE);
+    sessionStorage.removeItem("mc_portal_data_v1");
+  } catch {}
+}
+function adoptStateCache(cached) {
+  state.user = cached.user;
+  state.shifts = cached.shifts || [];
+  state.team = cached.team || [];
+  state.progress = cached.progress || {};
+  state.loaded = Boolean(cached.loaded);
+  state.progressLoaded = Boolean(cached.progressLoaded);
+  state.teamLoaded = Boolean(cached.teamLoaded);
+  if (cached.extras?.loaded) {
+    state.extras = cached.extras;
+    extrasKey = JSON.stringify(cached.extras);
+  }
+}
 // ---- First paint --------------------------------------------------------
 // Signed in, the data arrives in pieces: shifts, learning, profile and team
 // snapshots, then the server extras. Painting (and replaying the entrance
@@ -438,6 +548,7 @@ function holdFirstPaint(sources) {
 }
 function arrived(source) {
   if (!firstPaint.holding || !firstPaint.waiting.delete(source)) return;
+  debug("arrived " + source);
   if (!firstPaint.waiting.size) releaseFirstPaint();
 }
 function releaseFirstPaint() {
@@ -482,6 +593,7 @@ function renderContent() {
   // A data update that leaves the markup unchanged keeps the DOM. A repaint
   // the person asked for (e.g. Discard) always happens: the DOM may hold
   // edits that the markup does not.
+  saveStateCache();
   if (painted.content === content && painted.html === html && !byUser) {
     refreshPage(page, ctx);
     updateBell(ctx);
@@ -490,7 +602,8 @@ function renderContent() {
   }
   if (painted.content === content) {
     const settling = ENTRANCE_MS - (performance.now() - painted.at);
-    if (settling > 0 && !byUser && !prefersReducedMotion()) {
+    const entering = document.documentElement.hasAttribute("data-entering");
+    if (settling > 0 && entering && !byUser && !prefersReducedMotion()) {
       clearTimeout(settleTimer);
       settleTimer = setTimeout(requestRender, settling);
       updateBell(ctx);
@@ -500,6 +613,7 @@ function renderContent() {
   }
   clearTimeout(settleTimer);
   painted = { content, html, at: performance.now() };
+  debug(`paint ${page}${content.hasAttribute("data-live") ? " (in place)" : ""}`);
   const view = captureView(content);
   content.innerHTML = html;
   bindPage(page, ctx);
@@ -789,6 +903,7 @@ function subscribe() {
           String(next.status || "").toLowerCase() === "inactive"
         ) {
           // Role or store changed: rebuild navigation and listeners.
+          debug("reload: role or store changed");
           location.reload();
           return;
         }
@@ -990,15 +1105,23 @@ function connectionCard(retry) {
   button.onclick = run;
   window.addEventListener("online", run);
 }
-async function startSession(user) {
+async function startSession(user, fromCache = false) {
   let result;
   try {
     result = await readProfile(user);
   } catch (error) {
     console.warn("Could not load the profile", error?.cause || error);
+    if (fromCache) {
+      // The page is already up from this tab's last data: keep it and say so.
+      showDataWarning(
+        "Your restaurant data could not be refreshed. Check your connection and try again.",
+      );
+      return;
+    }
     connectionCard(() => startSession(user));
     return;
   }
+  if (result.missing || result.deactivated) clearStateCache();
   if (result.missing === "profile")
     return accountCard(
       "Your account profile is missing. Contact your manager to restore your store access.",
@@ -1010,8 +1133,20 @@ async function startSession(user) {
     return accountCard(
       "Your profile needs a store ID. Please ask your manager to update it.",
     );
-  if (String(profile.status || "").toLowerCase() === "inactive")
+  if (String(profile.status || "").toLowerCase() === "inactive") {
+    clearStateCache();
     return deactivatedCard();
+  }
+  if (fromCache && state.user?.id === profile.id) {
+    // Already painted from the cache: bring the profile up to date in place.
+    const before = navSignature();
+    Object.assign(state.user, profile);
+    if (navSignature() !== before) shell();
+    else requestRender();
+    subscribe();
+    refreshExtras();
+    return;
+  }
   state.user = profile;
   await fontsReady();
   holdFirstPaint([
@@ -1035,22 +1170,35 @@ async function boot() {
     authPage(path === "signup");
     return;
   }
+  // Opened from another page of this tab: paint straight away from its data.
+  const cached = readStateCache();
+  if (cached) {
+    adoptStateCache(cached);
+    shell();
+  }
   try {
     await firebase();
   } catch (error) {
     console.warn("Could not load Firebase", error);
+    if (cached) return showDataWarning("We can’t reach your crew hub right now. Check your connection and try again.");
     connectionCard(() => location.reload());
     return;
   }
   let started = "";
   fb.onAuthStateChanged(auth, (user) => {
     if (!user) {
+      clearStateCache();
       location.replace("/");
       return;
     }
     if (started === user.uid) return;
     started = user.uid;
-    startSession(user);
+    if (cached && cached.user.id !== user.uid) {
+      clearStateCache();
+      location.reload();
+      return;
+    }
+    startSession(user, Boolean(cached));
   });
 }
 boot();
