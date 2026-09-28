@@ -1,7 +1,7 @@
 // Break orders: crew put their own break food through.
 //
 //   GET  /api/breaks[?day=YYYY-MM-DD]      → { ok, settings, menu, mine, log? }
-//   POST /api/breaks { action: "place", items: [...], note }   → { ok, order, …state }
+//   POST /api/breaks { action: "place", items: [{ id, mods }], note }  → { ok, order, …state }
 //   POST /api/breaks { action: "void", id }                    → managers
 //   POST /api/breaks { action: "config", settings?, menu? }    → managers
 //
@@ -76,7 +76,9 @@ async function place(db, { profile, uid, body }, now) {
   const r = refs(db, profile.storeId);
   const today = B.dayKey(now);
   const crew = { id: uid, name: cleanText(profile.name, 80) || "Crew member" };
-  const items = Array.isArray(body.items) ? body.items.map((x) => cleanText(x, 40)).slice(0, 12) : [];
+  // Tray lines ({ id, mods } or plain ids); breaks-core cleans them and keeps
+  // only each item's own customisations.
+  const items = B.normalizeLines(body.items);
   const note = cleanText(body.note, 80);
   return db.runTransaction(async (t) => {
     const [configSnap, todaySnap, daySnap] = await Promise.all([
