@@ -290,7 +290,7 @@ function statsMarkup() {
       <span class="bo-coins" data-meter>${coins(s.dailyPoints, d.pointsUsed, Math.min(ev.points, left))}</span>
     </div>
     <div class="bo-stat"><span class="bo-stat-label">Breaks left</span><strong class="bo-num">${data ? breaksLeft : "–"}</strong><small>of ${plural(s.maxOrdersPerDay, "break order")}</small></div>
-    <div class="bo-stat"><span class="bo-stat-label">In your tray</span><strong class="bo-num">${ev.points}</strong><small>${view.tray.length ? plural(view.tray.length, "item") : "points"}</small></div>
+    <div class="bo-stat"><span class="bo-stat-label">In your tray</span><strong class="bo-num">${ev.points}</strong><small>${view.tray.length ? `pts · ${plural(view.tray.length, "item")}` : "points"}</small></div>
     ${
       store
         ? `<div class="bo-stat is-store"><span class="bo-stat-label">Store today</span><strong class="bo-num">${store.count}</strong><small>${plural(store.count, "break")} · ${store.points} pts</small></div>`
