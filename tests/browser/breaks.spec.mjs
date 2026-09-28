@@ -208,8 +208,128 @@ test.describe("preview mode", () => {
     await expect(page.locator(".bo-savebar")).toBeHidden();
     await page.locator('[data-tab="rules"]').click();
     await expect(page.locator(".bo-points-cat li", { hasText: "Big Mac" })).toContainText("4 pts");
-    await expect(page.locator(".bo-points-cat li", { hasText: "Coca-Cola" })).toContainText("off today");
+    await expect(page.locator(".bo-points-cat li", { hasText: "Coca-Cola Original Taste" })).toContainText("off today");
     await noOverflow(page);
+  });
+
+  test("crew customise each item and it prints on the ticket", async ({ page }) => {
+    await hermetic(page);
+    await page.goto("/breaks.html?preview=crew");
+    await item(page, "bigmac").click();
+    await page.locator('[data-cat="sides"]').click();
+    await item(page, "fruit").click();
+    await page.locator('[data-cat="drinks"]').click();
+    await item(page, "coke").click();
+    await openTray(page);
+    // Only items with customisations get the button (Fruit Bag has none).
+    const lines = page.locator("#boLines .bo-line");
+    await expect(lines.nth(1).locator("[data-customise]")).toHaveCount(0);
+    await lines.nth(0).getByRole("button", { name: "Customise Big Mac" }).click();
+    const sheet = page.getByRole("dialog", { name: "Big Mac" });
+    await expect(sheet.locator(".bo-opt")).toHaveCount(5);
+    await sheet.getByText("No pickles").click();
+    await sheet.getByText("No onions").click();
+    await sheet.getByRole("button", { name: "Done" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(lines.nth(0)).toContainText("No pickles · No onions");
+    await expect(lines.nth(0).getByRole("button", { name: "Edit Big Mac customisations" })).toContainText("Edit");
+    await lines.nth(2).getByRole("button", { name: /Customise Coca-Cola/ }).click();
+    const drink = page.getByRole("dialog", { name: "Coca-Cola Original Taste" });
+    await drink.getByText("No ice").click();
+    await drink.getByRole("button", { name: "Done" }).click();
+    // Customisations survive a reload of the tab.
+    await page.reload();
+    await openTray(page);
+    await expect(page.locator("#boLines .bo-line").nth(2)).toContainText("No ice");
+    await page.locator("#boSubmit").click();
+    const ticket = page.getByRole("dialog", { name: "Put through!" });
+    await expect(ticket.locator(".bo-ticket-lines li").nth(0)).toContainText("No pickles · No onions");
+    await expect(ticket.locator(".bo-ticket-lines li").nth(1).locator(".bo-ticket-mods")).toHaveCount(0);
+    await expect(ticket.locator(".bo-ticket-lines li").nth(2)).toContainText("No ice");
+    await ticket.getByRole("button", { name: "My breaks" }).click();
+    await expect(page.locator("#boPanel-mine .bo-row").first()).toContainText("Big Mac (No pickles, No onions) + Fruit Bag + Coca-Cola Original Taste (No ice)");
+    await noOverflow(page);
+  });
+
+  test("managers add an item with its own customisations; crew can order it", async ({ page }) => {
+    await hermetic(page);
+    await page.goto("/breaks.html?preview=manager#manage");
+    await page.locator('[data-mgr="menu"]').click();
+    await page.getByRole("button", { name: "Add item", exact: true }).click();
+    const editor = page.getByRole("dialog", { name: "Add an item" });
+    await expect(editor).toBeVisible();
+    // A name is needed, and it can't copy one already on the menu.
+    await editor.getByRole("button", { name: "Add to menu" }).click();
+    await expect(editor.locator("#boEdError")).toHaveText("Give the item a name.");
+    await editor.getByLabel("Name").fill("big mac");
+    await editor.getByRole("button", { name: "Add to menu" }).click();
+    await expect(editor.locator("#boEdError")).toHaveText("Big Mac is already on the menu.");
+    await editor.getByLabel("Name").fill("Big Tasty");
+    await editor.getByRole("radio", { name: "Double burger" }).click();
+    await editor.locator('[data-stepper="edit:pts"] [data-step="1"]').click();
+    await editor.locator('[data-stepper="edit:pts"] [data-step="1"]').click();
+    await editor.getByRole("button", { name: "No sauce" }).click();
+    await editor.getByLabel("New customisation").fill("No tomato");
+    await editor.getByLabel("New customisation").press("Enter");
+    await expect(editor.locator(".bo-opt-chip")).toHaveText(["No sauce", "No tomato"]);
+    await expect(editor.locator("#boEdPreview")).toContainText("Big Tasty");
+    await expect(editor.locator("#boEdPreview")).toContainText("3 pts");
+    await editor.getByRole("button", { name: "Add to menu" }).click();
+    await expect(editor).toBeHidden();
+    const row = page.locator(".bo-menu-row", { hasText: "Big Tasty" });
+    await expect(row).toContainText("Added");
+    await expect(row).toContainText("2 customisations");
+    await expect(page.locator(".bo-savebar")).toContainText("1 unsaved change");
+    // A standard drink: swap Light ice for Lemon.
+    await page.locator('[data-menu="fanta"] .bo-menu-edit').click();
+    const fanta = page.getByRole("dialog", { name: "Edit Fanta Orange" });
+    await expect(fanta.getByLabel("Name")).toHaveAttribute("readonly", "");
+    await fanta.getByRole("button", { name: "Remove Light ice" }).click();
+    await fanta.getByLabel("New customisation").fill("Lemon");
+    await fanta.getByRole("button", { name: "Add", exact: true }).click();
+    await fanta.getByRole("button", { name: "Done" }).click();
+    await expect(page.locator(".bo-savebar")).toContainText("2 unsaved changes");
+    await page.locator("[data-save-config]").click();
+    await toast(page, "Saved");
+    // Crew side: the new item is on the menu with its customisations.
+    await page.locator("#boTab-order").click();
+    const tasty = page.locator("[data-item]", { hasText: "Big Tasty" });
+    await expect(tasty).toContainText("3 pts");
+    await tasty.click();
+    await page.locator('[data-cat="drinks"]').click();
+    await page.locator("[data-item]", { hasText: "Fanta Orange" }).click();
+    await openTray(page);
+    await page.getByRole("button", { name: "Customise Big Tasty" }).click();
+    await expect(page.getByRole("dialog", { name: "Big Tasty" }).locator(".bo-opt")).toHaveText(["No sauce", "No tomato"]);
+    await page.getByRole("dialog", { name: "Big Tasty" }).getByRole("button", { name: "Done" }).click();
+    await page.getByRole("button", { name: "Customise Fanta Orange" }).click();
+    await expect(page.getByRole("dialog", { name: "Fanta Orange" }).locator(".bo-opt")).toHaveText(["No ice", "Lemon"]);
+    await page.getByRole("dialog", { name: "Fanta Orange" }).getByRole("button", { name: "Done" }).click();
+    await noOverflow(page);
+  });
+
+  test("managers delete an item they added", async ({ page }) => {
+    await hermetic(page);
+    await page.goto("/breaks.html?preview=manager#manage");
+    await page.locator('[data-mgr="menu"]').click();
+    await page.locator('[data-add-item="treats"]').click();
+    const editor = page.getByRole("dialog", { name: "Add an item" });
+    await expect(editor.getByRole("radio", { name: "Treats" })).toHaveAttribute("aria-checked", "true");
+    await expect(editor.locator("#boEdType")).toHaveValue("treat");
+    await editor.getByLabel("Name").fill("Toffee Sundae");
+    await editor.getByLabel("Name").press("Enter");
+    await page.locator("[data-save-config]").click();
+    await toast(page, "Saved");
+    await page.locator(".bo-menu-row", { hasText: "Toffee Sundae" }).getByRole("button", { name: "Edit Toffee Sundae" }).click();
+    const edit = page.getByRole("dialog", { name: "Edit Toffee Sundae" });
+    await edit.getByRole("button", { name: "Delete item" }).click();
+    await edit.getByRole("button", { name: "Tap again to delete" }).click();
+    await expect(edit).toBeHidden();
+    await expect(page.locator(".bo-menu-row", { hasText: "Toffee Sundae" })).toHaveCount(0);
+    await page.locator("[data-save-config]").click();
+    await toast(page, "Saved");
+    await page.locator('[data-tab="rules"]').click();
+    await expect(page.locator(".bo-points-cat li", { hasText: "Toffee Sundae" })).toHaveCount(0);
   });
 
   test("Break orders is in the navigation for everyone", async ({ page }) => {
@@ -238,11 +358,15 @@ test.describe("signed in", () => {
     await page.locator('[data-cat="sides"]').click();
     await item(page, "fries-l").click();
     await openTray(page);
+    await page.locator('[data-customise="0"]').click();
+    await page.getByRole("dialog", { name: "McChicken Sandwich" }).getByText("No mayo").click();
+    await page.getByRole("dialog", { name: "McChicken Sandwich" }).getByRole("button", { name: "Done" }).click();
     await page.locator("#boSubmit").click();
     await expect(page.getByRole("dialog", { name: "Put through!" })).toContainText("B-001");
     const post = api.requests.find((r) => r.method === "POST");
     expect(post.auth).toBe("Bearer test-token");
-    expect(post.body).toEqual({ action: "place", items: ["mcchicken", "fries-l"], note: "" });
+    expect(post.body).toEqual({ action: "place", items: [{ id: "mcchicken", mods: ["No mayo"] }, { id: "fries-l", mods: [] }], note: "" });
+    expect(api.orders[0].items[0].mods).toEqual(["No mayo"]);
     expect(api.orders[0].crewName).toBe("Alex Crew");
   });
 

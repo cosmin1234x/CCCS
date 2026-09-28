@@ -30,6 +30,8 @@ const ICONS = {
   sliders: "M4 7h10M18 7h2M16 5v4M4 17h2M10 17h10M8 15v4",
   undo: "M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-4",
   refresh: "M20 11a8 8 0 0 0-14.3-4.7L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.7L20 16m0 4v-4h-4",
+  trash: "M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5",
+  tune: "M4 6h9M17 6h3M15 4v4M4 12h3M11 12h9M9 10v4M4 18h11M19 18h1M17 16v4",
 };
 const ico = (name, cls = "bo-ico") =>
   `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${ICONS[name]}"/></svg>`;
@@ -59,9 +61,12 @@ const view = {
   draftMenu: null,
   draftSettings: null,
   crewOpen: false,
+  customIndex: -1,
+  editing: null,
 };
 
-const esc = (value) => (kit?.esc ? kit.esc(value) : String(value ?? ""));
+const esc = (value) =>
+  kit?.esc ? kit.esc(value) : String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const toast = (text, type) => kit?.toast?.(text, type);
 const isManager = () => Boolean(data?.manager);
 const tabs = () => ["order", "mine", "rules", ...(isManager() ? ["manage"] : [])];
@@ -73,6 +78,9 @@ const today = () => data?.today || B.dayKey();
 const myDay = () => B.crewDay(data?.mine || [], profile.id, today());
 const ptsLabel = (pts) => (pts === 0 ? "Free" : `${pts} pt${pts === 1 ? "" : "s"}`);
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+// "Big Mac (No pickles, No onions)" for lists, logs and the CSV.
+const itemText = (i) => (i.mods?.length ? `${i.name} (${i.mods.join(", ")})` : i.name);
+const itemsText = (items) => items.map(itemText).join(" + ");
 
 function fmtTime(iso) {
   if (!iso) return "";
@@ -133,11 +141,11 @@ function previewTransport(role) {
       { id: "preview-tom", name: "Tom Evans" },
     ];
     const plan = [
-      [people[0], ["mcchicken", "salad", "tea"], 150, "No mayo"],
-      [people[1], ["nug6", "fries-m", "coke"], 95],
-      [people[2], ["cb", "fries-s", "pie", "sprite"], 48],
-      [people[3], ["qpc", "fries-m", "fanta"], 22, "No onions"],
-      [{ id: profile.id, name: profile.name }, ["mccrispy", "fries-m", "cokezero"], 60 * 24 + 30],
+      [people[0], [{ id: "mcchicken", mods: ["No mayo"] }, "fruit", { id: "tea", mods: ["With sugar"] }], 150],
+      [people[1], [{ id: "nug6", mods: ["Sweet Curry dip"] }, "fries-m", { id: "coke", mods: ["No ice"] }], 95],
+      [people[2], [{ id: "cb", mods: ["No pickles"] }, "fries-s", "pie", "sprite"], 48],
+      [people[3], [{ id: "qpc", mods: ["No onions"] }, "fries-m", "fanta"], 22],
+      [{ id: profile.id, name: profile.name }, ["mccrispy", "fries-m", { id: "cokezero", mods: ["Light ice"] }], 60 * 24 + 30, "Extra napkins please"],
     ];
     const now = Date.now();
     for (const [crew, items, minsAgo, note] of plan) {
@@ -226,7 +234,7 @@ function loadTray() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(TRAY_KEY) || "null");
     if (saved?.uid === profile.id && saved.day === B.dayKey()) {
-      view.tray = Array.isArray(saved.items) ? saved.items : [];
+      view.tray = B.normalizeLines(saved.items);
       view.note = String(saved.note || "");
     }
   } catch {}
@@ -273,6 +281,8 @@ function template() {
       <p class="form-note" id="boConfirmText"></p>
       <div class="dialog-actions"><button type="button" class="btn light" data-close-dialog>Keep it</button><button type="button" class="btn danger solid" id="boConfirmVoid">Void order</button></div>
     </dialog>
+    <dialog class="bo-custom-dialog" id="boCustomDialog" aria-labelledby="boCustomTitle"></dialog>
+    <dialog class="bo-item-dialog" id="boItemDialog" aria-labelledby="boItemTitle"></dialog>
   </div>`;
 }
 
@@ -380,8 +390,8 @@ function orderMarkup() {
           <button type="button" class="icon-btn ghost bo-tray-close" data-close-tray aria-label="Close tray">${ico("chevronDown")}</button>
         </div>
         <div id="boLines"></div>
-        <label class="bo-note"><span>${ico("note")} Note for the kitchen <small>(optional)</small></span>
-          <input id="boNote" maxlength="80" placeholder="e.g. No pickles, no ice" autocomplete="off" value="${esc(view.note)}"></label>
+        <label class="bo-note"><span>${ico("note")} Anything else? <small>(optional)</small></span>
+          <input id="boNote" maxlength="80" placeholder="e.g. Sauce on the side, extra napkins" autocomplete="off" value="${esc(view.note)}"></label>
         <ul class="bo-checks" id="boChecks"></ul>
         <div class="bo-totals" id="boTotals"></div>
         <button type="button" class="btn bo-submit" id="boSubmit" data-submit><span>Put it through</span>${ico("arrow")}</button>
@@ -405,14 +415,14 @@ function paintCats() {
   const m = menu();
   const open = B.breakfastOpen(settings());
   box.innerHTML = B.CATEGORIES.map((c) => {
-    const n = view.tray.filter((id) => m.find((i) => i.id === id)?.cat === c.id).length;
+    const n = view.tray.filter((line) => m.find((i) => i.id === line.id)?.cat === c.id).length;
     return `<button type="button" role="tab" data-cat="${c.id}" aria-selected="${c.id === view.cat}">${food(c.icon, c.icon === "cup" ? "#d8231f" : "")}<span>${c.label}</span>${c.id === "breakfast" && !open ? `<small>until ${esc(settings().breakfastUntil)}</small>` : ""}${n ? `<span class="bo-cat-count">${n}</span>` : ""}</button>`;
   }).join("");
 }
 
 function itemMarkup(item, i) {
   const check = B.canAdd(item, trayContext());
-  const inTray = view.tray.filter((id) => id === item.id).length;
+  const inTray = view.tray.filter((line) => line.id === item.id).length;
   return `<button type="button" class="bo-item${check.ok ? "" : " is-blocked"}${inTray ? " is-in" : ""}" data-item="${esc(item.id)}" style="--i:${i}" aria-label="${esc(item.name)}, ${ptsLabel(item.pts)}${check.ok ? "" : `, ${esc(check.reason)}`}">
     <span class="bo-pts${item.pts === 0 ? " is-free" : ""}">${ptsLabel(item.pts)}</span>
     <span class="bo-item-art">${food(item.icon, item.tint)}</span>
@@ -441,10 +451,13 @@ function paintTray() {
   const s = settings();
   byId("boLines").innerHTML = view.tray.length
     ? `<ul class="bo-lines">${view.tray
-        .map((id, index) => {
-          const item = m[id];
+        .map((line, index) => {
+          const item = m[line.id];
           if (!item) return "";
-          return `<li class="bo-line"><span class="bo-line-art">${food(item.icon, item.tint)}</span><span class="bo-line-text"><b>${esc(item.name)}</b><small>${B.TYPES[item.type].label}</small></span><span class="bo-line-pts">${ptsLabel(item.pts)}</span><button type="button" class="icon-btn ghost bo-line-remove" data-remove="${index}" aria-label="Remove ${esc(item.name)}">${ico("close")}</button></li>`;
+          const custom = item.options?.length
+            ? `<button type="button" class="bo-line-custom${line.mods.length ? " is-set" : ""}" data-customise="${index}" aria-label="${line.mods.length ? `Edit ${esc(item.name)} customisations` : `Customise ${esc(item.name)}`}">${ico("tune")}<span>${line.mods.length ? "Edit" : "Customise"}</span></button>`
+            : "";
+          return `<li class="bo-line"><span class="bo-line-art">${food(item.icon, item.tint)}</span><span class="bo-line-text"><b>${esc(item.name)}</b><span class="bo-line-sub"><small>${B.TYPES[item.type].label}</small>${custom}</span>${line.mods.length ? `<span class="bo-line-mods">${esc(line.mods.join(" · "))}</span>` : ""}</span><span class="bo-line-pts">${ptsLabel(item.pts)}</span><button type="button" class="icon-btn ghost bo-line-remove" data-remove="${index}" aria-label="Remove ${esc(item.name)}">${ico("close")}</button></li>`;
         })
         .join("")}</ul>`
     : `<div class="bo-tray-empty">${food("bag")}<p><b>Your tray is empty</b><br>Start with a main, then add a side and a drink.</p></div>`;
@@ -487,7 +500,7 @@ function orderRow(o) {
   return `<button type="button" class="bo-row${o.status === "void" ? " is-void" : ""}" data-ticket="${esc(o.id)}">
     <span class="bo-row-code"><small>Order</small><b>${esc(o.code)}</b></span>
     <span class="bo-row-art">${o.items.slice(0, 3).map((i) => food(i.icon, i.tint)).join("")}</span>
-    <span class="bo-row-text"><b>${esc(o.items.map((i) => i.name).join(" + "))}</b><small>${fmtTime(o.createdAt)} · ${ptsLabel(o.points)}${o.status === "void" ? " · points returned" : ""}</small></span>
+    <span class="bo-row-text"><b>${esc(itemsText(o.items))}</b><small>${fmtTime(o.createdAt)} · ${ptsLabel(o.points)}${o.status === "void" ? " · points returned" : ""}</small></span>
     ${o.status === "void" ? '<span class="pill red">Voided</span>' : '<span class="pill green">Put through</span>'}
     ${ico("chevronRight", "bo-ico bo-row-go")}
   </button>`;
@@ -546,8 +559,8 @@ function paintRules() {
   const tiles = [
     [s.dailyPoints, `point${s.dailyPoints === 1 ? "" : "s"} a day`, "Every item has a points value. Your points reset at midnight.", "bag"],
     [s.maxMains, `main${s.maxMains === 1 ? "" : "s"} per break`, "Burgers, chicken, wraps, nuggets or a breakfast main.", "burger"],
-    [s.maxSides, `side${s.maxSides === 1 ? "" : "s"} per break`, s.sideNeedsMain ? "Sides come with a main, so no side-only breaks." : "Fries, dippers, salad and more.", "fries"],
-    [s.maxDrinks, `drink${s.maxDrinks === 1 ? "" : "s"} per break`, "Soft drinks, water, tea and coffee are free.", "cup", "#d8231f"],
+    [s.maxSides, `side${s.maxSides === 1 ? "" : "s"} per break`, s.sideNeedsMain ? "Sides come with a main, so no side-only breaks." : "Fries, dippers, fruit and more.", "fries"],
+    [s.maxDrinks, `drink${s.maxDrinks === 1 ? "" : "s"} per break`, "Soft drinks, water, tea and coffee are free. Tap Customise for no ice.", "cup", "#d8231f"],
     [s.maxTreats, `treat${s.maxTreats === 1 ? "" : "s"} per break`, "McFlurry, pie or a cookie, if your points cover it.", "mcflurry"],
     [s.maxOrdersPerDay, `break order${s.maxOrdersPerDay === 1 ? "" : "s"} a day`, "Split your points over two breaks on a long shift.", "coffee"],
   ];
@@ -598,11 +611,12 @@ function draftChanges() {
     for (const k of Object.keys(view.draftSettings)) if (view.draftSettings[k] !== s[k]) n += 1;
   }
   if (view.draftMenu) {
-    const current = B.indexMenu(menu());
-    for (const i of view.draftMenu) {
-      const c = current[i.id];
-      if (c && (c.pts !== i.pts || c.type !== i.type || (c.on !== false) !== (i.on !== false))) n += 1;
-    }
+    // Every added, removed or changed item counts once.
+    const saved = (list) => new Map(B.menuForSave(list).map((i) => [i.id, JSON.stringify(i)]));
+    const before = saved(menu());
+    const after = saved(view.draftMenu);
+    for (const [id, value] of after) if (before.get(id) !== value) n += 1;
+    for (const id of before.keys()) if (!after.has(id)) n += 1;
   }
   return n;
 }
@@ -649,7 +663,7 @@ function managerToday() {
                   (o) => `<div class="bo-log-row${o.status === "void" ? " is-void" : ""}">
               <span class="bo-log-time bo-num">${fmtTime(o.createdAt)}</span>
               <span class="bo-log-code">${esc(o.code)}</span>
-              <span class="bo-log-main"><b>${esc(o.crewName)}</b><small>${esc(o.items.map((i) => i.name).join(" + "))}${o.note ? ` · “${esc(o.note)}”` : ""}</small></span>
+              <span class="bo-log-main"><b>${esc(o.crewName)}</b><small>${esc(itemsText(o.items))}${o.note ? ` · “${esc(o.note)}”` : ""}</small></span>
               <span class="bo-log-pts bo-num">${ptsLabel(o.points)}</span>
               ${o.status === "void" ? `<span class="pill red" title="${esc(o.voidedByName ? `Voided by ${o.voidedByName}` : "Voided")}">Voided</span>` : `<button type="button" class="btn sm danger" data-void="${esc(o.id)}">${ico("close")}Void</button>`}
             </div>`,
@@ -661,26 +675,36 @@ function managerToday() {
     </div>`;
 }
 
+function menuRow(i) {
+  const n = i.options?.length || 0;
+  return `<li class="bo-menu-row${i.on === false ? " is-off" : ""}" data-menu="${esc(i.id)}">
+    ${food(i.icon, i.tint)}
+    <span class="bo-menu-text"><b>${esc(i.name)}${i.custom ? ' <span class="bo-added">Added</span>' : ""}</b>
+      <span class="bo-menu-sub"><select class="bo-select" data-menu-type aria-label="${esc(i.name)} type">${Object.entries(B.TYPES)
+        .map(([id, t]) => `<option value="${id}" ${i.type === id ? "selected" : ""}>${t.label}</option>`)
+        .join("")}</select><button type="button" class="bo-menu-opts${n ? "" : " is-none"}" data-edit-item="${esc(i.id)}">${ico("tune")}${n ? plural(n, "customisation") : "Add customisations"}</button></span></span>
+    ${stepper(`pts:${i.id}`, i.pts, [0, 10], `points for ${i.name}`)}
+    <button type="button" class="icon-btn bo-menu-edit" data-edit-item="${esc(i.id)}" aria-label="Edit ${esc(i.name)}">${ico("note")}</button>
+    <input type="checkbox" class="switch" data-menu-on ${i.on === false ? "" : "checked"} aria-label="${esc(i.name)} available today">
+  </li>`;
+}
+
 function managerMenu() {
   const draft = view.draftMenu || menu();
-  return `<p class="bo-note-bar">${ico("shield")}<span>Changes apply to the next break order. Orders already put through keep their points.</span></p>
+  const added = draft.filter((i) => i.custom).length;
+  return `<section class="bo-card bo-menu-intro">
+      <span class="bo-menu-intro-art">${food("bag")}</span>
+      <div><h2>Your store's points menu</h2><p>Set the points, switch items off when they run out and choose what crew can customise, like no ice or no pickles. Something missing? Add it.</p>${added ? `<small>${plural(added, "item")} added by your store</small>` : ""}</div>
+      <button type="button" class="btn bo-add-btn" data-add-item>${ico("plus")}<span>Add item</span></button>
+    </section>
+    <p class="bo-note-bar">${ico("shield")}<span>Changes apply to the next break order. Orders already put through keep their points.</span></p>
     <div class="bo-menu-admin">${B.CATEGORIES.map(
-      (c) => `<section class="bo-card"><h2 class="bo-menu-cat">${food(c.icon, c.icon === "cup" ? "#d8231f" : "")}${c.label}</h2><ul>${draft
+      (c) => `<section class="bo-card"><h2 class="bo-menu-cat">${food(c.icon, c.icon === "cup" ? "#d8231f" : "")}<span>${c.label}</span><button type="button" class="btn sm light bo-cat-add" data-add-item="${c.id}" aria-label="Add an item to ${c.label}">${ico("plus")}<span>Add</span></button></h2><ul>${draft
         .filter((i) => i.cat === c.id)
-        .map(
-          (i) => `<li class="bo-menu-row${i.on === false ? " is-off" : ""}" data-menu="${esc(i.id)}">
-            ${food(i.icon, i.tint)}
-            <span class="bo-menu-text"><b>${esc(i.name)}</b>
-              <select class="bo-select" data-menu-type aria-label="${esc(i.name)} type">${Object.entries(B.TYPES)
-                .map(([id, t]) => `<option value="${id}" ${i.type === id ? "selected" : ""}>${t.label}</option>`)
-                .join("")}</select></span>
-            ${stepper(`pts:${i.id}`, i.pts, [0, 10], `points for ${i.name}`)}
-            <input type="checkbox" class="switch" data-menu-on ${i.on === false ? "" : "checked"} aria-label="${esc(i.name)} available today">
-          </li>`,
-        )
+        .map(menuRow)
         .join("")}</ul></section>`,
     ).join("")}</div>
-    <div class="bo-reset-row"><button type="button" class="btn light" data-reset-menu>${ico("undo")}Reset points to the defaults</button></div>`;
+    <div class="bo-reset-row"><button type="button" class="btn light" data-reset-menu>${ico("undo")}Reset standard items to the defaults</button></div>`;
 }
 
 function managerRules() {
@@ -693,7 +717,7 @@ function managerRules() {
         ${row("dailyPoints", "Points a day", "Per crew member, resets at midnight")}
         ${row("maxOrdersPerDay", "Break orders a day", "How many times they can put a break through")}
         ${row("maxMains", "Mains per break", "Burgers, chicken, wraps, nuggets")}
-        ${row("maxSides", "Sides per break", "Fries, dippers, salad…")}
+        ${row("maxSides", "Sides per break", "Fries, dippers, fruit…")}
         ${row("maxDrinks", "Drinks per break", "Soft drinks, water, hot drinks")}
         ${row("maxTreats", "Treats per break", "McFlurry, pie, cookie…")}
         <li><span class="bo-rule-row-text"><b>Sides come with a main</b><small>No side-only break orders</small></span><input type="checkbox" class="switch" data-setting-toggle="sideNeedsMain" ${s.sideNeedsMain ? "checked" : ""} aria-label="Sides come with a main"></li>
@@ -763,7 +787,11 @@ async function load({ quiet = false } = {}) {
   try {
     data = await transport.load({ day: isManager() ? view.day : null });
     loadError = "";
-    view.tray = view.tray.filter((id) => menu().some((i) => i.id === id && i.on !== false));
+    // Drop items that were switched off or removed, and customisations that went.
+    const items = B.indexMenu(menu());
+    view.tray = view.tray
+      .filter((line) => items[line.id] && items[line.id].on !== false)
+      .map((line) => ({ id: line.id, mods: line.mods.filter((mod) => items[line.id].options.includes(mod)) }));
     saveTray();
   } catch (error) {
     if (!quiet || !data) loadError = error?.message || "Check your connection and try again.";
@@ -867,7 +895,7 @@ function addItem(card) {
     }
     return;
   }
-  view.tray.push(item.id);
+  view.tray.push({ id: item.id, mods: [] });
   saveTray();
   const target = matchMedia("(max-width: 999px)").matches ? byId("boBarTarget") : byId("boTrayCount");
   flyTo(card.querySelector(".bo-item-art"), target, food(item.icon, item.tint)).then(() => bump(target));
@@ -885,7 +913,7 @@ async function submit() {
   }
   setButtonState(button, "loading");
   try {
-    const result = await transport.place({ items: [...view.tray], note: byId("boNote")?.value || "" });
+    const result = await transport.place({ items: view.tray.map((line) => ({ id: line.id, mods: [...line.mods] })), note: byId("boNote")?.value || "" });
     setButtonState(button, "success");
     applyState(result);
     view.tray = [];
@@ -931,7 +959,7 @@ function openTicket(order, { fresh = false } = {}) {
       <div class="bo-ticket-body">
         <div class="bo-ticket-status${isVoid ? " is-void" : ""}"><span class="bo-ticket-status-icon">${ico(isVoid ? "close" : "check")}</span><div><h3>${isVoid ? "Voided" : "Put through"}</h3><p>${isVoid ? `${order.voidedByName ? `Voided by ${esc(order.voidedByName)}. ` : ""}The points went back.` : "Show this ticket when you collect your food."}</p></div></div>
         <div class="bo-perf" aria-hidden="true"></div>
-        <ul class="bo-ticket-lines">${order.items.map((i) => `<li>${food(i.icon, i.tint)}<span><b>${esc(i.name)}</b><small>${esc(B.TYPES[i.type]?.label || i.type)}</small></span><em>${ptsLabel(i.pts)}</em></li>`).join("")}</ul>
+        <ul class="bo-ticket-lines">${order.items.map((i) => `<li>${food(i.icon, i.tint)}<span><b>${esc(i.name)}</b><small>${esc(B.TYPES[i.type]?.label || i.type)}</small>${i.mods?.length ? `<span class="bo-ticket-mods">${esc(i.mods.join(" · "))}</span>` : ""}</span><em>${ptsLabel(i.pts)}</em></li>`).join("")}</ul>
         ${order.note ? `<p class="bo-ticket-note">${ico("note")}<span>${esc(order.note)}</span></p>` : ""}
         <div class="bo-ticket-sum"><span>Points used</span><b class="bo-num">${order.points} pt${order.points === 1 ? "" : "s"}</b></div>
         ${own && order.day === today() ? `<div class="bo-ticket-left"><span class="bo-coins is-sm">${coins(s.dailyPoints, d.pointsUsed)}</span><span>${Math.max(0, s.dailyPoints - d.pointsUsed)} of ${s.dailyPoints} points left today</span></div>` : ""}
@@ -967,7 +995,7 @@ async function managerAction(run, { button, success } = {}) {
 }
 
 function ensureDrafts() {
-  if (view.mgr === "menu" && !view.draftMenu) view.draftMenu = menu().map((i) => ({ ...i }));
+  if (view.mgr === "menu" && !view.draftMenu) view.draftMenu = menu().map((i) => ({ ...i, options: [...(i.options || [])] }));
   if (view.mgr === "rules" && !view.draftSettings) view.draftSettings = { ...settings() };
 }
 
@@ -1004,6 +1032,11 @@ function stepValue(stepBtn) {
   box.querySelector('[data-step="-1"]').disabled = value <= min;
   box.querySelector('[data-step="1"]').disabled = value >= max;
   const key = box.dataset.stepper;
+  if (key === "edit:pts") {
+    if (view.editing) view.editing.pts = value;
+    paintEditor();
+    return;
+  }
   if (key.startsWith("pts:")) {
     ensureDrafts();
     const item = view.draftMenu.find((i) => i.id === key.slice(4));
@@ -1015,11 +1048,345 @@ function stepValue(stepBtn) {
   updateSaveBar();
 }
 
+// ------------------------------------------------------------- customise
+// Crew tick an item's own customisations ("No ice", "No pickles") per tray line.
+function openCustomise(index) {
+  const line = view.tray[index];
+  const item = line && B.indexMenu(menu())[line.id];
+  if (!item?.options?.length) return;
+  view.customIndex = index;
+  const dialog = byId("boCustomDialog");
+  dialog.innerHTML = `<div class="sheet-handle" data-sheet-drag aria-hidden="true"></div>
+    <button type="button" class="icon-btn ghost dialog-close" data-close-dialog aria-label="Close">${ico("close")}</button>
+    <header class="bo-custom-head"><span class="bo-custom-art">${food(item.icon, item.tint)}</span><div><p class="bo-eyebrow">Customise</p><h2 id="boCustomTitle">${esc(item.name)}</h2><p>Tick what you want changed. It prints on your ticket.</p></div></header>
+    <div class="bo-opts" role="group" aria-label="Customise ${esc(item.name)}">${item.options
+      .map((o, i) => `<label class="bo-opt" style="--i:${i}"><input type="checkbox" data-mod value="${esc(o)}" ${line.mods.includes(o) ? "checked" : ""}><span class="bo-opt-box" aria-hidden="true">${ico("check")}</span><span>${esc(o)}</span></label>`)
+      .join("")}</div>
+    <div class="dialog-actions"><button type="button" class="btn light" data-mods-clear>Clear</button><button type="button" class="btn dark" data-close-dialog>Done</button></div>`;
+  openDialog(dialog);
+}
+
+function setMods(mods) {
+  const line = view.tray[view.customIndex];
+  const item = line && B.indexMenu(menu())[line.id];
+  if (!item) return;
+  line.mods = item.options.filter((o) => mods.includes(o));
+  saveTray();
+  paintTray();
+}
+
+function bindCustomise() {
+  const dialog = byId("boCustomDialog");
+  const ticked = () => [...dialog.querySelectorAll("[data-mod]:checked")].map((box) => box.value);
+  dialog.addEventListener("change", (event) => {
+    if (event.target.matches("[data-mod]")) setMods(ticked());
+  });
+  dialog.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-mods-clear]")) return;
+    dialog.querySelectorAll("[data-mod]").forEach((box) => (box.checked = false));
+    setMods([]);
+  });
+}
+
+// ----------------------------------------------------------- item editor
+// Managers add items the store sells, and edit any item's customisations.
+const ART_LABELS = {
+  burger: "Burger", bigmac: "Big Mac", double: "Double burger", chicken: "Chicken burger", fish: "Fish burger",
+  nuggets: "Nuggets", dippers: "Dippers", wrap: "Wrap", fries: "Fries", salad: "Salad", carrot: "Carrot sticks",
+  fruit: "Fruit", cup: "Cold drink", bottle: "Bottle", coffee: "Hot drink", shake: "Milkshake", mcflurry: "McFlurry",
+  sundae: "Sundae", pie: "Pie", cookie: "Cookie", muffin: "Muffin", pancakes: "Pancakes", hashbrown: "Hash brown", bag: "Bag",
+};
+const TINTS = [
+  ["#d8231f", "Red"], ["#2b2b2b", "Black"], ["#9aa0a6", "Silver"], ["#f28a00", "Orange"], ["#f3d34a", "Yellow"],
+  ["#2f9e4f", "Green"], ["#4a90d9", "Blue"], ["#8e5cc4", "Purple"], ["#f07a9a", "Pink"], ["#7b4a2d", "Brown"],
+];
+
+function openItemEditor({ id = "", cat = "" } = {}) {
+  view.mgr = "menu";
+  ensureDrafts();
+  const existing = id ? view.draftMenu.find((i) => i.id === id) : null;
+  if (id && !existing) return;
+  const c = B.CATEGORIES.find((x) => x.id === cat) || B.CATEGORIES[0];
+  view.editing = existing
+    ? { ...existing, options: [...existing.options], isNew: false }
+    : { id: "", name: "", cat: c.id, type: B.CATEGORY_TYPE[c.id], pts: c.id === "drinks" ? 0 : 1, icon: c.icon, tint: c.icon === "cup" ? "#d8231f" : "", breakfast: c.id === "breakfast", on: true, options: [], custom: true, isNew: true };
+  view.editing.armed = false;
+  const dialog = byId("boItemDialog");
+  dialog.innerHTML = editorMarkup();
+  paintEditor();
+  openDialog(dialog);
+  dialog.scrollTop = 0;
+  if (view.editing.isNew && matchMedia("(hover: hover) and (pointer: fine)").matches) setTimeout(() => byId("boItemName")?.focus(), 80);
+}
+
+function editorMarkup() {
+  const e = view.editing;
+  const own = e.custom;
+  return `<div class="sheet-handle" data-sheet-drag aria-hidden="true"></div>
+    <button type="button" class="icon-btn ghost dialog-close" data-close-dialog aria-label="Close">${ico("close")}</button>
+    <h2 id="boItemTitle">${e.isNew ? "Add an item" : `Edit ${esc(e.name)}`}</h2>
+    <p class="form-note">${e.isNew ? "It shows on the crew menu once you save your changes." : own ? "Added by your store." : "A standard McDonald's item: you can change its points and customisations."}</p>
+    <div class="bo-editor">
+      <div class="bo-editor-preview" aria-hidden="true"><div class="bo-item bo-preview-card" id="boEdPreview"></div><small>How crew will see it</small></div>
+      <div class="bo-editor-form">
+        <label class="bo-field"><span class="bo-field-label">Name</span>
+          <input class="input" id="boItemName" maxlength="${B.NAME_MAX}" autocomplete="off" placeholder="e.g. Big Tasty" value="${esc(e.name)}" ${own ? "" : "readonly"} aria-describedby="boEdError"></label>
+        <p class="bo-field-error" id="boEdError" role="alert" hidden></p>
+        ${
+          own
+            ? `<div class="bo-field"><span class="bo-field-label" id="boEdCatLabel">Menu section</span><div class="bo-chips" role="radiogroup" aria-labelledby="boEdCatLabel">${B.CATEGORIES.map(
+                (c) => `<button type="button" role="radio" data-ed-cat="${c.id}">${food(c.icon, c.icon === "cup" ? "#d8231f" : "")}<span>${c.label}</span></button>`,
+              ).join("")}</div></div>`
+            : ""
+        }
+        <div class="bo-field-row">
+          <label class="bo-field"><span class="bo-field-label">Counts as</span><select class="input bo-ed-select" id="boEdType">${Object.entries(B.TYPES)
+            .map(([id, t]) => `<option value="${id}">${t.label}</option>`)
+            .join("")}</select></label>
+          <div class="bo-field"><span class="bo-field-label">Points</span>${stepper("edit:pts", e.pts, [0, 10], "points")}</div>
+        </div>
+        ${
+          own
+            ? `<div class="bo-field"><span class="bo-field-label" id="boEdArtLabel">Picture</span><div class="bo-art-pick" role="radiogroup" aria-labelledby="boEdArtLabel">${B.ART.map(
+                (a) => `<button type="button" role="radio" data-ed-art="${a}" aria-label="${ART_LABELS[a] || a}" title="${ART_LABELS[a] || a}"></button>`,
+              ).join("")}</div></div>
+              <div class="bo-field" id="boEdTints"><span class="bo-field-label" id="boEdTintLabel">Colour</span><div class="bo-swatches" role="radiogroup" aria-labelledby="boEdTintLabel">${TINTS.map(
+                ([hex, label]) => `<button type="button" role="radio" data-ed-tint="${hex}" style="--sw:${hex}" aria-label="${label}" title="${label}"></button>`,
+              ).join("")}</div></div>
+              <label class="bo-toggle-row"><span><b>Breakfast only</b><small>Locks after ${esc(settings().breakfastUntil)}, like the other breakfast items</small></span><input type="checkbox" class="switch" id="boEdBreakfast"></label>`
+            : ""
+        }
+        <label class="bo-toggle-row"><span><b>Available today</b><small>Switch it off when it runs out</small></span><input type="checkbox" class="switch" id="boEdOn"></label>
+        <div class="bo-field bo-ed-opts">
+          <span class="bo-field-label">Customisations <small>Crew tick these for this item, e.g. no ice or no pickles</small></span>
+          <ul class="bo-opt-list" id="boEdOpts"></ul>
+          <div class="bo-opt-add"><input class="input" id="boEdOptInput" maxlength="${B.OPTION_MAX}" autocomplete="off" placeholder="Type one, e.g. No onions" aria-label="New customisation"><button type="button" class="btn sm" data-ed-opt-add>${ico("plus")}<span>Add</span></button></div>
+          <div class="bo-opt-suggest" id="boEdSuggest"></div>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-actions bo-ed-actions">
+      ${!e.isNew && own ? `<button type="button" class="btn danger bo-ed-delete" data-ed-delete>${ico("trash")}<span>Delete item</span></button>` : ""}
+      <button type="button" class="btn light" data-close-dialog>Cancel</button>
+      <button type="button" class="btn dark" data-ed-save>${ico(e.isNew ? "plus" : "check")}<span>${e.isNew ? "Add to menu" : "Done"}</span></button>
+    </div>`;
+}
+
+// Repaints the editor's live parts from view.editing (keeps focus and scroll).
+function paintEditor() {
+  const e = view.editing;
+  const dialog = byId("boItemDialog");
+  if (!e || !dialog.querySelector("#boEdPreview")) return;
+  const name = e.name.trim() || (e.isNew ? "New item" : "");
+  byId("boEdPreview").innerHTML = `<span class="bo-pts${e.pts === 0 ? " is-free" : ""}">${ptsLabel(e.pts)}</span>
+    <span class="bo-item-art">${food(e.icon, B.TINTED_ART.includes(e.icon) ? e.tint : "")}</span>
+    <span class="bo-item-name">${esc(name)}</span>
+    <span class="bo-item-meta"><span class="bo-type is-${e.type}">${B.TYPES[e.type].label}</span>${e.breakfast ? `<span class="bo-reason is-soft">Breakfast only</span>` : ""}</span>
+    <span class="bo-add">${ico("plus")}</span>`;
+  const check = (sel, on) => dialog.querySelectorAll(sel).forEach((el) => el.setAttribute("aria-checked", String(on(el))));
+  check("[data-ed-cat]", (el) => el.dataset.edCat === e.cat);
+  check("[data-ed-art]", (el) => el.dataset.edArt === e.icon);
+  check("[data-ed-tint]", (el) => el.dataset.edTint === e.tint);
+  dialog.querySelectorAll("[data-ed-art]").forEach((el) => {
+    if (!el.firstChild || el.dataset.tint !== e.tint) {
+      el.dataset.tint = e.tint;
+      el.innerHTML = food(el.dataset.edArt, B.TINTED_ART.includes(el.dataset.edArt) ? e.tint || "#d8231f" : "");
+    }
+  });
+  const tints = byId("boEdTints");
+  if (tints) tints.hidden = !B.TINTED_ART.includes(e.icon);
+  byId("boEdType").value = e.type;
+  const out = dialog.querySelector('[data-stepper="edit:pts"] output');
+  if (out) out.textContent = e.pts;
+  if (byId("boEdBreakfast")) byId("boEdBreakfast").checked = Boolean(e.breakfast);
+  byId("boEdOn").checked = e.on !== false;
+  byId("boEdOpts").innerHTML = e.options.length
+    ? e.options
+        .map((o, i) => `<li class="bo-opt-chip"><span>${esc(o)}</span><button type="button" class="bo-opt-remove" data-ed-opt-remove="${i}" aria-label="Remove ${esc(o)}">${ico("close")}</button></li>`)
+        .join("")
+    : `<li class="bo-opt-empty">No customisations yet${e.cat === "drinks" ? ", try No ice" : ""}.</li>`;
+  const have = new Set(e.options.map((o) => o.toLowerCase()));
+  const ideas = (B.OPTION_SUGGESTIONS[e.cat] || []).filter((o) => !have.has(o.toLowerCase()));
+  byId("boEdSuggest").innerHTML = ideas.length && e.options.length < B.MAX_OPTIONS
+    ? `<span>Quick add:</span>${ideas.map((o) => `<button type="button" class="bo-suggest" data-ed-suggest="${esc(o)}">${ico("plus")}${esc(o)}</button>`).join("")}`
+    : "";
+  byId("boItemTitle").textContent = e.isNew ? "Add an item" : `Edit ${e.name.trim() || "item"}`;
+  const del = dialog.querySelector("[data-ed-delete] span");
+  if (del) del.textContent = e.armed ? "Tap again to delete" : "Delete item";
+}
+
+function editorError(text) {
+  const box = byId("boEdError");
+  box.textContent = text;
+  box.hidden = !text;
+  if (text) byId("boItemName")?.setAttribute("aria-invalid", "true");
+  else byId("boItemName")?.removeAttribute("aria-invalid");
+}
+
+function addOption(raw) {
+  const e = view.editing;
+  const input = byId("boEdOptInput");
+  const label = B.cleanText(raw, B.OPTION_MAX);
+  if (!label) {
+    shake(input);
+    input.focus();
+    return;
+  }
+  if (e.options.some((o) => o.toLowerCase() === label.toLowerCase())) {
+    toast(`"${label}" is already there`, "info");
+    return;
+  }
+  if (e.options.length >= B.MAX_OPTIONS) {
+    toast(`Up to ${B.MAX_OPTIONS} customisations per item`, "error");
+    return;
+  }
+  e.options.push(label);
+  if (raw === input.value) input.value = "";
+  paintEditor();
+}
+
+async function saveEditor() {
+  const e = view.editing;
+  const dialog = byId("boItemDialog");
+  const name = B.cleanText(e.name, B.NAME_MAX);
+  if (e.custom) {
+    if (!name) {
+      editorError("Give the item a name.");
+      shake(byId("boItemName"));
+      byId("boItemName").focus();
+      return;
+    }
+    const clash = view.draftMenu.find((i) => i.id !== e.id && i.name.toLowerCase() === name.toLowerCase());
+    if (clash) {
+      editorError(`${clash.name} is already on the menu.`);
+      shake(byId("boItemName"));
+      return;
+    }
+    if (e.isNew && view.draftMenu.filter((i) => i.custom).length >= B.MAX_CUSTOM_ITEMS) {
+      editorError(`A store can add up to ${B.MAX_CUSTOM_ITEMS} items.`);
+      return;
+    }
+  }
+  // A typed customisation that wasn't added yet still counts.
+  const pending = byId("boEdOptInput")?.value;
+  if (B.cleanText(pending, B.OPTION_MAX)) addOption(pending);
+  const fields = { type: e.type, pts: e.pts, on: e.on !== false, options: [...e.options] };
+  let id = e.id;
+  if (e.custom) Object.assign(fields, { name, cat: e.cat, icon: e.icon, tint: B.TINTED_ART.includes(e.icon) ? e.tint : "", breakfast: Boolean(e.breakfast), custom: true });
+  if (e.isNew) {
+    id = B.newItemId(name, view.draftMenu.map((i) => i.id));
+    view.draftMenu.push({ id, ...fields });
+  } else Object.assign(view.draftMenu.find((i) => i.id === id), fields);
+  view.draftMenu = B.normalizeMenu(B.menuForSave(view.draftMenu));
+  view.editing = null;
+  await closeDialog(dialog);
+  repaintManageKeepScroll();
+  const row = root.querySelector(`[data-menu="${CSS.escape(id)}"]`);
+  if (row) {
+    row.classList.add("is-new");
+    if (!prefersReducedMotion()) row.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  const itemName = view.draftMenu.find((i) => i.id === id)?.name || name;
+  toast(e.isNew ? `${itemName} added. Save changes to put it on the menu.` : `${itemName} updated. Save changes to use it.`, "success");
+}
+
+async function deleteEdited() {
+  const e = view.editing;
+  if (!e?.custom || e.isNew) return;
+  if (!e.armed) {
+    e.armed = true;
+    paintEditor();
+    return;
+  }
+  view.draftMenu = view.draftMenu.filter((i) => i.id !== e.id);
+  view.editing = null;
+  await closeDialog(byId("boItemDialog"));
+  repaintManageKeepScroll();
+  toast(`${e.name} removed. Save changes to take it off the menu.`, "info");
+}
+
+function bindEditor() {
+  const dialog = byId("boItemDialog");
+  dialog.addEventListener("input", (event) => {
+    const e = view.editing;
+    if (!e || event.target.id !== "boItemName") return;
+    e.name = event.target.value;
+    editorError("");
+    paintEditor();
+  });
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing) return;
+    if (event.target.id === "boEdOptInput") {
+      event.preventDefault();
+      addOption(event.target.value);
+    } else if (event.target.id === "boItemName") {
+      event.preventDefault();
+      saveEditor();
+    }
+  });
+  dialog.addEventListener("change", (event) => {
+    const e = view.editing;
+    const t = event.target;
+    if (!e) return;
+    if (t.id === "boEdType") e.type = t.value;
+    if (t.id === "boEdBreakfast") e.breakfast = t.checked;
+    if (t.id === "boEdOn") e.on = t.checked;
+    paintEditor();
+  });
+  dialog.addEventListener("click", (event) => {
+    const e = view.editing;
+    const t = event.target;
+    if (!e) return;
+    const cat = t.closest("[data-ed-cat]");
+    if (cat) {
+      const was = B.CATEGORIES.find((c) => c.id === e.cat);
+      const next = B.CATEGORIES.find((c) => c.id === cat.dataset.edCat);
+      if (e.type === B.CATEGORY_TYPE[was.id]) e.type = B.CATEGORY_TYPE[next.id];
+      if (e.icon === was.icon) e.icon = next.icon;
+      if (B.TINTED_ART.includes(e.icon) && !e.tint) e.tint = "#d8231f";
+      if (e.isNew) e.breakfast = next.id === "breakfast";
+      e.cat = next.id;
+      return paintEditor();
+    }
+    const art = t.closest("[data-ed-art]");
+    if (art) {
+      e.icon = art.dataset.edArt;
+      if (B.TINTED_ART.includes(e.icon) && !e.tint) e.tint = "#d8231f";
+      return paintEditor();
+    }
+    const tint = t.closest("[data-ed-tint]");
+    if (tint) {
+      e.tint = tint.dataset.edTint;
+      return paintEditor();
+    }
+    if (t.closest("[data-ed-opt-add]")) return addOption(byId("boEdOptInput").value);
+    const suggest = t.closest("[data-ed-suggest]");
+    if (suggest) return addOption(suggest.dataset.edSuggest);
+    const remove = t.closest("[data-ed-opt-remove]");
+    if (remove) {
+      e.options.splice(Number(remove.dataset.edOptRemove), 1);
+      return paintEditor();
+    }
+    if (t.closest("[data-ed-save]")) return saveEditor();
+    if (t.closest("[data-ed-delete]")) return deleteEdited();
+  });
+  // Nothing of a closed editor stays in the page (its preview card, inputs).
+  dialog.addEventListener("close", () => {
+    view.editing = null;
+    dialog.replaceChildren();
+  });
+}
+
 function exportCsv() {
   const rows = [["Date", "Time", "Order", "Crew", "Items", "Points", "Status", "Note", "Voided by"]];
   for (const o of [...(data.log || [])].reverse())
-    rows.push([o.day, fmtTime(o.createdAt), o.code, o.crewName, o.items.map((i) => i.name).join(" + "), o.points, o.status === "void" ? "Voided" : "Put through", o.note || "", o.voidedByName || ""]);
-  const csv = rows.map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    rows.push([o.day, fmtTime(o.createdAt), o.code, o.crewName, itemsText(o.items), o.points, o.status === "void" ? "Voided" : "Put through", o.note || "", o.voidedByName || ""]);
+  // Text people typed (names, notes) never runs as a spreadsheet formula.
+  const cell = (c) => {
+    const text = String(c ?? "");
+    return `"${(/^[=+\-@]/.test(text) ? `'${text}` : text).replace(/"/g, '""')}"`;
+  };
+  const csv = rows.map((r) => r.map(cell).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
   const a = document.createElement("a");
   a.href = url;
@@ -1155,10 +1522,18 @@ function bind() {
       return;
     }
     if (t.closest("[data-reset-menu]")) {
-      view.draftMenu = B.normalizeMenu().map((i) => ({ ...i }));
-      paintManage();
-      toast("Default points loaded. Save to use them.", "info");
+      ensureDrafts();
+      view.draftMenu = [...B.normalizeMenu(), ...view.draftMenu.filter((i) => i.custom)];
+      repaintManageKeepScroll();
+      toast("Standard items are back to their default points and customisations. Save to use them.", "info");
+      return;
     }
+    const addBtn = t.closest("[data-add-item]");
+    if (addBtn) return openItemEditor({ cat: addBtn.dataset.addItem });
+    const editBtn = t.closest("[data-edit-item]");
+    if (editBtn) return openItemEditor({ id: editBtn.dataset.editItem });
+    const customise = t.closest("[data-customise]");
+    if (customise) return openCustomise(Number(customise.dataset.customise));
   });
 
   root.addEventListener("change", (event) => {
@@ -1206,6 +1581,9 @@ function bind() {
     switchTab(list[i]);
   });
 
+  bindCustomise();
+  bindEditor();
+
   byId("boTicketDialog").addEventListener("click", (event) => {
     const go = event.target.closest("[data-goto]");
     if (go) setTimeout(() => switchTab(go.dataset.goto, { focus: false }), 260);
@@ -1235,7 +1613,8 @@ function installGlobals() {
     if (document.visibilityState === "visible" && root?.isConnected) load({ quiet: true });
   });
   addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && view.trayOpen) setTrayOpen(false);
+    // A dialog on top of the tray (customise) closes first.
+    if (event.key === "Escape" && view.trayOpen && !document.querySelector("dialog[open]")) setTrayOpen(false);
   });
 }
 

@@ -158,3 +158,45 @@ test("unknown actions and methods are refused", async () => {
   assert.equal((await call(db, crew, "PUT")).status, 405);
   assert.equal((await call(db, { ...crew, storeId: "" }, "GET")).status, 403);
 });
+
+test("customisations are stored with the order, only the item's own", async () => {
+  const db = fakeDb();
+  const res = await place(db, crew, [
+    { id: "bigmac", mods: ["No pickles", "No onions", "<script>"] },
+    { id: "fries-m" },
+    { id: "coke", mods: ["No ice"] },
+  ]);
+  assert.equal(res.status, 201);
+  const stored = db.docs.get(`stores/1170/breakOrders/${res.body.order.id}`);
+  assert.deepEqual(stored.items.map((i) => i.mods || []), [["No pickles", "No onions"], [], ["No ice"]]);
+  // Old clients that send plain ids still work.
+  assert.equal((await place(db, kai, ["cb", "fries-s"])).status, 201);
+  // Junk in the items list is ignored, not a crash.
+  assert.equal((await place(db, { ...kai, id: "u-new" }, [null, 5, { id: 7 }, { id: "cb", mods: "No onions" }])).status, 201);
+});
+
+test("managers add their own items with customisations; crew order them", async () => {
+  const db = fakeDb();
+  const base = (await call(db, manager, "GET")).body.menu;
+  const bigTasty = { id: "x-big-tasty-a1b2", custom: true, name: "Big Tasty", cat: "mains", type: "main", pts: 3, icon: "double", options: ["No sauce", "No tomato"], on: true };
+  const noIce = base.map((m) => (m.id === "fanta" ? { ...m, options: ["No ice", "Lemon"] } : m));
+  const crewTry = await call(db, crew, "POST", { action: "config", menu: [...noIce, bigTasty] });
+  assert.equal(crewTry.status, 403);
+  const saved = await call(db, manager, "POST", { action: "config", menu: [...noIce, bigTasty] });
+  assert.equal(saved.status, 200);
+  const doc = db.docs.get("stores/1170/breakConfig/current");
+  assert.deepEqual(doc.menu.find((m) => m.id === "fanta").options, ["No ice", "Lemon"]);
+  assert.equal(doc.menu.find((m) => m.id === "bigmac").options, undefined);
+  assert.equal(doc.menu.find((m) => m.id === bigTasty.id).name, "Big Tasty");
+  const state = await call(db, crew, "GET");
+  assert.equal(state.body.menu.find((m) => m.id === bigTasty.id).pts, 3);
+  const order = await place(db, crew, [{ id: bigTasty.id, mods: ["No tomato"] }, { id: "fanta", mods: ["Lemon"] }]);
+  assert.equal(order.status, 201);
+  assert.deepEqual(order.body.order.items.map((i) => [i.name, i.mods]), [["Big Tasty", ["No tomato"]], ["Fanta Orange", ["Lemon"]]]);
+  // Removing the item keeps the order's snapshot.
+  await call(db, manager, "POST", { action: "config", menu: noIce });
+  const after = await call(db, crew, "GET");
+  assert.equal(after.body.menu.find((m) => m.id === bigTasty.id), undefined);
+  assert.equal(after.body.mine[0].items[0].name, "Big Tasty");
+  assert.equal((await place(db, kai, [bigTasty.id])).status, 422);
+});

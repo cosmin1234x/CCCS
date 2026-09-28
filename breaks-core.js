@@ -28,63 +28,110 @@ export const DEFAULT_SETTINGS = {
   maxTreats: 1,
   sideNeedsMain: true,
   enforceBreakfastHours: true,
-  breakfastUntil: "10:30",
+  // McDonald's UK serves breakfast until 11:00.
+  breakfastUntil: "11:00",
   minutesSavedPerOrder: 4,
   timeZone: "Europe/London",
 };
 
-const m = (id, name, cat, type, pts, icon, extra = {}) => ({ id, name, cat, type, pts, icon, on: true, ...extra });
+// Food pictures (breaks-art.js draws one symbol for each). Cups, bottles and
+// shakes take a colour.
+export const ART = [
+  "burger", "bigmac", "double", "chicken", "fish", "nuggets", "dippers", "wrap",
+  "fries", "salad", "carrot", "fruit", "cup", "bottle", "coffee", "shake",
+  "mcflurry", "sundae", "pie", "cookie", "muffin", "pancakes", "hashbrown", "bag",
+];
+export const TINTED_ART = ["cup", "bottle", "shake"];
+export const CATEGORY_TYPE = { mains: "main", sides: "side", drinks: "drink", treats: "treat", breakfast: "main" };
 
+export const NAME_MAX = 40;
+export const OPTION_MAX = 30;
+export const MAX_OPTIONS = 12;
+export const MAX_CUSTOM_ITEMS = 40;
+
+// Customisations: each item has its own list ("No pickles", "No ice"). Crew
+// tick them per item in their tray and they print on the ticket.
+const BURGER = ["No ketchup", "No mustard", "No pickles", "No onions", "No cheese"];
+const DIPS = ["BBQ dip", "Sweet Curry dip", "Sweet Chilli dip", "Ketchup dip", "No dip"];
+const ICE = ["No ice", "Light ice"];
+const MILKY = ["Decaf", "Skimmed milk", "Extra hot"];
+
+// Quick picks when a manager writes an item's customisations.
+export const OPTION_SUGGESTIONS = {
+  mains: ["No sauce", "No mayo", "No ketchup", "No mustard", "No pickles", "No onions", "No cheese", "No lettuce", "No tomato", "Plain"],
+  sides: ["No salt", "No dip", "Extra salt"],
+  drinks: ["No ice", "Light ice", "No milk", "Decaf", "Skimmed milk", "With sugar"],
+  treats: ["No topping", "No sauce", "No cream"],
+  breakfast: ["No cheese", "No egg", "No butter", "No sauce", "Brown sauce", "Ketchup"],
+};
+
+const m = (id, name, cat, type, pts, icon, options = [], extra = {}) => ({ id, name, cat, type, pts, icon, on: true, options, ...extra });
+
+// The McDonald's UK menu (Hayle, Carwin Rise). Points follow the usual crew
+// meal points: 4 a day, wraps and the bigger sandwiches 2 or more, drinks free.
 export const DEFAULT_MENU = [
   // Mains
-  m("bigmac", "Big Mac", "mains", "main", 3, "bigmac"),
-  m("qpc", "Quarter Pounder with Cheese", "mains", "main", 3, "burger"),
-  m("dqpc", "Double Quarter Pounder", "mains", "main", 4, "double"),
-  m("mccrispy", "McCrispy", "mains", "main", 3, "chicken"),
-  m("mcchicken", "McChicken Sandwich", "mains", "main", 2, "chicken"),
-  m("fof", "Filet-O-Fish", "mains", "main", 2, "fish"),
-  m("mcplant", "McPlant", "mains", "main", 2, "burger", { veg: true }),
-  m("dcb", "Double Cheeseburger", "mains", "main", 2, "double"),
-  m("nug6", "6 Chicken McNuggets", "mains", "main", 2, "nuggets"),
-  m("nug9", "9 Chicken McNuggets", "mains", "main", 3, "nuggets"),
-  m("selects", "3 Chicken Selects", "mains", "main", 2, "nuggets"),
-  m("veggie", "Veggie Dippers", "mains", "main", 2, "dippers", { veg: true }),
-  m("wrap", "Wrap of the Day", "mains", "main", 2, "wrap"),
-  m("cb", "Cheeseburger", "mains", "main", 1, "burger"),
-  m("hb", "Hamburger", "mains", "main", 1, "burger"),
-  m("mayo", "Mayo Chicken", "mains", "main", 1, "chicken"),
+  m("bigmac", "Big Mac", "mains", "main", 3, "bigmac", ["No Big Mac sauce", "No lettuce", "No cheese", "No pickles", "No onions"]),
+  m("qpc", "Quarter Pounder with Cheese", "mains", "main", 3, "burger", BURGER),
+  m("dqpc", "Double Quarter Pounder with Cheese", "mains", "main", 4, "double", BURGER),
+  m("mccrispy", "McCrispy", "mains", "main", 3, "chicken", ["No sauce", "No lettuce"]),
+  m("mcchicken", "McChicken Sandwich", "mains", "main", 2, "chicken", ["No mayo", "No lettuce"]),
+  m("fof", "Filet-O-Fish", "mains", "main", 2, "fish", ["No tartare sauce", "No cheese"]),
+  m("mcplant", "McPlant", "mains", "main", 2, "burger", ["No vegan cheese", "No sauce", "No ketchup", "No mustard", "No pickles", "No onions", "No lettuce", "No tomato"], { veg: true }),
+  m("tcb", "Triple Cheeseburger", "mains", "main", 3, "double", BURGER),
+  m("dcb", "Double Cheeseburger", "mains", "main", 2, "double", BURGER),
+  m("nug6", "6 Chicken McNuggets", "mains", "main", 2, "nuggets", DIPS),
+  m("nug9", "9 Chicken McNuggets", "mains", "main", 3, "nuggets", DIPS),
+  m("selects", "3 Chicken Selects", "mains", "main", 2, "nuggets", DIPS),
+  m("veggie", "Veggie Dippers", "mains", "main", 2, "dippers", DIPS, { veg: true }),
+  m("wrap", "Wrap of the Day", "mains", "main", 2, "wrap", ["No sauce", "No lettuce", "No cheese"]),
+  m("nug4", "4 Chicken McNuggets", "mains", "main", 1, "nuggets", DIPS),
+  m("cb", "Cheeseburger", "mains", "main", 1, "burger", BURGER),
+  m("hb", "Hamburger", "mains", "main", 1, "burger", ["No ketchup", "No mustard", "No pickles", "No onions"]),
+  m("mayo", "Mayo Chicken", "mains", "main", 1, "chicken", ["No mayo", "No lettuce"]),
   // Sides
-  m("fries-s", "Small Fries", "sides", "side", 1, "fries"),
-  m("fries-m", "Medium Fries", "sides", "side", 1, "fries"),
-  m("fries-l", "Large Fries", "sides", "side", 2, "fries"),
-  m("mozz", "Mozzarella Dippers", "sides", "side", 1, "dippers"),
-  m("salad", "Side Salad", "sides", "side", 1, "salad"),
-  m("carrots", "Carrot Sticks", "sides", "side", 0, "carrot"),
+  m("fries-s", "Small Fries", "sides", "side", 1, "fries", ["No salt"]),
+  m("fries-m", "Medium Fries", "sides", "side", 1, "fries", ["No salt"]),
+  m("fries-l", "Large Fries", "sides", "side", 2, "fries", ["No salt"]),
+  m("mozz", "Mozzarella Dippers", "sides", "side", 1, "dippers", ["No dip"]),
   m("fruit", "Fruit Bag", "sides", "side", 0, "fruit"),
+  m("carrots", "Carrot Sticks", "sides", "side", 0, "carrot"),
   // Drinks
-  m("coke", "Coca-Cola", "drinks", "drink", 0, "cup", { tint: "#d8231f" }),
-  m("cokezero", "Coke Zero Sugar", "drinks", "drink", 0, "cup", { tint: "#2b2b2b" }),
-  m("fanta", "Fanta Orange", "drinks", "drink", 0, "cup", { tint: "#f28a00" }),
-  m("sprite", "Sprite Zero", "drinks", "drink", 0, "cup", { tint: "#2f9e4f" }),
-  m("water", "Still Water", "drinks", "drink", 0, "bottle", { tint: "#4a90d9" }),
-  m("oj", "Orange Juice", "drinks", "drink", 0, "bottle", { tint: "#f5a300" }),
-  m("tea", "Tea", "drinks", "drink", 0, "coffee"),
-  m("latte", "Latte", "drinks", "drink", 0, "coffee"),
-  m("cappuccino", "Cappuccino", "drinks", "drink", 0, "coffee"),
+  m("coke", "Coca-Cola Original Taste", "drinks", "drink", 0, "cup", ICE, { tint: "#d8231f" }),
+  m("cokezero", "Coca-Cola Zero Sugar", "drinks", "drink", 0, "cup", ICE, { tint: "#2b2b2b" }),
+  m("diet", "Diet Coke", "drinks", "drink", 0, "cup", ICE, { tint: "#9aa0a6" }),
+  m("fanta", "Fanta Orange", "drinks", "drink", 0, "cup", ICE, { tint: "#f28a00" }),
+  m("sprite", "Sprite Zero", "drinks", "drink", 0, "cup", ICE, { tint: "#2f9e4f" }),
+  m("water", "Still Water", "drinks", "drink", 0, "bottle", [], { tint: "#4a90d9" }),
+  m("oj", "Tropicana Orange Juice", "drinks", "drink", 0, "bottle", [], { tint: "#f5a300" }),
+  m("tea", "Tea", "drinks", "drink", 0, "coffee", ["No milk", "Extra milk", "With sugar"]),
+  m("latte", "Latte", "drinks", "drink", 0, "coffee", MILKY),
+  m("cappuccino", "Cappuccino", "drinks", "drink", 0, "coffee", MILKY),
+  m("flatwhite", "Flat White", "drinks", "drink", 0, "coffee", MILKY),
+  m("americano", "Americano", "drinks", "drink", 0, "coffee", ["With milk", "Decaf", "With sugar"]),
+  m("hotchoc", "Hot Chocolate", "drinks", "drink", 0, "coffee", ["Extra hot"]),
+  m("icedlatte", "Iced Latte", "drinks", "drink", 1, "cup", ["No ice", "Light ice", "Decaf"], { tint: "#b08968" }),
+  m("smoothie", "Mango & Pineapple Smoothie", "drinks", "drink", 1, "cup", [], { tint: "#f6b93b" }),
+  m("frappe", "Caramel Iced Frappé", "drinks", "drink", 2, "cup", ["No cream"], { tint: "#c68b59" }),
   // Treats
-  m("mcflurry", "McFlurry Oreo", "treats", "treat", 2, "mcflurry"),
-  m("shake", "Strawberry Milkshake", "treats", "treat", 2, "shake", { tint: "#f07a9a" }),
-  m("sundae", "Sundae", "treats", "treat", 1, "sundae"),
+  m("mcflurry", "Oreo McFlurry", "treats", "treat", 2, "mcflurry", ["No topping"]),
+  m("mcflurry-dm", "Dairy Milk McFlurry", "treats", "treat", 2, "mcflurry", ["No topping"]),
+  m("shake-choc", "Chocolate Milkshake", "treats", "treat", 2, "shake", [], { tint: "#7b4a2d" }),
+  m("shake", "Strawberry Milkshake", "treats", "treat", 2, "shake", [], { tint: "#f07a9a" }),
+  m("shake-banana", "Banana Milkshake", "treats", "treat", 2, "shake", [], { tint: "#f3d34a" }),
   m("pie", "Apple Pie", "treats", "treat", 1, "pie"),
-  m("cookie", "Cookie", "treats", "treat", 1, "cookie"),
-  // Breakfast
-  m("smuffin", "Sausage & Egg McMuffin", "breakfast", "main", 2, "muffin", { breakfast: true }),
-  m("bemuffin", "Bacon & Egg McMuffin", "breakfast", "main", 2, "muffin", { breakfast: true }),
-  m("emuffin", "Egg McMuffin", "breakfast", "main", 1, "muffin", { breakfast: true }),
-  m("bwrap", "Breakfast Wrap", "breakfast", "main", 3, "wrap", { breakfast: true }),
-  m("pancakes", "Pancakes & Syrup", "breakfast", "main", 2, "pancakes", { breakfast: true }),
-  m("hashbrown", "Hash Brown", "breakfast", "side", 1, "hashbrown", { breakfast: true }),
+  m("cookie", "Triple Chocolate Cookie", "treats", "treat", 1, "cookie"),
+  // Breakfast (until breakfastUntil)
+  m("smuffin", "Sausage & Egg McMuffin", "breakfast", "main", 2, "muffin", ["No cheese", "No egg", "No butter"], { breakfast: true }),
+  m("bemuffin", "Bacon & Egg McMuffin", "breakfast", "main", 2, "muffin", ["No cheese", "No egg", "No butter"], { breakfast: true }),
+  m("dsmuffin", "Double Sausage & Egg McMuffin", "breakfast", "main", 3, "muffin", ["No cheese", "No egg", "No butter"], { breakfast: true }),
+  m("emuffin", "Egg & Cheese McMuffin", "breakfast", "main", 1, "muffin", ["No cheese", "No butter"], { breakfast: true }),
+  m("bwrap", "Breakfast Wrap", "breakfast", "main", 2, "wrap", ["Brown sauce", "Ketchup", "No cheese", "No hash brown"], { breakfast: true }),
+  m("baconroll", "Bacon Roll", "breakfast", "main", 2, "muffin", ["Brown sauce", "Ketchup", "No sauce"], { breakfast: true }),
+  m("pancakes", "Pancakes & Syrup", "breakfast", "main", 2, "pancakes", ["No syrup", "No butter"], { breakfast: true }),
+  m("hashbrown", "Hash Brown", "breakfast", "side", 1, "hashbrown", [], { breakfast: true }),
 ];
+const DEFAULTS_BY_ID = Object.fromEntries(DEFAULT_MENU.map((item) => [item.id, item]));
 
 // ---------- Settings and menu ----------
 
@@ -92,6 +139,16 @@ const clampInt = (value, min, max, fallback) => {
   const n = Math.round(Number(value));
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
 };
+
+// One line of text a person typed: no control characters, single spaces.
+export function cleanText(value, max) {
+  return String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max)
+    .trim();
+}
 
 export const SETTING_LIMITS = {
   dailyPoints: [0, 20],
@@ -117,28 +174,115 @@ export function normalizeSettings(input = {}) {
   return out;
 }
 
-// Keeps every default item (new ones show up for existing stores), applies a
-// store's points / type / on-off changes and drops anything unknown.
+// An item's customisations: short, unique (ignoring case), at most 12.
+export function normalizeOptions(list) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(list) ? list : []) {
+    const label = cleanText(raw, OPTION_MAX);
+    if (!label || seen.has(label.toLowerCase())) continue;
+    seen.add(label.toLowerCase());
+    out.push(label);
+    if (out.length >= MAX_OPTIONS) break;
+  }
+  return out;
+}
+
+const CUSTOM_ID = /^x-[a-z0-9-]{1,48}$/;
+const TINT = /^#[0-9a-f]{6}$/i;
+
+// An item a store added itself (Manager → Points menu → Add item).
+function customItem(raw) {
+  if (raw.custom !== true || !CUSTOM_ID.test(raw.id)) return null;
+  const name = cleanText(raw.name, NAME_MAX);
+  const cat = CATEGORIES.find((c) => c.id === raw.cat);
+  if (!name || !cat) return null;
+  const icon = ART.includes(raw.icon) ? raw.icon : cat.icon;
+  const tint = TINTED_ART.includes(icon) && TINT.test(String(raw.tint || "")) ? raw.tint.toLowerCase() : "";
+  return {
+    id: raw.id,
+    name,
+    cat: cat.id,
+    type: TYPES[raw.type] ? raw.type : CATEGORY_TYPE[cat.id],
+    pts: clampInt(raw.pts, 0, 10, 1),
+    icon,
+    on: raw.on !== false,
+    options: normalizeOptions(raw.options),
+    ...(tint ? { tint } : {}),
+    ...(raw.breakfast === true ? { breakfast: true } : {}),
+    custom: true,
+  };
+}
+
+const copyItem = (item) => ({ ...item, options: [...(item.options || [])] });
+
+// Every standard item (new ones show up for existing stores) with the store's
+// points / type / on-off / customisation changes, then the items the store
+// added. Anything else is dropped.
 export function normalizeMenu(input) {
   const saved = new Map();
+  const custom = [];
   if (Array.isArray(input))
-    for (const raw of input) if (raw && typeof raw.id === "string" && !saved.has(raw.id)) saved.set(raw.id, raw);
-  return DEFAULT_MENU.map((base) => {
+    for (const raw of input) {
+      if (!raw || typeof raw.id !== "string" || saved.has(raw.id)) continue;
+      saved.set(raw.id, raw);
+      const item = custom.length < MAX_CUSTOM_ITEMS && !DEFAULTS_BY_ID[raw.id] ? customItem(raw) : null;
+      if (item) custom.push(item);
+    }
+  const standard = DEFAULT_MENU.map((base) => {
     const raw = saved.get(base.id);
-    if (!raw) return { ...base };
+    if (!raw) return copyItem(base);
     return {
-      ...base,
+      ...copyItem(base),
       type: TYPES[raw.type] ? raw.type : base.type,
       pts: clampInt(raw.pts, 0, 10, base.pts),
       on: raw.on !== false,
+      options: Array.isArray(raw.options) ? normalizeOptions(raw.options) : [...base.options],
     };
   });
+  return [...standard, ...custom];
 }
 
-// What a store saves: only what differs is meaningful, but the full list is
-// small, so the manager's whole menu is stored.
+const sameList = (a = [], b = []) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+// What a store saves: its changes to standard items (customisations only when
+// they differ, so new defaults still reach the store) and its own items.
 export const menuForSave = (menu) =>
-  normalizeMenu(menu).map(({ id, type, pts, on }) => ({ id, type, pts, on }));
+  normalizeMenu(menu).map((item) => {
+    const { id, name, cat, type, pts, icon, tint, breakfast, on, options } = item;
+    if (item.custom) return { id, name, cat, type, pts, icon, ...(tint ? { tint } : {}), breakfast: Boolean(breakfast), on, options, custom: true };
+    return { id, type, pts, on, ...(sameList(options, DEFAULTS_BY_ID[id].options) ? {} : { options }) };
+  });
+
+// A short, unique id for an item a store adds ("x-big-tasty-4k2p").
+export function newItemId(name, taken = [], random = Math.random) {
+  const slug =
+    cleanText(name, NAME_MAX)
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 28) || "item";
+  const used = new Set(taken);
+  for (;;) {
+    const id = `x-${slug}-${Math.floor(random() * 36 ** 4).toString(36).padStart(4, "0")}`;
+    if (!used.has(id)) return id;
+  }
+}
+
+// Tray lines: an item and the customisations ticked for it. Plain ids still
+// work (older trays and callers).
+export function normalizeLines(items) {
+  const out = [];
+  for (const raw of Array.isArray(items) ? items : []) {
+    const id = typeof raw === "string" ? raw : typeof raw?.id === "string" ? raw.id : "";
+    if (!id) continue;
+    out.push({ id: id.slice(0, 60), mods: typeof raw === "string" ? [] : normalizeOptions(raw.mods) });
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+export const lineIds = (items) => normalizeLines(items).map((line) => line.id);
 
 export function indexMenu(menu) {
   const map = Object.create(null);
@@ -215,9 +359,10 @@ function limitLabel(type, max) {
 
 // Checks a tray against every rule. `used` = points already used today,
 // `ordersToday` = break orders already put through today.
-export function evaluate({ items = [], menu, settings, used = 0, ordersToday = 0, now = new Date() }) {
+export function evaluate({ items: tray = [], menu, settings, used = 0, ordersToday = 0, now = new Date() }) {
   const s = normalizeSettings(settings);
   const byId = indexMenu(menu);
+  const items = lineIds(tray);
   const { counts: c, points } = counts(items, menu);
   const left = Math.max(0, s.dailyPoints - used);
   const checks = [
@@ -282,7 +427,7 @@ export function canAdd(item, ctx) {
   if (item.on === false) return { ok: false, reason: "Not available today" };
   if (item.breakfast && !breakfastOpen(s, ctx.now)) return { ok: false, reason: `Breakfast ends ${s.breakfastUntil}`, rule: "breakfast" };
   if ((ctx.ordersToday || 0) >= s.maxOrdersPerDay) return { ok: false, reason: "No breaks left today", rule: "orders" };
-  const current = counts(ctx.items || [], ctx.menu);
+  const current = counts(lineIds(ctx.items), ctx.menu);
   const max = s[TYPES[item.type].limit];
   if (current.counts[item.type] + 1 > max)
     return { ok: false, reason: max === 0 ? `${TYPES[item.type].plural} not included` : `Only ${limitLabel(item.type, max)}`, rule: item.type };
@@ -295,9 +440,9 @@ export function canAdd(item, ctx) {
 export function createOrder({ crew, items, note = "", menu, settings, orders, no, now = new Date(), id }) {
   const s = normalizeSettings(settings);
   const day = dayKey(now, s.timeZone);
-  const list = Array.isArray(items) ? items.filter((x) => typeof x === "string").slice(0, 12) : [];
+  const lines = normalizeLines(items);
   const mine = crewDay(orders, crew.id, day);
-  const result = evaluate({ items: list, menu, settings: s, used: mine.pointsUsed, ordersToday: mine.count, now });
+  const result = evaluate({ items: lines, menu, settings: s, used: mine.pointsUsed, ordersToday: mine.count, now });
   if (!result.ok) {
     const error = new Error(result.errors[0] || "That order breaks the crew meal rules");
     error.code = "RULES";
@@ -313,9 +458,11 @@ export function createOrder({ crew, items, note = "", menu, settings, orders, no
     day,
     crewId: crew.id,
     crewName: String(crew.name || "Crew member").slice(0, 80),
-    items: list.map((itemId) => {
-      const item = byId[itemId];
-      return { id: item.id, name: item.name, type: item.type, pts: item.pts, icon: item.icon, ...(item.tint ? { tint: item.tint } : {}) };
+    items: lines.map((line) => {
+      const item = byId[line.id];
+      // Only this item's own customisations, in the menu's order.
+      const mods = (item.options || []).filter((option) => line.mods.includes(option));
+      return { id: item.id, name: item.name, type: item.type, pts: item.pts, icon: item.icon, ...(item.tint ? { tint: item.tint } : {}), ...(mods.length ? { mods } : {}) };
     }),
     points: result.points,
     note: String(note || "").trim().slice(0, 80),
