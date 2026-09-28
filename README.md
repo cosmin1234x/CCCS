@@ -103,3 +103,16 @@ McAssist deliberately does not receive unrestricted raw Firestore write access. 
 - `/api/portal-data` also returns recognition, team learning progress and counts, and accepts manager `updateMember` / `giveStars` requests as a server-checked fallback when the deployed rules are older than `firestore.rules`.
 
 Deploy the updated rules with `firebase deploy --only firestore:rules` after review. They allow exactly the browser writes the pages make (manager shift writes, manager pay/badge/notes/McStars edits with a recognition record, a member's own availability) and deny server-only collections such as `assistantPending` and `assistantAudit`.
+
+## Break orders
+
+`/breaks.html` (sidebar **Break orders**, phone **More → Break orders**) lets crew put their own break food through instead of ordering at the kiosk and waiting for a manager. The signed-in account is the crew member, so there is no separate login or PIN.
+
+- **Order**: category tabs, the points menu with food illustrations, a live tray with the rules checklist and **Put it through**. Items that would break a rule are locked with the reason ("Only 1 main per break", "Needs 2 pts · 1 left"). The result is a numbered ticket (B-001…) to show when collecting the food.
+- **My breaks**: today's tickets, points and break orders left, and the last two weeks.
+- **Rules & points**: the store's rules in plain words, live examples and the points menu.
+- **Manager** (managers only): today's breaks, points used, manager time saved, points by crew, the break log with **Void** (gives the points back), earlier days, CSV export, the points menu editor (points, main/side/drink/treat, available today) and the rules (points a day, breaks a day, items per break, sides need a main, breakfast cut-off).
+
+Default rules: 4 points a day, 2 break orders a day, 1 main, 1 side (with a main), 1 drink (free) and 1 treat per break, breakfast until 10:30 (UK time). The default points are in `breaks-core.js` (`DEFAULT_MENU`); check them against the store's own list and adjust them under Manager → Points menu.
+
+Data: `/api/breaks` (Firebase ID token) writes `stores/{storeId}/breakOrders`, `stores/{storeId}/breakConfig/current` and `stores/{storeId}/breakDays/{day}` with Firebase Admin. The rules (`breaks-core.js`) run on the phone and again on the server inside a transaction, so nobody can go over their points by editing the page or tapping twice. Deploy the updated `firestore.rules`: crew can read only their own break orders, managers their store's, and no browser can write them. Preview mode (`?preview=crew` / `?preview=manager`) uses a sample day kept in the tab. There is no kitchen screen: the ticket is what crew show when they collect their food.

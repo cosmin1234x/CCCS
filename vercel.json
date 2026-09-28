@@ -35,6 +35,10 @@
     {
       "source": "/waste",
       "destination": "/waste.html"
+    },
+    {
+      "source": "/breaks",
+      "destination": "/breaks.html"
     }
   ],
   "buildCommand": "npm run build",
@@ -77,6 +81,9 @@
       "includeFiles": "module-data.js"
     },
     "api/waste.js": {
+      "maxDuration": 20
+    },
+    "api/breaks.js": {
       "maxDuration": 20
     }
   }

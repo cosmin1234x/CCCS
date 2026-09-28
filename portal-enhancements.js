@@ -8,6 +8,7 @@ import {
 import { renderTraining, renderModule } from "./training-ui.js";
 import { renderAssistant, installAssistantLauncher } from "./mcassist-ui.js";
 import { renderWaste } from "./waste-page.js";
+import { renderBreaks } from "./breaks-page.js";
 import {
   setButtonState,
   shake,
@@ -712,7 +713,7 @@ function enhanceSignup() {
 }
 
 // Shared helpers handed to the feature modules (training-ui.js,
-// mcassist-ui.js, waste-page.js). Keep this the only coupling point.
+// mcassist-ui.js, waste-page.js, breaks-page.js). Keep this the only coupling point.
 function createKit() {
   return {
     $,
@@ -1466,6 +1467,7 @@ async function enhanceLoggedIn() {
   if (isAssistantRoute()) renderAssistant(data, kit);
   else installAssistantLauncher(data, kit);
   if (path === "waste.html") await renderWaste(data, kit);
+  if (path === "breaks.html") await renderBreaks(data, kit);
   await renderVerification(data);
 }
 

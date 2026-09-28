@@ -96,6 +96,8 @@ const icons = {
     "M4 8h12v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8Zm12 1h2a3 3 0 0 1 0 6h-2M7 2v3m5-3v3M2 23h18",
   waste:
     "M4 7h16M9 7V4h6v3m-9 0 1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6m4-6v6",
+  burger:
+    "M4 11c0-3.9 3.6-7 8-7s8 3.1 8 7ZM3 14.5h18M5 17.5h14v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z",
   grid: "M4 4h6.5v6.5H4ZM13.5 4H20v6.5h-6.5ZM4 13.5h6.5V20H4Zm9.5 0H20V20h-6.5Z",
   planner:
     "M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2m7 9v5m-2.5-2.5h5",
@@ -128,6 +130,7 @@ const routes = {
   wrapped: "training",
   admin: "team",
   waste: "waste",
+  breaks: "breaks",
 };
 let page = params.get("view") || routes[path] || "home";
 if (
@@ -142,6 +145,7 @@ if (
     "availability",
     "assistant",
     "waste",
+    "breaks",
   ].includes(page)
 )
   page = "home";
@@ -202,6 +206,7 @@ const url = (target = "home", extra = {}) => {
     rewards: "break-rewards",
     team: "admin",
     waste: "waste",
+    breaks: "breaks",
   };
   const p = new URLSearchParams(extra);
   if (!paths[target]) p.set("view", target);
@@ -258,6 +263,7 @@ function navItems() {
     { target: "home", label: "Home", short: "Home", icon: "home", tab: true },
     { target: "schedule", label: "My shifts", short: "Shifts", icon: "calendar", tab: true },
     { target: "training", label: "My learning", short: "Learn", icon: "book", tab: true },
+    { target: "breaks", label: "Break orders", short: "Breaks", icon: "burger", note: "Order your crew meal" },
     { target: "rewards", label: "My McStars", short: "McStars", icon: "star", note: "Recognition" },
     ...(manager
       ? [
@@ -311,6 +317,7 @@ function shellMarkup() {
       availability: "My availability",
       assistant: "McAssist",
       waste: "Waste",
+      breaks: "Break orders",
       verification: verifyLabel(),
     }[current] || "Home";
   const other = preview === "crew" ? "manager" : "crew";
