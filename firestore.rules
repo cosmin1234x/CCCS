@@ -204,6 +204,28 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Break orders (breaks.html) are written only by /api/breaks, which checks
+    // the crew meal rules (points, main/side). Crew read their own orders,
+    // managers read the store's. The rules/points config is readable in-store.
+    match /stores/{storeId}/breakOrders/{orderId} {
+      allow read: if signedIn()
+        && sameStore(storeId)
+        && (
+          normalManagerRole()
+          || resource.data.crewId == request.auth.uid
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /stores/{storeId}/breakConfig/{configId} {
+      allow read: if signedIn() && sameStore(storeId);
+      allow create, update, delete: if false;
+    }
+
+    match /stores/{storeId}/breakDays/{day} {
+      allow read, write: if false;
+    }
+
     // Server-only: McAssist pending plans and the audit trail.
     match /stores/{storeId}/assistantPending/{document=**} {
       allow read, write: if false;

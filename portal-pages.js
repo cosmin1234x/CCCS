@@ -51,6 +51,9 @@ export function renderPage(page, c) {
   // The waste counter is rendered by waste-page.js once the page loads.
   const waste = () =>
     `<div class="page-loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><p>Opening the waste counter…</p></div>`;
+  // Break orders are rendered by breaks-page.js once the page loads.
+  const breaks = () =>
+    `<div class="page-loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><p>Opening break orders…</p></div>`;
   return {
     home,
     schedule,
@@ -62,5 +65,6 @@ export function renderPage(page, c) {
     rewards,
     assistant,
     waste,
+    breaks,
   }[page]();
 }

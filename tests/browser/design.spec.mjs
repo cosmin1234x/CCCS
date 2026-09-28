@@ -193,6 +193,7 @@ const PAGES = [
   ["team", "/admin.html"],
   ["verification", "/verification.html"],
   ["waste", "/waste.html"],
+  ["breaks", "/breaks.html"],
 ];
 const withPreview = (url, role) =>
   url + (url.includes("?") ? "&" : "?") + "preview=" + role;
@@ -232,7 +233,7 @@ for (const role of ["crew", "manager"]) {
         const nav = page.getByRole("navigation", { name: "Main navigation" });
         await expect(nav).toBeVisible();
         const links = nav.getByRole("link");
-        await expect(links).toHaveCount(role === "manager" ? 9 : 7);
+        await expect(links).toHaveCount(role === "manager" ? 10 : 8);
         const sidebar = await page.locator(".sidebar").boundingBox();
         if (width < 1200) expect(sidebar.width).toBeLessThan(120);
         else expect(sidebar.width).toBeGreaterThan(200);
@@ -293,6 +294,7 @@ test("phone More sheet opens, lists every other destination and closes", async (
     "Shift planner",
     "Verifications",
     "Waste",
+    "Break orders",
     "My availability",
   ])
     await expect(nav.getByRole("link", { name: new RegExp(label) })).toBeVisible();
@@ -325,8 +327,9 @@ test("crew More sheet shows crew destinations only", async ({ page }) => {
   await openShell(page, "/schedule.html?preview=crew");
   await page.getByRole("button", { name: "More", exact: true }).tap();
   const nav = page.getByRole("navigation", { name: "More destinations" });
-  await expect(nav.getByRole("link")).toHaveCount(4);
+  await expect(nav.getByRole("link")).toHaveCount(5);
   await expect(nav.getByRole("link", { name: /Waste/ })).toBeVisible();
+  await expect(nav.getByRole("link", { name: /Break orders/ })).toBeVisible();
   await expect(nav.getByRole("link", { name: /Shift planner/ })).toHaveCount(0);
 });
 
